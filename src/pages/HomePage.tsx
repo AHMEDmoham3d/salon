@@ -67,7 +67,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
             </span>
             <h1 className="mt-5 font-display text-4xl font-extrabold leading-tight text-amber-50 sm:text-6xl">
               {lang === 'ar' ? (
-                <>محل حلاقة <span className="text-amber-400">البريمي</span></>
+                <>محل حلاقة <span className="text-amber-400"></span></>
               ) : (
                 <><span className="text-amber-400">Al-Barimi</span> Barbershop</>
               )}
