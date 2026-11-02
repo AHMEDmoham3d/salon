@@ -33,6 +33,7 @@ import {
   Download,
   Lock,
   ShieldCheck,
+  Settings,
 } from 'lucide-react';
 import Modal from '@/components/Modal';
 import {
@@ -64,8 +65,9 @@ import {
 } from '@/lib/api';
 import { REGULAR_HAIRCUT_PRICE, COMPANY_FEE_PER_VISIT, COMPANY_NAME, SYSTEM_NAME } from '@/lib/supabase';
 import { getShopById } from '@/lib/shopApi';
+import ShopSettingsTab from '@/components/ShopSettingsTab';
 
-type Tab = 'overview' | 'customers' | 'visits' | 'revenue' | 'subscriptions';
+type Tab = 'overview' | 'customers' | 'visits' | 'revenue' | 'subscriptions' | 'settings';
 
 export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout: () => void }) {
   const [tab, setTab] = useState<Tab>('overview');
@@ -114,6 +116,7 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
     { k: 'visits', label: 'الزيارات', icon: Receipt },
     { k: 'subscriptions', label: 'الاشتراكات', icon: CalendarClock },
     { k: 'revenue', label: 'الإيرادات', icon: Wallet },
+    { k: 'settings', label: 'إعدادات المحل', icon: Settings },
   ];
 
   return (
@@ -185,6 +188,10 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
       {tab === 'visits' && <VisitsTab shopId={shopId} customers={customers} regularHaircutPrice={regularHaircutPrice} onSelectCustomer={setSelected} />}
       {tab === 'subscriptions' && <SubscriptionsTab customers={customers} onSelectCustomer={setSelected} />}
       {tab === 'revenue' && <RevenueTab shopId={shopId} customers={customers} />}
+      {tab === 'settings' && <ShopSettingsTab shopId={shopId} onUpdated={(shop) => {
+        setShopInfo({ shop_name: shop.shop_name, owner_name: shop.owner_name, logo_url: shop.logo_url ?? null });
+        setRegularHaircutPrice(Number(shop.regular_haircut_price ?? REGULAR_HAIRCUT_PRICE));
+      }} />}
 
       <AddCustomerModal
         shopId={shopId}
