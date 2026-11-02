@@ -7,7 +7,7 @@ export default function Logo({ className = '' }: { className?: string }) {
         <Scissors className="h-5 w-5 text-amber-400" strokeWidth={2.5} />
       </div>
       <div className="leading-tight">
-        <p className="font-display text-lg font-extrabold text-stone-900">البريمي</p>
+        <p className="font-display text-lg font-extrabold text-stone-900">FORM</p>
         <p className="text-[10px] font-bold tracking-widest text-amber-600">BARBER SHOP</p>
       </div>
     </div>
