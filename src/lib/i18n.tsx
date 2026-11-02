@@ -9,7 +9,7 @@ const ar: Dict = {
   // Nav
   'nav.home': 'الرئيسية',
   'nav.customer': 'صفحة العميل',
-  'nav.admin': 'لوحة الإدارة',
+  'nav.admin': 'صفحه المحل',
   'nav.menu': 'القائمة',
 
   // Home
@@ -17,7 +17,7 @@ const ar: Dict = {
   'home.title': 'FORM',
   'home.subtitle': 'تجربة حلاقة عصرية متكاملة — باقات اشتراك شهرية، نظام ولاء يكافئ ولاءك، وخدمة احترافية تليق بك. سجّل زياراتك، تابع اشتراكك، واستمتع بمزايا حصرية.',
   'home.customerBtn': 'صفحة العميل',
-  'home.adminBtn': 'لوحة الإدارة',
+  'home.adminBtn': 'صفحه المحل',
   'home.stat.customers': 'عملاء',
   'home.stat.professional': 'احترافية',
   'home.stat.loyalty': 'مكافآت',
@@ -169,7 +169,7 @@ const ar: Dict = {
   'offers.badge': 'عرض خاص',
   'offers.renew': 'جدد الآن ووفّر',
   'offers.renewDesc': 'جدد اشتراكك قبل ما يخلص واحصل على خصم 10% على الباقة القادمة',
-  'offers.refer': 'احلب صاحبك',
+  'offers.refer': 'هات صاحبك',
   'offers.referDesc': 'ادعُ صديق — أول حلاقة ليه مجانية، وتاخد أنت كمان حلاقة مكافأة',
   'offers.vip': 'اقترب من المستوى الذهبي',
   'offers.vipDesc': 'أنت قريب من المستوى الذهبي — خمس حلاقات وتحصل على خصم 20% دائم',
