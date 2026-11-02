@@ -1,3 +1,4 @@
+
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 
 export type Lang = 'ar' | 'en';
@@ -13,7 +14,7 @@ const ar: Dict = {
 
   // Home
   'home.badge': 'حلاقة احترافية بنظام اشتراك وولاء',
-  'home.title': 'محل حلاقة البريمي',
+  'home.title': 'FORM',
   'home.subtitle': 'تجربة حلاقة عصرية متكاملة — باقات اشتراك شهرية، نظام ولاء يكافئ ولاءك، وخدمة احترافية تليق بك. سجّل زياراتك، تابع اشتراكك، واستمتع بمزايا حصرية.',
   'home.customerBtn': 'صفحة العميل',
   'home.adminBtn': 'لوحة الإدارة',
@@ -35,9 +36,9 @@ const ar: Dict = {
   'home.svc5d': 'حلاقة للأطفال في جو مريح وودود',
   'home.svc6': 'حلاقة سريعة',
   'home.svc6d': 'حلاقة على الطاير لمن يبحث عن السرعة والجودة',
-  'home.whyTag': 'لماذا البريمي؟',
+  'home.whyTag': 'لماذا FORM؟',
   'home.whyTitle': 'أكثر من مجرد حلاقة',
-  'home.whyDesc': 'في البريمي لا نكتفي بإتقان الحلاقة — نبني علاقة طويلة مع كل عميل. نظام الاشتراكات الشهرية يوفر عليك، ونظام الولاء يكافئ زياراتك المتكررة بخصومات ومزايا حصرية.',
+  'home.whyDesc': 'في FORM لا نكتفي بإتقان الحلاقة — نبني علاقة طويلة مع كل عميل. نظام الاشتراكات الشهرية يوفر عليك، ونظام الولاء يكافئ زياراتك المتكررة بخصومات ومزايا حصرية.',
   'home.feat1': 'باقات اشتراك مرنة',
   'home.feat1d': 'اختر الباقة المناسبة لك — من حلاقة واحدة إلى باقة VIP شهرية',
   'home.feat2': 'نظام ولاء ذكي',
@@ -60,7 +61,7 @@ const ar: Dict = {
   'home.hours': 'مواعيد العمل',
   'home.hoursVal': 'يومياً 10ص - 11م',
   'home.book': 'للحجز',
-  'home.footer': 'محل حلاقة البريمي © 2026 — جميع الحقوق محفوظة',
+  'home.footer': 'FORM © 2026 — جميع الحقوق محفوظة',
 
   // Customer page
   'cust.title': 'صفحة العميل',
@@ -184,7 +185,7 @@ const en: Dict = {
 
   // Home
   'home.badge': 'Professional barbering with subscription & loyalty',
-  'home.title': 'Al-Barimi Barbershop',
+  'home.title': 'FORM',
   'home.subtitle': 'A complete modern grooming experience — monthly subscription plans, a loyalty system that rewards you, and professional service. Track your visits, monitor your subscription, and enjoy exclusive perks.',
   'home.customerBtn': 'Customer Page',
   'home.adminBtn': 'Admin Panel',
@@ -206,9 +207,9 @@ const en: Dict = {
   'home.svc5d': "Haircuts for kids in a comfortable, friendly atmosphere",
   'home.svc6': 'Quick Cut',
   'home.svc6d': 'Fast cut for those who want speed and quality',
-  'home.whyTag': 'Why Al-Barimi?',
+  'home.whyTag': 'Why FORM?',
   'home.whyTitle': 'More Than Just a Haircut',
-  'home.whyDesc': 'At Al-Barimi we don\'t just master haircuts — we build long-term relationships. Monthly subscriptions save you money, and our loyalty system rewards your repeat visits with exclusive perks.',
+  'home.whyDesc': "At FORM we don't just master haircuts — we build long-term relationships. Monthly subscriptions save you money, and our loyalty system rewards your repeat visits with exclusive perks.",
   'home.feat1': 'Flexible Subscription Plans',
   'home.feat1d': 'Choose the plan that suits you — from a single cut to a monthly VIP package',
   'home.feat2': 'Smart Loyalty System',
@@ -231,7 +232,7 @@ const en: Dict = {
   'home.hours': 'Working Hours',
   'home.hoursVal': 'Daily 10AM - 11PM',
   'home.book': 'To Book',
-  'home.footer': 'Al-Barimi Barbershop © 2026 — All Rights Reserved',
+  'home.footer': 'FORM © 2026 — All Rights Reserved',
 
   // Customer page
   'cust.title': 'Customer Page',
@@ -376,7 +377,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const setLang = (l: Lang) => {
     setLangState(l);
-    try { localStorage.setItem('app_lang', l); } catch { /* ignore */ }
+    try {
+      localStorage.setItem('app_lang', l);
+    } catch {
+      /* ignore */
+    }
   };
 
   const t = (key: string) => dicts[lang][key] ?? key;
