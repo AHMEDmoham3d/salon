@@ -16,6 +16,7 @@ import {
   Search,
   Trash2,
   X,
+  LogOut,
 } from 'lucide-react';
 import Modal from '@/components/Modal';
 import {
@@ -32,7 +33,7 @@ import {
 import { COMPANY_FEE_PER_VISIT, COMPANY_NAME, SYSTEM_NAME } from '@/lib/supabase';
 import { formatPrice, formatDate, formatDateTime } from '@/lib/api';
 
-export default function CompanyPage() {
+export default function CompanyPage({ onLogout }: { onLogout: () => void | Promise<void> }) {
   const [shops, setShops] = useState<Shop[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -115,9 +116,19 @@ export default function CompanyPage() {
                 </p>
               </div>
             </div>
-            <div className="hidden items-center gap-2 rounded-xl bg-amber-500/10 px-4 py-2 text-amber-400 sm:flex">
-              <ShieldCheck className="h-4 w-4" />
-              <span className="text-xs font-bold">دخول مخصص — أحمد</span>
+            <div className="flex items-center gap-2">
+              <div className="hidden items-center gap-2 rounded-xl bg-amber-500/10 px-4 py-2 text-amber-400 sm:flex">
+                <ShieldCheck className="h-4 w-4" />
+                <span className="text-xs font-bold">حساب شركة معتمد</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => void onLogout()}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-bold text-amber-50 transition hover:bg-white/10"
+              >
+                <LogOut className="h-4 w-4" />
+                تسجيل الخروج
+              </button>
             </div>
           </div>
         </div>
