@@ -1,7 +1,11 @@
+
 import { supabase, type Shop, type ShopAdmin, type ShopStatus, COMPANY_FEE_PER_VISIT } from './supabase';
-import { getVisitsByCustomer } from './api';
 
 export type { Shop, ShopAdmin, ShopStatus };
+
+const SHOP_LOGOS_BUCKET = 'shop-logos';
+const MAX_SHOP_LOGO_SIZE = 2 * 1024 * 1024;
+const ALLOWED_SHOP_LOGO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
 /* ---------- Shop registration ---------- */
 export type ShopRegistration = {
@@ -61,7 +65,7 @@ export async function registerShop(data: ShopRegistration): Promise<{ shop: Shop
 
 /* ---------- Admin login (shop-scoped) ---------- */
 export async function adminLogin(phone: string, email: string): Promise<{ shop: Shop; admin: ShopAdmin } | null> {
-  // Match admin by phone AND email, then get the associated shop
+  // Match admin by phone AND email, then get the associated shop.
   const { data: admin, error } = await supabase
     .from('shop_admins')
     .select('*, shop:shops(*)')
@@ -87,6 +91,77 @@ export async function getShopAdmin(shopId: string): Promise<ShopAdmin | null> {
     .maybeSingle();
   if (error) throw error;
   return data;
+}
+
+/* ---------- Shop branding and settings ---------- */
+export type ShopSettingsUpdate = {
+  shop_name?: string;
+  logo_url?: string | null;
+  regular_haircut_price?: number;
+};
+
+/**
+ * Update the shop's display name, logo URL, and/or ordinary haircut price.
+ * Only fields explicitly provided by the caller are sent to Supabase.
+ */
+export async function updateShopSettings(shopId: string, updates: ShopSettingsUpdate): Promise<Shop> {
+  if (!shopId) throw new Error('معرّف المحل غير موجود.');
+
+  if (
+    updates.regular_haircut_price !== undefined &&
+    (!Number.isFinite(updates.regular_haircut_price) || updates.regular_haircut_price < 0)
+  ) {
+    throw new Error('سعر الحلاقة يجب أن يكون رقمًا صحيحًا أكبر من أو يساوي صفر.');
+  }
+
+  const payload: ShopSettingsUpdate & { updated_at: string } = {
+    ...updates,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from('shops')
+    .update(payload)
+    .eq('id', shopId)
+    .select('*')
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Upload a shop logo to the public shop-logos bucket and save its public URL
+ * in shops.logo_url. Accepted formats: JPEG, PNG, and WebP; maximum size: 2 MB.
+ */
+export async function uploadShopLogo(shopId: string, file: File): Promise<Shop> {
+  if (!shopId) throw new Error('معرّف المحل غير موجود.');
+  if (!file) throw new Error('من فضلك اختر صورة للشعار.');
+  if (!ALLOWED_SHOP_LOGO_TYPES.includes(file.type)) {
+    throw new Error('صيغة الصورة غير مدعومة. استخدم JPG أو PNG أو WebP.');
+  }
+  if (file.size > MAX_SHOP_LOGO_SIZE) {
+    throw new Error('حجم الشعار يجب ألا يزيد عن 2 ميجابايت.');
+  }
+
+  const fileExtension = file.type === 'image/jpeg' ? 'jpg' : file.type.split('/')[1];
+  const filePath = `${shopId}/logo-${Date.now()}.${fileExtension}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from(SHOP_LOGOS_BUCKET)
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      contentType: file.type,
+      upsert: true,
+    });
+
+  if (uploadError) throw uploadError;
+
+  const { data: publicUrlData } = supabase.storage
+    .from(SHOP_LOGOS_BUCKET)
+    .getPublicUrl(filePath);
+
+  return updateShopSettings(shopId, { logo_url: publicUrlData.publicUrl });
 }
 
 /* ---------- Company dashboard: all shops ---------- */

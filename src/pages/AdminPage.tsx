@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useState } from 'react';
 import {
   Search,
@@ -43,6 +44,7 @@ import {
   getActiveSubscription,
   getVisitsByCustomer,
   getPlans,
+  getShopRegularHaircutPrice,
   getRevenueStats,
   getSubscriptionAlerts,
   blockCustomer,
@@ -73,12 +75,21 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
   const [addOpen, setAddOpen] = useState(false);
   const [selected, setSelected] = useState<Customer | null>(null);
   const [noticeOpen, setNoticeOpen] = useState(false);
-  const [shopInfo, setShopInfo] = useState<{ shop_name: string; owner_name: string } | null>(null);
+  const [shopInfo, setShopInfo] = useState<{ shop_name: string; owner_name: string; logo_url?: string | null } | null>(null);
+  const [regularHaircutPrice, setRegularHaircutPrice] = useState(REGULAR_HAIRCUT_PRICE);
 
   useEffect(() => {
-    getShopById(shopId).then((s) => {
-      if (s) setShopInfo({ shop_name: s.shop_name, owner_name: s.owner_name });
-    }).catch(() => {});
+    let active = true;
+    Promise.all([getShopById(shopId), getShopRegularHaircutPrice(shopId)])
+      .then(([shop, price]) => {
+        if (!active) return;
+        if (shop) {
+          setShopInfo({ shop_name: shop.shop_name, owner_name: shop.owner_name, logo_url: shop.logo_url ?? null });
+        }
+        setRegularHaircutPrice(price);
+      })
+      .catch(() => {});
+    return () => { active = false; };
   }, [shopId]);
 
   const load = useCallback(async () => {
@@ -108,9 +119,19 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
   return (
     <div className="animate-fade-in mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl font-extrabold text-stone-900">لوحة الإدارة</h1>
-          <p className="mt-1 text-sm text-stone-600">إدارة العملاء والاشتراكات والزيارات ونظام الولاء</p>
+        <div className="flex min-w-0 items-center gap-3">
+          {shopInfo?.logo_url ? (
+            <img src={shopInfo.logo_url} alt={`شعار ${shopInfo.shop_name}`} className="h-14 w-14 shrink-0 rounded-2xl border border-stone-200 bg-white object-contain p-1" />
+          ) : (
+            <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-stone-900 font-display text-xl font-extrabold text-amber-400">
+              {shopInfo?.shop_name?.charAt(0) ?? 'م'}
+            </div>
+          )}
+          <div className="min-w-0">
+            <h1 className="font-display text-3xl font-extrabold text-stone-900">{shopInfo?.shop_name || 'لوحة الإدارة'}</h1>
+            <p className="mt-1 text-sm text-stone-600">إدارة العملاء والاشتراكات والزيارات ونظام الولاء</p>
+            <p className="mt-1 text-xs font-bold text-amber-700">سعر الحلاقة العادية: {formatPrice(regularHaircutPrice)}</p>
+          </div>
         </div>
         <div className="flex gap-2">
           <button
@@ -161,7 +182,7 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
           onAdd={() => setAddOpen(true)}
         />
       )}
-      {tab === 'visits' && <VisitsTab shopId={shopId} customers={customers} onSelectCustomer={setSelected} />}
+      {tab === 'visits' && <VisitsTab shopId={shopId} customers={customers} regularHaircutPrice={regularHaircutPrice} onSelectCustomer={setSelected} />}
       {tab === 'subscriptions' && <SubscriptionsTab customers={customers} onSelectCustomer={setSelected} />}
       {tab === 'revenue' && <RevenueTab shopId={shopId} customers={customers} />}
 
@@ -174,7 +195,7 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
           load();
         }}
       />
-      <CustomerDrawer shopId={shopId} customer={selected} onClose={() => setSelected(null)} onChanged={load} />
+      <CustomerDrawer shopId={shopId} regularHaircutPrice={regularHaircutPrice} customer={selected} onClose={() => setSelected(null)} onChanged={load} />
       <CompanyNoticeModal open={noticeOpen} onClose={() => setNoticeOpen(false)} shopInfo={shopInfo} />
     </div>
   );
@@ -686,10 +707,12 @@ type VisitRow = { customer: Customer; sub: Subscription | null; visitToday: Visi
 function VisitsTab({
   shopId,
   customers,
+  regularHaircutPrice,
   onSelectCustomer,
 }: {
   shopId: string;
   customers: Customer[];
+  regularHaircutPrice: number;
   onSelectCustomer: (c: Customer) => void;
 }) {
   const [rows, setRows] = useState<VisitRow[]>([]);
@@ -895,7 +918,7 @@ function VisitsTab({
                     className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-stone-950 transition hover:bg-amber-600"
                   >
                     <Scissors className="h-4 w-4" />
-                    زاره — {formatPrice(REGULAR_HAIRCUT_PRICE)}
+                    زاره — {formatPrice(regularHaircutPrice)}
                   </button>
                 )}
               </div>
@@ -1222,11 +1245,13 @@ function AddCustomerModal({
 /* ---------- Customer drawer (full management with block/delete) ---------- */
 function CustomerDrawer({
   shopId,
+  regularHaircutPrice,
   customer,
   onClose,
   onChanged,
 }: {
   shopId: string;
+  regularHaircutPrice: number;
   customer: Customer | null;
   onClose: () => void;
   onChanged: () => void;
@@ -1246,13 +1271,13 @@ function CustomerDrawer({
     const [s, v, p] = await Promise.all([
       getActiveSubscription(customer.id),
       getVisitsByCustomer(customer.id),
-      getPlans(),
+      getPlans(shopId),
     ]);
     setSub(s);
     setVisits(v);
     setPlans(p);
     setLoading(false);
-  }, [customer]);
+  }, [customer, shopId]);
 
   useEffect(() => {
     load();
@@ -1410,7 +1435,7 @@ function CustomerDrawer({
           ) : (
             <p className="mt-2 flex items-center gap-1.5 text-xs text-amber-700">
               <Info className="h-3.5 w-3.5" />
-              ستحسب كحلاقة عادية بقيمة {formatPrice(REGULAR_HAIRCUT_PRICE)}
+              ستحسب كحلاقة عادية بقيمة {formatPrice(regularHaircutPrice)}
             </p>
           )}
         </div>
@@ -1507,6 +1532,7 @@ function CustomerDrawer({
         }}
       />
       <RecordVisitModal
+        regularHaircutPrice={regularHaircutPrice}
         open={visitOpen}
         onClose={() => setVisitOpen(false)}
         active={active}
@@ -1593,12 +1619,14 @@ function SubscribeModal({
 }
 
 function RecordVisitModal({
+  regularHaircutPrice,
   open,
   onClose,
   active,
   remaining,
   onRecord,
 }: {
+  regularHaircutPrice: number;
   open: boolean;
   onClose: () => void;
   active: boolean;
@@ -1660,7 +1688,7 @@ function RecordVisitModal({
           ) : (
             <span className="flex items-center gap-1.5">
               <Coins className="h-4 w-4" />
-              ستحسب كحلاقة عادية بقيمة {formatPrice(REGULAR_HAIRCUT_PRICE)}
+              ستحسب كحلاقة عادية بقيمة {formatPrice(regularHaircutPrice)}
             </span>
           )}
         </div>

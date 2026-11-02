@@ -1,3 +1,7 @@
+
+اسم الملف المطلوب استبداله: src/lib/supabase.ts
+==================================================
+
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -7,6 +11,13 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: { persistSession: false },
 });
 
+/**
+ * Subscription plan belonging to a shop.
+ *
+ * shop_id is nullable/optional for backward compatibility with plans that
+ * existed before shop-specific plans were introduced. New plans should always
+ * be created with the current shop_id.
+ */
 export type Plan = {
   id: string;
   name: string;
@@ -15,6 +26,7 @@ export type Plan = {
   price: number;
   duration_days: number;
   is_active: boolean;
+  shop_id?: string | null;
   created_at: string;
 };
 
@@ -38,6 +50,7 @@ export type Subscription = {
   end_date: string;
   haircuts_used: number;
   status: SubscriptionStatus;
+  shop_id?: string | null;
   created_at: string;
   plan?: Plan;
 };
@@ -53,6 +66,7 @@ export type Visit = {
   charge_amount: number;
   visit_date: string;
   notes: string | null;
+  shop_id?: string | null;
   created_at: string;
 };
 
@@ -62,6 +76,10 @@ export type CustomerWithStats = Customer & {
   total_paid: number;
 };
 
+/**
+ * Legacy/default haircut price retained for existing flows and old records.
+ * Shop-specific screens should use shop.regular_haircut_price instead.
+ */
 export const REGULAR_HAIRCUT_PRICE = 50;
 
 export const COMPANY_FEE_PER_VISIT = 10;
@@ -85,6 +103,10 @@ export type Shop = {
   year_started: number | null;
   approved_at: string | null;
   status: ShopStatus;
+  /** Public URL of this shop's logo in Supabase Storage. */
+  logo_url?: string | null;
+  /** Shop-specific price for an ordinary haircut. */
+  regular_haircut_price?: number;
   created_at: string;
   updated_at: string;
 };

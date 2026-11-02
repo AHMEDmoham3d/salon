@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import {
   Scissors,
@@ -44,7 +45,7 @@ import {
   type Visit,
   type Plan,
 } from '@/lib/api';
-import { getAllShops } from '@/lib/shopApi';
+import { getAllShops, getShopById, type Shop } from '@/lib/shopApi';
 import { useI18n } from '@/lib/i18n';
 
 export default function CustomerPage() {
@@ -84,7 +85,7 @@ export default function CustomerPage() {
   };
 
   if (customer && shopId) {
-    return <CustomerDetail customer={customer} shopName={shopName} onLogout={handleLogout} />;
+    return <CustomerDetail customer={customer} shopId={shopId} shopName={shopName} onLogout={handleLogout} />;
   }
   return <ShopSelect onLogin={handleLogin} />;
 }
@@ -639,24 +640,32 @@ function OffersWidget({ totalVisits, active, daysLeft }: { totalVisits: number; 
 }
 
 /* ---------- Customer detail ---------- */
-function CustomerDetail({ customer, shopName, onLogout }: { customer: Customer; shopName: string | null; onLogout: () => void }) {
+function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Customer; shopId: string; shopName: string | null; onLogout: () => void }) {
   const { t, lang } = useI18n();
   const [sub, setSub] = useState<Subscription | null>(null);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [shop, setShop] = useState<Shop | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const [s, v, p] = await Promise.all([
-        getActiveSubscription(customer.id), getVisitsByCustomer(customer.id), getPlans(),
+      const [s, v, p, shopData] = await Promise.all([
+        getActiveSubscription(customer.id),
+        getVisitsByCustomer(customer.id),
+        getPlans(shopId),
+        getShopById(shopId),
       ]);
       if (!mounted) return;
-      setSub(s); setVisits(v); setPlans(p); setLoading(false);
+      setSub(s);
+      setVisits(v);
+      setPlans(p);
+      setShop(shopData);
+      setLoading(false);
     })();
     return () => { mounted = false; };
-  }, [customer]);
+  }, [customer.id, shopId]);
 
   if (loading) {
     return (
@@ -698,14 +707,23 @@ function CustomerDetail({ customer, shopName, onLogout }: { customer: Customer; 
       {/* Header card */}
       <div className="card overflow-hidden">
         <div className="flex items-center gap-4 bg-gradient-to-br from-stone-900 to-stone-800 p-5 text-amber-50">
-          <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-amber-500/20 font-display text-2xl font-extrabold text-amber-400">
-            {customer.name.charAt(0)}
+          <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-amber-500/20 font-display text-2xl font-extrabold text-amber-400">
+            {shop?.logo_url ? (
+              <img src={shop.logo_url} alt={shop.shop_name || shopName || 'Shop logo'} className="h-full w-full object-cover" />
+            ) : (
+              (shopName || customer.name).charAt(0)
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <h2 className="truncate font-display text-2xl font-extrabold">{customer.name}</h2>
             <p className="text-sm text-stone-400">
-              {shopName ? `${shopName} • ` : ''}{t('cust.customerSince')} {formatDate(customer.created_at)}
+              {shop?.shop_name || shopName ? `${shop?.shop_name || shopName} • ` : ''}{t('cust.customerSince')} {formatDate(customer.created_at)}
             </p>
+            {shop && (
+              <p className="mt-1 text-xs font-bold text-amber-300">
+                {lang === 'ar' ? 'سعر الحلاقة العادية:' : 'Regular haircut:'} {formatPrice(Number(shop.regular_haircut_price ?? 50))}
+              </p>
+            )}
           </div>
         </div>
 

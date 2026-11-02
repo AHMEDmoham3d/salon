@@ -1,16 +1,40 @@
+
 import { supabase, type Customer, type Subscription, type Visit, type Plan, type PaymentType, REGULAR_HAIRCUT_PRICE, COMPANY_FEE_PER_VISIT } from './supabase';
 
 export type { Customer, Subscription, Visit, Plan, PaymentType };
 export { COMPANY_FEE_PER_VISIT };
 
-export async function getPlans(): Promise<Plan[]> {
-  const { data, error } = await supabase
+/**
+ * Returns active plans. When shopId is supplied, only plans belonging to that
+ * shop are returned. Legacy plans with a NULL shop_id are intentionally not
+ * included in a shop-specific list.
+ */
+export async function getPlans(shopId?: string): Promise<Plan[]> {
+  let query = supabase
     .from('plans')
     .select('*')
-    .eq('is_active', true)
-    .order('price', { ascending: true });
+    .eq('is_active', true);
+
+  if (shopId) {
+    query = query.eq('shop_id', shopId);
+  }
+
+  const { data, error } = await query.order('price', { ascending: true });
   if (error) throw error;
   return data ?? [];
+}
+
+/** Returns the ordinary haircut price configured for a shop. */
+export async function getShopRegularHaircutPrice(shopId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from('shops')
+    .select('regular_haircut_price')
+    .eq('id', shopId)
+    .single();
+
+  if (error) throw error;
+  const price = Number(data?.regular_haircut_price);
+  return Number.isFinite(price) && price >= 0 ? price : REGULAR_HAIRCUT_PRICE;
 }
 
 export async function getCustomers(): Promise<Customer[]> {
@@ -98,8 +122,11 @@ export async function getSubscriptionsByCustomer(customerId: string): Promise<Su
 }
 
 export async function createSubscription(customerId: string, planId: string, shopId?: string): Promise<Subscription> {
-  const { data: plan } = await supabase.from('plans').select('*').eq('id', planId).single();
-  if (!plan) throw new Error('الباقة غير موجودة');
+  let planQuery = supabase.from('plans').select('*').eq('id', planId);
+  if (shopId) planQuery = planQuery.eq('shop_id', shopId);
+  const { data: plan, error: planError } = await planQuery.maybeSingle();
+  if (planError) throw planError;
+  if (!plan) throw new Error('الباقة غير موجودة أو لا تتبع هذا المحل');
   const start = new Date();
   const end = new Date(start);
   end.setDate(end.getDate() + plan.duration_days);
@@ -133,7 +160,7 @@ export async function getVisitsByCustomer(customerId: string): Promise<Visit[]> 
 export async function recordVisitAt(
   customerId: string,
   visitDate: string,
-  opts: { haircutType?: string; notes?: string; forcePaid?: boolean; customCharge?: number }
+  opts: { haircutType?: string; notes?: string; forcePaid?: boolean; customCharge?: number; shopId?: string }
 ): Promise<RecordVisitResult> {
   const sub = await getActiveSubscription(customerId);
   const canUseSubscription =
@@ -153,6 +180,7 @@ export async function recordVisitAt(
         charge_amount: 0,
         notes: opts.notes ?? null,
         visit_date: visitDate,
+        shop_id: opts.shopId ?? null,
       })
       .select('*')
       .single();
@@ -167,7 +195,10 @@ export async function recordVisitAt(
     return { visit, subscription: updatedSub, coveredBySubscription: true };
   }
 
-  const charge = opts.customCharge ?? REGULAR_HAIRCUT_PRICE;
+  const defaultCharge = opts.shopId
+    ? await getShopRegularHaircutPrice(opts.shopId)
+    : REGULAR_HAIRCUT_PRICE;
+  const charge = opts.customCharge ?? defaultCharge;
   const { data: visit, error: vErr } = await supabase
     .from('visits')
     .insert({
@@ -178,6 +209,7 @@ export async function recordVisitAt(
       charge_amount: charge,
       notes: opts.notes ?? null,
       visit_date: visitDate,
+      shop_id: opts.shopId ?? null,
     })
     .select('*')
     .single();
@@ -227,7 +259,10 @@ export async function recordVisit(
     return { visit, subscription: updatedSub, coveredBySubscription: true };
   }
 
-  const charge = opts.customCharge ?? REGULAR_HAIRCUT_PRICE;
+  const defaultCharge = opts.shopId
+    ? await getShopRegularHaircutPrice(opts.shopId)
+    : REGULAR_HAIRCUT_PRICE;
+  const charge = opts.customCharge ?? defaultCharge;
   const { data: visit, error: vErr } = await supabase
     .from('visits')
     .insert({
