@@ -243,21 +243,21 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
           <h2 className="font-display text-3xl font-extrabold sm:text-4xl">{t('home.visitUs')}</h2>
           <p className="mt-3 text-stone-300">{t('home.visitDesc')}</p>
           <div className="mt-8 grid gap-4 sm:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+            {/* <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
               <MapPin className="mx-auto h-6 w-6 text-amber-400" />
               <p className="mt-2 font-bold">{t('home.address')}</p>
               <p className="mt-1 text-sm text-stone-400">{t('home.addressVal')}</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+            </div> */}
+            {/* <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
               <Clock className="mx-auto h-6 w-6 text-amber-400" />
               <p className="mt-2 font-bold">{t('home.hours')}</p>
               <p className="mt-1 text-sm text-stone-400">{t('home.hoursVal')}</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+            </div> */}
+            {/* <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
               <Phone className="mx-auto h-6 w-6 text-amber-400" />
               <p className="mt-2 font-bold">{t('home.book')}</p>
               <p className="mt-1 text-sm text-stone-400" dir="ltr">0100 123 4567</p>
-            </div>
+            </div> */}
           </div>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <button onClick={() => onNavigate('customer')} className="btn-gold">
