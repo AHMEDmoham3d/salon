@@ -438,106 +438,106 @@ function ConsultationStep<T extends string>({
 }
 
 /* ---------- Booking widget ---------- */
-function BookingWidget({ customerName }: { customerName: string }) {
-  const { t, lang } = useI18n();
-  const [open, setOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState('');
-  const [selectedTime, setSelectedTime] = useState('');
-  const [booked, setBooked] = useState<{ date: string; time: string } | null>(null);
+// function BookingWidget({ customerName }: { customerName: string }) {
+//   const { t, lang } = useI18n();
+//   const [open, setOpen] = useState(false);
+//   const [selectedDate, setSelectedDate] = useState('');
+//   const [selectedTime, setSelectedTime] = useState('');
+//   const [booked, setBooked] = useState<{ date: string; time: string } | null>(null);
 
-  const dates = (() => {
-    const arr: { val: string; label: string }[] = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      const val = d.toISOString().slice(0, 10);
-      const label = i === 0 ? t('booking.today') : i === 1 ? t('booking.tomorrow') :
-        new Intl.DateTimeFormat(lang === 'ar' ? 'ar-EG' : 'en-US', { day: 'numeric', month: 'short' }).format(d);
-      arr.push({ val, label });
-    }
-    return arr;
-  })();
+//   const dates = (() => {
+//     const arr: { val: string; label: string }[] = [];
+//     for (let i = 0; i < 7; i++) {
+//       const d = new Date();
+//       d.setDate(d.getDate() + i);
+//       const val = d.toISOString().slice(0, 10);
+//       const label = i === 0 ? t('booking.today') : i === 1 ? t('booking.tomorrow') :
+//         new Intl.DateTimeFormat(lang === 'ar' ? 'ar-EG' : 'en-US', { day: 'numeric', month: 'short' }).format(d);
+//       arr.push({ val, label });
+//     }
+//     return arr;
+//   })();
 
-  const times = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00'];
+//   const times = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00'];
 
-  const confirm = () => {
-    if (!selectedDate || !selectedTime) return;
-    setBooked({ date: selectedDate, time: selectedTime });
-    setOpen(false);
-  };
+//   const confirm = () => {
+//     if (!selectedDate || !selectedTime) return;
+//     setBooked({ date: selectedDate, time: selectedTime });
+//     setOpen(false);
+//   };
 
-  return (
-    <div className="card overflow-hidden">
-      <div className="flex items-center gap-3 bg-gradient-to-br from-stone-900 to-stone-800 p-4 text-amber-50">
-        <div className="grid h-10 w-10 place-items-center rounded-xl bg-amber-500/20">
-          <CalendarPlus className="h-5 w-5 text-amber-400" />
-        </div>
-        <div>
-          <p className="font-bold">{t('booking.title')}</p>
-          <p className="text-xs text-stone-400">{t('booking.subtitle')}</p>
-        </div>
-      </div>
-      <div className="p-4">
-        {booked ? (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-700">
-              <CheckCircle2 className="h-4 w-4" /> {t('booking.success')}
-            </div>
-            <div className="rounded-xl bg-stone-50 p-3">
-              <p className="text-xs text-stone-500">{t('booking.pending')}</p>
-              <p className="mt-1 font-bold text-stone-900">
-                {formatDate(booked.date)} — {booked.time}
-              </p>
-              <p className="text-xs text-stone-500">{t('booking.successDesc')}</p>
-            </div>
-            <button onClick={() => setBooked(null)} className="btn-ghost w-full">
-              {t('booking.bookAgain')}
-            </button>
-          </div>
-        ) : open ? (
-          <div className="space-y-3">
-            <div>
-              <label className="label">{t('booking.date')}</label>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {dates.map((d) => (
-                  <button key={d.val} onClick={() => setSelectedDate(d.val)}
-                    className={`shrink-0 rounded-lg border-2 px-3 py-2 text-xs font-bold transition ${
-                      selectedDate === d.val ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300'
-                    }`}>
-                    {d.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="label">{t('booking.time')}</label>
-              <div className="grid grid-cols-4 gap-2">
-                {times.map((tm) => (
-                  <button key={tm} onClick={() => setSelectedTime(tm)} dir="ltr"
-                    className={`rounded-lg border-2 px-2 py-2 text-xs font-bold transition ${
-                      selectedTime === tm ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300'
-                    }`}>
-                    {tm}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={confirm} disabled={!selectedDate || !selectedTime} className="btn-primary flex-1 disabled:opacity-50">
-                <CheckCircle2 className="h-4 w-4" /> {t('booking.confirm')}
-              </button>
-              <button onClick={() => setOpen(false)} className="btn-ghost">{t('booking.cancel')}</button>
-            </div>
-          </div>
-        ) : (
-          <button onClick={() => setOpen(true)} className="btn-primary w-full">
-            <CalendarPlus className="h-4 w-4" /> {t('booking.title')}
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
+//   return (
+//     <div className="card overflow-hidden">
+//       <div className="flex items-center gap-3 bg-gradient-to-br from-stone-900 to-stone-800 p-4 text-amber-50">
+//         <div className="grid h-10 w-10 place-items-center rounded-xl bg-amber-500/20">
+//           <CalendarPlus className="h-5 w-5 text-amber-400" />
+//         </div>
+//         <div>
+//           <p className="font-bold">{t('booking.title')}</p>
+//           <p className="text-xs text-stone-400">{t('booking.subtitle')}</p>
+//         </div>
+//       </div>
+//       <div className="p-4">
+//         {booked ? (
+//           <div className="space-y-3">
+//             <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-700">
+//               <CheckCircle2 className="h-4 w-4" /> {t('booking.success')}
+//             </div>
+//             <div className="rounded-xl bg-stone-50 p-3">
+//               <p className="text-xs text-stone-500">{t('booking.pending')}</p>
+//               <p className="mt-1 font-bold text-stone-900">
+//                 {formatDate(booked.date)} — {booked.time}
+//               </p>
+//               <p className="text-xs text-stone-500">{t('booking.successDesc')}</p>
+//             </div>
+//             <button onClick={() => setBooked(null)} className="btn-ghost w-full">
+//               {t('booking.bookAgain')}
+//             </button>
+//           </div>
+//         ) : open ? (
+//           <div className="space-y-3">
+//             <div>
+//               <label className="label">{t('booking.date')}</label>
+//               <div className="flex gap-2 overflow-x-auto pb-1">
+//                 {dates.map((d) => (
+//                   <button key={d.val} onClick={() => setSelectedDate(d.val)}
+//                     className={`shrink-0 rounded-lg border-2 px-3 py-2 text-xs font-bold transition ${
+//                       selectedDate === d.val ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300'
+//                     }`}>
+//                     {d.label}
+//                   </button>
+//                 ))}
+//               </div>
+//             </div>
+//             <div>
+//               <label className="label">{t('booking.time')}</label>
+//               <div className="grid grid-cols-4 gap-2">
+//                 {times.map((tm) => (
+//                   <button key={tm} onClick={() => setSelectedTime(tm)} dir="ltr"
+//                     className={`rounded-lg border-2 px-2 py-2 text-xs font-bold transition ${
+//                       selectedTime === tm ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300'
+//                     }`}>
+//                     {tm}
+//                   </button>
+//                 ))}
+//               </div>
+//             </div>
+//             <div className="flex gap-2">
+//               <button onClick={confirm} disabled={!selectedDate || !selectedTime} className="btn-primary flex-1 disabled:opacity-50">
+//                 <CheckCircle2 className="h-4 w-4" /> {t('booking.confirm')}
+//               </button>
+//               <button onClick={() => setOpen(false)} className="btn-ghost">{t('booking.cancel')}</button>
+//             </div>
+//           </div>
+//         ) : (
+//           <button onClick={() => setOpen(true)} className="btn-primary w-full">
+//             <CalendarPlus className="h-4 w-4" /> {t('booking.title')}
+//           </button>
+//         )}
+//       </div>
+//     </div>
+//   );
+// }
 
 /* ---------- Referral widget ---------- */
 function ReferralWidget({ customerName }: { customerName: string }) {
@@ -764,7 +764,7 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
       </div>
 
       {/* Booking */}
-      <div className="mt-4"><BookingWidget customerName={customer.name} /></div>
+      {/* <div className="mt-4"><BookingWidget customerName={customer.name} /></div> */}
 
       {/* Hair consultation */}
       <div className="mt-4"><HairConsultation /></div>
