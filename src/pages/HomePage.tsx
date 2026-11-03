@@ -172,7 +172,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
       </section>
 
       {/* Plans */}
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+      {/* <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
         <div className="text-center">
           <p className="text-xs font-bold tracking-widest text-amber-600">{t('home.plansTag')}</p>
           <h2 className="mt-2 font-display text-3xl font-extrabold text-stone-900 sm:text-4xl">{t('home.plansTitle')}</h2>
@@ -224,7 +224,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
                 );
               })}
         </div>
-      </section>
+      </section> */}
 
       {/* Gallery strip */}
       <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
