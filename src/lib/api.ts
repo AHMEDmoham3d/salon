@@ -94,6 +94,7 @@ export async function getActiveSubscription(customerId: string): Promise<Subscri
     .select('*, plan:plans(*)')
     .eq('customer_id', customerId)
     .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
@@ -501,6 +502,7 @@ export async function getShopActiveSubscription(
     .eq('customer_id', customerId)
     .eq('shop_id', shopId)
     .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (error) throw error;

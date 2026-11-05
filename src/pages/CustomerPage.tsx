@@ -647,23 +647,39 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
   const [plans, setPlans] = useState<Plan[]>([]);
   const [shop, setShop] = useState<Shop | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
-      const [s, v, p, shopData] = await Promise.all([
-        getActiveSubscription(customer.id),
-        getVisitsByCustomer(customer.id),
-        getPlans(shopId),
-        getShopById(shopId),
-      ]);
-      if (!mounted) return;
-      setSub(s);
-      setVisits(v);
-      setPlans(p);
-      setShop(shopData);
-      setLoading(false);
-    })();
+
+    const loadCustomerData = async () => {
+      setLoading(true);
+      setLoadError(false);
+
+      try {
+        const [s, v, p, shopData] = await Promise.all([
+          getActiveSubscription(customer.id),
+          getVisitsByCustomer(customer.id),
+          getPlans(shopId),
+          getShopById(shopId),
+        ]);
+
+        if (!mounted) return;
+
+        setSub(s);
+        setVisits(v);
+        setPlans(p);
+        setShop(shopData);
+      } catch (error) {
+        console.error('Customer page data loading failed:', error);
+        if (mounted) setLoadError(true);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    void loadCustomerData();
+
     return () => { mounted = false; };
   }, [customer.id, shopId]);
 
@@ -674,6 +690,30 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
           <div className="h-24 animate-shimmer rounded-2xl" />
           <div className="h-48 animate-shimmer rounded-2xl" />
         </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center px-4 text-center">
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm font-bold text-red-700">
+          تعذر تحميل بيانات حسابك حاليًا. من فضلك حاول مرة أخرى.
+        </div>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="btn-primary mt-4 w-full"
+        >
+          إعادة المحاولة
+        </button>
+        <button
+          type="button"
+          onClick={onLogout}
+          className="mt-3 text-sm font-bold text-stone-500 underline"
+        >
+          تسجيل الخروج
+        </button>
       </div>
     );
   }
