@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useState } from 'react';
 import {
   Search,
@@ -47,7 +46,7 @@ import {
   getPlans,
   getShopRegularHaircutPrice,
   getRevenueStats,
-  getSubscriptionAlerts,
+  getShopActivityData,
   blockCustomer,
   unblockCustomer,
   deleteCustomer,
@@ -509,25 +508,55 @@ function Overview({
   });
 
   useEffect(() => {
-    (async () => {
-      setStats((s) => ({ ...s, loading: true }));
-      let activeSubs = 0;
-      let totalVisits = 0;
-      let totalPaid = 0;
-      let expiringSoon = 0;
-      for (const c of customers) {
-        const sub = await getActiveSubscription(c.id);
-        if (sub?.status === 'active') activeSubs++;
-        const visits = await getVisitsByCustomer(c.id);
-        totalVisits += visits.length;
-        totalPaid += visits.filter((v) => v.payment_type === 'paid').reduce((s, v) => s + Number(v.charge_amount), 0);
-        if (sub?.status === 'active') {
-          const daysLeft = Math.ceil((new Date(sub.end_date).getTime() - Date.now()) / 86400000);
+    let cancelled = false;
+
+    const loadStats = async () => {
+      setStats((current) => ({ ...current, loading: true }));
+      try {
+        const { subscriptions, visits } = await getShopActivityData(customers);
+        const latestByCustomer = new Map<string, Subscription>();
+        for (const subscription of subscriptions) {
+          if (!latestByCustomer.has(subscription.customer_id)) {
+            latestByCustomer.set(subscription.customer_id, subscription);
+          }
+        }
+
+        const today = new Date().toISOString().slice(0, 10);
+        let activeSubs = 0;
+        let expiringSoon = 0;
+        for (const subscription of latestByCustomer.values()) {
+          if (subscription.status !== 'active' || subscription.end_date < today) continue;
+          activeSubs++;
+          const daysLeft = Math.ceil(
+            (new Date(`${subscription.end_date}T00:00:00`).getTime() - new Date(`${today}T00:00:00`).getTime()) / 86400000
+          );
           if (daysLeft <= 7) expiringSoon++;
         }
+
+        const totalPaid = visits
+          .filter((visit) => visit.payment_type === 'paid')
+          .reduce((sum, visit) => sum + Number(visit.charge_amount), 0);
+
+        if (!cancelled) {
+          setStats({
+            totalCustomers: customers.length,
+            activeSubs,
+            totalVisits: visits.length,
+            totalPaid,
+            expiringSoon,
+            loading: false,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load shop overview:', error);
+        if (!cancelled) {
+          setStats((current) => ({ ...current, totalCustomers: customers.length, loading: false }));
+        }
       }
-      setStats({ totalCustomers: customers.length, activeSubs, totalVisits, totalPaid, expiringSoon, loading: false });
-    })();
+    };
+
+    loadStats();
+    return () => { cancelled = true; };
   }, [customers, shopId]);
 
   const cards = [
@@ -728,19 +757,40 @@ function VisitsTab({
 
   const loadRows = useCallback(async () => {
     setLoading(true);
-    const built: VisitRow[] = [];
-    for (const c of customers) {
-      const [sub, visits] = await Promise.all([getActiveSubscription(c.id), getVisitsByCustomer(c.id)]);
+    try {
       const todayStr = new Date().toISOString().slice(0, 10);
-      const visitToday = visits.find((v) => v.visit_date.slice(0, 10) === todayStr) ?? null;
-      built.push({ customer: c, sub, visitToday, recording: false });
+      const { subscriptions, visits } = await getShopActivityData(customers, { visitsSince: todayStr });
+      const latestByCustomer = new Map<string, Subscription>();
+      for (const subscription of subscriptions) {
+        if (!latestByCustomer.has(subscription.customer_id)) {
+          latestByCustomer.set(subscription.customer_id, subscription);
+        }
+      }
+
+      const visitByCustomer = new Map<string, Visit>();
+      for (const visit of visits) {
+        if (!visitByCustomer.has(visit.customer_id) && visit.visit_date.slice(0, 10) === todayStr) {
+          visitByCustomer.set(visit.customer_id, visit);
+        }
+      }
+
+      const built: VisitRow[] = customers.map((customer) => ({
+        customer,
+        sub: latestByCustomer.get(customer.id) ?? null,
+        visitToday: visitByCustomer.get(customer.id) ?? null,
+        recording: false,
+      }));
+      built.sort((a, b) => {
+        if (!!a.visitToday !== !!b.visitToday) return a.visitToday ? 1 : -1;
+        return a.customer.name.localeCompare(b.customer.name, 'ar');
+      });
+      setRows(built);
+    } catch (error) {
+      console.error('Failed to load shop daily visits:', error);
+      setRows([]);
+    } finally {
+      setLoading(false);
     }
-    built.sort((a, b) => {
-      if (!!a.visitToday !== !!b.visitToday) return a.visitToday ? 1 : -1;
-      return a.customer.name.localeCompare(b.customer.name, 'ar');
-    });
-    setRows(built);
-    setLoading(false);
   }, [customers]);
 
   useEffect(() => {
@@ -945,90 +995,202 @@ function SubscriptionsTab({
   customers: Customer[];
   onSelectCustomer: (c: Customer) => void;
 }) {
+  type SubscriberRow = {
+    customer: Customer;
+    subscription: Subscription;
+    daysLeft: number;
+    haircutsRemaining: number;
+  };
+
+  const [subscribers, setSubscribers] = useState<SubscriberRow[]>([]);
   const [alerts, setAlerts] = useState<SubscriptionAlert[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    (async () => {
+    let cancelled = false;
+
+    const loadSubscriptions = async () => {
       setLoading(true);
-      const a = await getSubscriptionAlerts(customers);
-      setAlerts(a);
-      setLoading(false);
-    })();
+      try {
+        const { subscriptions } = await getShopActivityData(customers, { includeVisits: false });
+        const customerById = new Map(customers.map((customer) => [customer.id, customer]));
+        const latestByCustomer = new Map<string, Subscription>();
+
+        for (const subscription of subscriptions) {
+          if (!latestByCustomer.has(subscription.customer_id)) {
+            latestByCustomer.set(subscription.customer_id, subscription);
+          }
+        }
+
+        const todayString = new Date().toISOString().slice(0, 10);
+        const today = new Date(`${todayString}T00:00:00Z`);
+        const activeRows: SubscriberRow[] = [];
+        const alertRows: SubscriptionAlert[] = [];
+
+        for (const subscription of latestByCustomer.values()) {
+          const customer = customerById.get(subscription.customer_id);
+          if (!customer || subscription.status === 'cancelled') continue;
+
+          const endDate = new Date(`${subscription.end_date}T00:00:00Z`);
+          const daysLeft = Math.ceil((endDate.getTime() - today.getTime()) / 86400000);
+          const haircutsRemaining = (subscription.plan?.haircut_count ?? 0) - subscription.haircuts_used;
+
+          if (subscription.status === 'active' && subscription.end_date >= todayString) {
+            activeRows.push({ customer, subscription, daysLeft: Math.max(0, daysLeft), haircutsRemaining });
+          }
+
+          if (daysLeft <= 7) {
+            const isExpired = daysLeft < 0;
+            alertRows.push({
+              customer,
+              subscription,
+              daysLeft,
+              haircutsRemaining,
+              isExpired,
+              expiredDaysAgo: isExpired ? Math.abs(daysLeft) : 0,
+            });
+          }
+        }
+
+        activeRows.sort((a, b) => a.customer.name.localeCompare(b.customer.name, 'ar'));
+        alertRows.sort((a, b) => a.daysLeft - b.daysLeft);
+
+        if (!cancelled) {
+          setSubscribers(activeRows);
+          setAlerts(alertRows);
+        }
+      } catch (error) {
+        console.error('Failed to load shop subscriptions:', error);
+        if (!cancelled) {
+          setSubscribers([]);
+          setAlerts([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    loadSubscriptions();
+    return () => { cancelled = true; };
   }, [customers]);
 
-  const expired = alerts.filter((a) => a.isExpired);
-  const expiringSoon = alerts.filter((a) => !a.isExpired && a.daysLeft <= 3);
-  const renewingSoon = alerts.filter((a) => !a.isExpired && a.daysLeft > 3 && a.daysLeft <= 7);
+  const expired = alerts.filter((alert) => alert.isExpired);
+  const expiringSoon = alerts.filter((alert) => !alert.isExpired && alert.daysLeft <= 3);
+  const renewingSoon = alerts.filter((alert) => !alert.isExpired && alert.daysLeft > 3 && alert.daysLeft <= 7);
 
   return (
-    <div>
-      <div className="mb-4 grid grid-cols-3 gap-3">
-        <div className="card border-red-200 bg-red-50/50 p-3 text-center">
-          <XCircle className="mx-auto h-5 w-5 text-red-500" />
-          <p className="mt-1 font-display text-xl font-extrabold text-red-600">{expired.length}</p>
-          <p className="text-[11px] font-bold text-stone-500">انتهى اشتراكهم</p>
+    <div className="space-y-6">
+      <section>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="font-display text-lg font-extrabold text-stone-900">المشتركون حاليًا</h3>
+            <p className="text-xs text-stone-500">كل العملاء الذين لديهم اشتراك نشط وغير منتهٍ</p>
+          </div>
+          <span className="rounded-xl bg-emerald-100 px-3 py-1.5 text-sm font-extrabold text-emerald-700">{subscribers.length} مشترك</span>
         </div>
-        <div className="card border-orange-200 bg-orange-50/50 p-3 text-center">
-          <AlertTriangle className="mx-auto h-5 w-5 text-orange-500" />
-          <p className="mt-1 font-display text-xl font-extrabold text-orange-600">{expiringSoon.length}</p>
-          <p className="text-[11px] font-bold text-stone-500">قربت تنتهي (3 أيام)</p>
-        </div>
-        <div className="card border-amber-200 bg-amber-50/50 p-3 text-center">
-          <CalendarClock className="mx-auto h-5 w-5 text-amber-500" />
-          <p className="mt-1 font-display text-xl font-extrabold text-amber-600">{renewingSoon.length}</p>
-          <p className="text-[11px] font-bold text-stone-500">مجددوا قريباً (7 أيام)</p>
-        </div>
-      </div>
 
-      {loading ? (
-        <div className="space-y-3">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-20 animate-shimmer rounded-2xl" />
-          ))}
+        {loading ? (
+          <div className="space-y-3">
+            {[...Array(4)].map((_, index) => <div key={index} className="h-20 animate-shimmer rounded-2xl" />)}
+          </div>
+        ) : subscribers.length === 0 ? (
+          <div className="card p-6 text-center text-stone-500">
+            <Users className="mx-auto h-9 w-9 text-stone-300" />
+            <p className="mt-2 font-bold">لا يوجد مشتركون حاليًا</p>
+            <p className="text-sm">سيظهر هنا كل عميل لديه اشتراك نشط في المحل.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {subscribers.map((row) => (
+              <button
+                key={row.subscription.id}
+                onClick={() => onSelectCustomer(row.customer)}
+                className="card flex w-full items-center gap-3 p-4 text-right transition hover:-translate-y-0.5 hover:shadow-soft"
+              >
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-100 text-emerald-700">
+                  <CheckCircle2 className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-bold text-stone-900">{row.customer.name}</p>
+                  <p className="text-xs text-stone-500">
+                    باقة {row.subscription.plan?.name ?? '—'} · {row.haircutsRemaining} حلاقة متبقية
+                  </p>
+                </div>
+                <div className="text-left">
+                  <span className="badge bg-emerald-100 text-emerald-700">باقي {row.daysLeft} يوم</span>
+                  {row.customer.phone && <p className="mt-1 text-xs text-stone-500">{row.customer.phone}</p>}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <div className="mb-3">
+          <h3 className="font-display text-lg font-extrabold text-stone-900">متابعة الاشتراكات</h3>
+          <p className="text-xs text-stone-500">الاشتراكات المنتهية أو التي ستنتهي خلال 7 أيام</p>
         </div>
-      ) : alerts.length === 0 ? (
-        <div className="card p-8 text-center text-stone-500">
-          <CalendarClock className="mx-auto h-10 w-10 text-stone-300" />
-          <p className="mt-3 font-bold">لا توجد اشتراكات تحتاج متابعة</p>
-          <p className="text-sm">جميع الاشتراكات النشطة لديها وقت متبقٍ</p>
+        <div className="mb-4 grid grid-cols-3 gap-3">
+          <div className="card border-red-200 bg-red-50/50 p-3 text-center">
+            <XCircle className="mx-auto h-5 w-5 text-red-500" />
+            <p className="mt-1 font-display text-xl font-extrabold text-red-600">{expired.length}</p>
+            <p className="text-[11px] font-bold text-stone-500">انتهى اشتراكهم</p>
+          </div>
+          <div className="card border-orange-200 bg-orange-50/50 p-3 text-center">
+            <AlertTriangle className="mx-auto h-5 w-5 text-orange-500" />
+            <p className="mt-1 font-display text-xl font-extrabold text-orange-600">{expiringSoon.length}</p>
+            <p className="text-[11px] font-bold text-stone-500">قربت تنتهي (3 أيام)</p>
+          </div>
+          <div className="card border-amber-200 bg-amber-50/50 p-3 text-center">
+            <CalendarClock className="mx-auto h-5 w-5 text-amber-500" />
+            <p className="mt-1 font-display text-xl font-extrabold text-amber-600">{renewingSoon.length}</p>
+            <p className="text-[11px] font-bold text-stone-500">مجددوا قريباً (7 أيام)</p>
+          </div>
         </div>
-      ) : (
-        <div className="space-y-2">
-          {alerts.map((a) => (
-            <button
-              key={a.subscription.id}
-              onClick={() => onSelectCustomer(a.customer)}
-              className={`card flex items-center gap-3 p-4 text-right transition hover:-translate-y-0.5 hover:shadow-soft ${
-                a.isExpired ? 'border-red-200' : a.daysLeft <= 3 ? 'border-orange-200' : 'border-amber-200'
-              }`}
-            >
-              <div
-                className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg ${
-                  a.isExpired ? 'bg-red-100 text-red-600' : a.daysLeft <= 3 ? 'bg-orange-100 text-orange-600' : 'bg-amber-100 text-amber-600'
+
+        {loading ? (
+          <div className="h-20 animate-shimmer rounded-2xl" />
+        ) : alerts.length === 0 ? (
+          <div className="card p-6 text-center text-stone-500">
+            <CalendarClock className="mx-auto h-9 w-9 text-stone-300" />
+            <p className="mt-2 font-bold">لا توجد اشتراكات تحتاج متابعة</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {alerts.map((alert) => (
+              <button
+                key={alert.subscription.id}
+                onClick={() => onSelectCustomer(alert.customer)}
+                className={`card flex w-full items-center gap-3 p-4 text-right transition hover:-translate-y-0.5 hover:shadow-soft ${
+                  alert.isExpired ? 'border-red-200' : alert.daysLeft <= 3 ? 'border-orange-200' : 'border-amber-200'
                 }`}
               >
-                {a.isExpired ? <XCircle className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-bold text-stone-900">{a.customer.name}</p>
-                <p className="text-xs text-stone-500">
-                  باقة {a.subscription.plan?.name} — {a.haircutsRemaining} حلاقة متبقية
-                </p>
-              </div>
-              <div className="text-left">
-                {a.isExpired ? (
-                  <span className="badge bg-red-100 text-red-700">انتهى منذ {a.expiredDaysAgo} يوم</span>
-                ) : (
-                  <span className={`badge ${a.daysLeft <= 3 ? 'bg-orange-100 text-orange-700' : 'bg-amber-100 text-amber-700'}`}>
-                    باقي {a.daysLeft} يوم
-                  </span>
-                )}
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
+                <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg ${
+                  alert.isExpired ? 'bg-red-100 text-red-600' : alert.daysLeft <= 3 ? 'bg-orange-100 text-orange-600' : 'bg-amber-100 text-amber-600'
+                }`}>
+                  {alert.isExpired ? <XCircle className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-bold text-stone-900">{alert.customer.name}</p>
+                  <p className="text-xs text-stone-500">
+                    باقة {alert.subscription.plan?.name} — {alert.haircutsRemaining} حلاقة متبقية
+                  </p>
+                </div>
+                <div className="text-left">
+                  {alert.isExpired ? (
+                    <span className="badge bg-red-100 text-red-700">انتهى منذ {alert.expiredDaysAgo} يوم</span>
+                  ) : (
+                    <span className={`badge ${alert.daysLeft <= 3 ? 'bg-orange-100 text-orange-700' : 'bg-amber-100 text-amber-700'}`}>
+                      باقي {alert.daysLeft} يوم
+                    </span>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

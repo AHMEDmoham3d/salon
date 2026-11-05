@@ -157,6 +157,81 @@ export async function getVisitsByCustomer(customerId: string): Promise<Visit[]> 
   return data ?? [];
 }
 
+/**
+ * Loads shop customers' subscriptions and visits in batches instead of making
+ * separate requests for every customer. Customer IDs are already shop-scoped.
+ */
+export async function getShopActivityData(
+  customers: Customer[],
+  options: {
+    includeSubscriptions?: boolean;
+    includeVisits?: boolean;
+    visitsSince?: string;
+  } = {}
+): Promise<{ subscriptions: Subscription[]; visits: Visit[] }> {
+  const customerIds = customers.map((customer) => customer.id);
+  if (customerIds.length === 0) {
+    return { subscriptions: [], visits: [] };
+  }
+
+  const includeSubscriptions = options.includeSubscriptions !== false;
+  const includeVisits = options.includeVisits !== false;
+  const idBatches: string[][] = [];
+  for (let i = 0; i < customerIds.length; i += 100) {
+    idBatches.push(customerIds.slice(i, i + 100));
+  }
+
+  const loadSubscriptions = async (): Promise<Subscription[]> => {
+    const results = await Promise.all(idBatches.map(async (ids) => {
+      const rows: Subscription[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase
+          .from('subscriptions')
+          .select('*, plan:plans(*)')
+          .in('customer_id', ids)
+          .order('created_at', { ascending: false })
+          .range(from, from + 999);
+        if (error) throw error;
+        const page = (data ?? []) as Subscription[];
+        rows.push(...page);
+        if (page.length < 1000) break;
+      }
+      return rows;
+    }));
+    return results.flat();
+  };
+
+  const loadVisits = async (): Promise<Visit[]> => {
+    const results = await Promise.all(idBatches.map(async (ids) => {
+      const rows: Visit[] = [];
+      for (let from = 0; ; from += 1000) {
+        let query = supabase
+          .from('visits')
+          .select('*')
+          .in('customer_id', ids)
+          .order('visit_date', { ascending: false });
+        if (options.visitsSince) {
+          query = query.gte('visit_date', options.visitsSince);
+        }
+        const { data, error } = await query.range(from, from + 999);
+        if (error) throw error;
+        const page = (data ?? []) as Visit[];
+        rows.push(...page);
+        if (page.length < 1000) break;
+      }
+      return rows;
+    }));
+    return results.flat();
+  };
+
+  const [subscriptions, visits] = await Promise.all([
+    includeSubscriptions ? loadSubscriptions() : Promise.resolve([]),
+    includeVisits ? loadVisits() : Promise.resolve([]),
+  ]);
+
+  return { subscriptions, visits };
+}
+
 export async function recordVisitAt(
   customerId: string,
   visitDate: string,
@@ -334,36 +409,21 @@ export type RevenueStats = {
 };
 
 export async function getRevenueStats(customers: Customer[]): Promise<RevenueStats> {
-  let totalVisits = 0;
-  let subscriptionVisits = 0;
-  let paidVisits = 0;
-  let revenueFromPaid = 0;
-  let revenueFromSubscriptions = 0;
-  let thisMonthVisits = 0;
+  const { subscriptions, visits } = await getShopActivityData(customers);
+  const totalVisits = visits.length;
+  const subscriptionVisits = visits.filter((v) => v.payment_type === 'subscription').length;
+  const paidVisitRows = visits.filter((v) => v.payment_type === 'paid');
+  const paidVisits = paidVisitRows.length;
+  const revenueFromPaid = paidVisitRows.reduce((sum, visit) => sum + Number(visit.charge_amount), 0);
+  const revenueFromSubscriptions = subscriptions
+    .filter((subscription) => subscription.status === 'active' || subscription.status === 'expired')
+    .reduce((sum, subscription) => sum + Number(subscription.plan?.price ?? 0), 0);
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-
-  for (const c of customers) {
-    const visits = await getVisitsByCustomer(c.id);
-    const subs = await getSubscriptionsByCustomer(c.id);
-
-    totalVisits += visits.length;
-    subscriptionVisits += visits.filter((v) => v.payment_type === 'subscription').length;
-    paidVisits += visits.filter((v) => v.payment_type === 'paid').length;
-
-    revenueFromPaid += visits
-      .filter((v) => v.payment_type === 'paid')
-      .reduce((s, v) => s + Number(v.charge_amount), 0);
-
-    revenueFromSubscriptions += subs
-      .filter((s) => s.status === 'active' || s.status === 'expired')
-      .reduce((s, sub) => s + Number(sub.plan?.price ?? 0), 0);
-
-    thisMonthVisits += visits.filter(
-      (v) => new Date(v.visit_date).toISOString() >= monthStart
-    ).length;
-  }
+  const thisMonthVisits = visits.filter(
+    (visit) => new Date(visit.visit_date).toISOString() >= monthStart
+  ).length;
 
   const totalRevenue = revenueFromPaid + revenueFromSubscriptions;
   const companyFee = totalVisits * COMPANY_FEE_PER_VISIT;
@@ -394,24 +454,39 @@ export type SubscriptionAlert = {
 };
 
 export async function getSubscriptionAlerts(customers: Customer[]): Promise<SubscriptionAlert[]> {
-  const alerts: SubscriptionAlert[] = [];
-  const now = new Date();
+  const { subscriptions } = await getShopActivityData(customers, { includeVisits: false });
+  const customerById = new Map(customers.map((customer) => [customer.id, customer]));
+  const latestByCustomer = new Map<string, Subscription>();
 
-  for (const c of customers) {
-    const subs = await getSubscriptionsByCustomer(c.id);
-    if (subs.length === 0) continue;
-
-    const sub = subs[0];
-    const endDate = new Date(sub.end_date);
-    const diffMs = endDate.getTime() - now.getTime();
-    const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-    const haircutsRemaining = (sub.plan?.haircut_count ?? 0) - sub.haircuts_used;
-    const isExpired = daysLeft < 0;
-    const expiredDaysAgo = isExpired ? Math.abs(daysLeft) : 0;
-
-    if (daysLeft <= 7 || isExpired) {
-      alerts.push({ customer: c, subscription: sub, daysLeft, haircutsRemaining, isExpired, expiredDaysAgo });
+  for (const subscription of subscriptions) {
+    if (!latestByCustomer.has(subscription.customer_id)) {
+      latestByCustomer.set(subscription.customer_id, subscription);
     }
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const alerts: SubscriptionAlert[] = [];
+
+  for (const subscription of latestByCustomer.values()) {
+    if (subscription.status === 'cancelled') continue;
+    const customer = customerById.get(subscription.customer_id);
+    if (!customer) continue;
+
+    const endDate = new Date(`${subscription.end_date}T00:00:00`);
+    const daysLeft = Math.ceil((endDate.getTime() - today.getTime()) / 86400000);
+    if (daysLeft > 7) continue;
+
+    const haircutsRemaining = (subscription.plan?.haircut_count ?? 0) - subscription.haircuts_used;
+    const isExpired = daysLeft < 0;
+    alerts.push({
+      customer,
+      subscription,
+      daysLeft,
+      haircutsRemaining,
+      isExpired,
+      expiredDaysAgo: isExpired ? Math.abs(daysLeft) : 0,
+    });
   }
 
   alerts.sort((a, b) => a.daysLeft - b.daysLeft);
