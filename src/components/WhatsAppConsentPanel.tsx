@@ -94,7 +94,7 @@ export default function WhatsAppConsentPanel({ customerName, phone }: Props) {
               </div>
 
               <h2 id="whatsapp-consent-title" className="text-2xl font-extrabold text-stone-900">
-                خلي زياراتك دايمًا معاك على واتساب ✨
+                خلي زياراتك دايمًا معاك على واتساب 
               </h2>
 
               <p className="mt-3 text-sm leading-7 text-stone-600">
