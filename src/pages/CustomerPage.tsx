@@ -191,6 +191,7 @@ function ShopSelect({ onLogin }: { onLogin: (c: Customer, shopId: string, shopNa
           <Sparkles className="mt-0.5 h-4 w-4 shrink-0" /><span>{t('cust.smartHint')}</span>
         </div>
       </div>
+
     </div>
   );
 }
@@ -742,20 +743,20 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
   const LoyaltyIcon = loyaltyLevel.icon;
 
   return (
-    <div className="customer-page animate-fade-in mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mb-4 flex items-center justify-between">
-        <button onClick={onLogout} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-bold text-stone-600 transition hover:bg-stone-100">
+    <div id="customer-top" className="customer-page animate-fade-in mx-auto min-h-screen max-w-6xl bg-[#f7f4ef] px-4 pb-28 pt-5 sm:px-6 lg:px-8">
+      <div className="mb-5 flex items-center justify-between">
+        <button onClick={onLogout} className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2.5 text-xs font-bold text-stone-700 shadow-sm transition hover:bg-stone-50">
           <LogOut className="h-4 w-4" /> {t('cust.logout')}
         </button>
-        <span className="inline-flex items-center gap-1.5 text-sm text-stone-500">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-2 text-xs text-stone-500">
           <Lock className="h-3.5 w-3.5" /> {t('cust.secure')}
         </span>
       </div>
 
       {/* Header card */}
-      <div className="card overflow-hidden">
-        <div className="flex items-center gap-4 bg-gradient-to-br from-stone-900 to-stone-800 p-5 text-amber-50">
-          <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-amber-500/20 font-display text-2xl font-extrabold text-amber-400">
+      <div className="overflow-hidden rounded-[28px] border border-[#e9e2d8] bg-white shadow-[0_12px_35px_rgba(48,38,28,0.06)]">
+        <div className="relative flex items-center gap-4 bg-[#eee6db] px-5 py-6 text-stone-900 sm:px-7">
+          <div className="grid h-[68px] w-[68px] shrink-0 place-items-center overflow-hidden rounded-[22px] border-4 border-white bg-white font-display text-2xl font-extrabold text-stone-800 shadow-sm">
             {shop?.logo_url ? (
               <img src={shop.logo_url} alt={shop.shop_name || shopName || 'Shop logo'} className="h-full w-full object-cover" />
             ) : (
@@ -763,12 +764,13 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
             )}
           </div>
           <div className="min-w-0 flex-1">
+            <p className="mb-1 text-[11px] font-bold tracking-wide text-stone-500">{L ? 'أهلاً بيك في' : 'WELCOME TO'}</p>
             <h2 className="truncate font-display text-2xl font-extrabold">{customer.name}</h2>
-            <p className="text-sm text-stone-400">
+            <p className="mt-1 text-sm text-stone-600">
               {shop?.shop_name || shopName ? `${shop?.shop_name || shopName} • ` : ''}{t('cust.customerSince')} {formatDate(customer.created_at)}
             </p>
             {shop && (
-              <p className="mt-1 text-xs font-bold text-amber-300">
+              <p className="mt-2 inline-flex rounded-full bg-white/70 px-3 py-1.5 text-xs font-bold text-stone-800">
                 {lang === 'ar' ? 'سعر الحلاقة العادية:' : 'Regular haircut:'} {formatPrice(Number(shop.regular_haircut_price ?? 50))}
               </p>
             )}
@@ -776,8 +778,8 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
         </div>
 
         {/* Subscription status */}
-        <div className="p-5">
-          <div className={`rounded-2xl border-2 p-4 ${active ? 'border-emerald-300 bg-emerald-50' : 'border-stone-200 bg-stone-50'}`}>
+        <div className="bg-white p-4 sm:p-5">
+          <div className={`rounded-[22px] border p-4 ${active ? 'border-emerald-200 bg-[#f3faf5]' : 'border-[#eee9e2] bg-[#faf8f5]'}`}>
             <div className="flex items-center gap-2">
               {active ? <CheckCircle2 className="h-6 w-6 text-emerald-600" /> : <XCircle className="h-6 w-6 text-stone-400" />}
               <div>
@@ -793,7 +795,7 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
                   <div className="flex items-center justify-between text-xs font-bold text-stone-600">
                     <span>{t('cust.used')}</span><span>{sub.haircuts_used} / {sub.plan?.haircut_count}</span>
                   </div>
-                  <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-stone-200">
+                  <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-stone-200">
                     <div className="h-full rounded-full bg-gradient-to-l from-emerald-500 to-emerald-600 transition-all duration-500"
                       style={{ width: `${Math.min(100, (sub.haircuts_used / (sub.plan?.haircut_count ?? 1)) * 100)}%` }} />
                   </div>
@@ -817,16 +819,16 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
       {/* <div className="mt-4"><BookingWidget customerName={customer.name} /></div> */}
 
       {/* Hair consultation */}
-      <div className="mt-5"><HairConsultation customer={customer} shopId={shopId} /></div>
+      <div id="hair-consultation" className="mt-6 scroll-mt-6"><HairConsultation customer={customer} shopId={shopId} /></div>
 
       {/* Secondary customer information: same features, clearer responsive layout */}
-      <div className="mt-5 grid items-start gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.85fr)]">
+      <div className="mt-6 grid items-start gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.85fr)]">
         <div className="space-y-5">
           {/* Offers */}
           <OffersWidget totalVisits={totalVisits} active={active} daysLeft={daysLeft} />
 
           {/* Loyalty */}
-          <div className="card p-5">
+          <div id="loyalty" className="rounded-[26px] border border-[#e9e2d8] bg-white p-5 shadow-[0_8px_24px_rgba(48,38,28,0.04)]">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className={`grid h-12 w-12 place-items-center rounded-xl ${loyaltyLevel.bg}`}>
@@ -864,7 +866,7 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
 
           {/* Stats */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="card p-3 text-center">
+            <div className="rounded-[20px] border border-[#e9e2d8] bg-white p-3 text-center shadow-sm">
               <CalendarCheck className="mx-auto h-5 w-5 text-emerald-500" />
               <p className="mt-1 font-display text-xl font-extrabold text-stone-900">{subscriptionVisits}</p>
               <p className="text-[11px] font-bold text-stone-500">{t('cust.subVisits')}</p>
@@ -883,7 +885,7 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
 
           {/* Plans hint */}
           {!active && plans.length > 0 && (
-            <div className="card p-5">
+            <div id="plans" className="rounded-[24px] border border-[#e9e2d8] bg-white p-5 shadow-sm">
               <h3 className="mb-3 font-bold text-stone-900">{t('cust.plansTitle')}</h3>
               <div className="space-y-2">
                 {plans.map((p) => (
@@ -902,17 +904,17 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
 
         <aside className="space-y-5">
           {/* Referral */}
-          <ReferralWidget customerName={customer.name} />
+          <div id="rewards" className="scroll-mt-6"><ReferralWidget customerName={customer.name} /></div>
 
           {/* Visit history */}
-          <div>
-            <h3 className="mb-2 font-bold text-stone-900">{t('cust.history')}</h3>
+          <div id="visit-history" className="scroll-mt-6">
+            <h3 className="mb-3 font-display text-lg font-extrabold text-stone-900">{t('cust.history')}</h3>
             {visits.length === 0 ? (
-              <div className="card p-6 text-center text-sm text-stone-500">{t('cust.noVisits')}</div>
+              <div className="rounded-[22px] border border-[#e9e2d8] bg-white p-6 text-center text-sm text-stone-500">{t('cust.noVisits')}</div>
             ) : (
               <div className="space-y-2">
                 {visits.map((v) => (
-                  <div key={v.id} className="card flex items-center gap-3 p-3">
+                  <div key={v.id} className="flex items-center gap-3 rounded-[20px] border border-[#e9e2d8] bg-white p-3 shadow-sm">
                     <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${
                       v.payment_type === 'subscription' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-700'
                     }`}>
@@ -936,6 +938,23 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
           </div>
         </aside>
       </div>
+
+      <nav aria-label={L ? 'تنقل صفحة العميل' : 'Customer navigation'} className="fixed inset-x-0 bottom-0 z-40 border-t border-[#e8e1d7] bg-white/95 px-3 pb-[max(env(safe-area-inset-bottom),10px)] pt-2 shadow-[0_-8px_28px_rgba(40,32,24,0.08)] backdrop-blur-xl md:hidden">
+        <div className="mx-auto grid max-w-md grid-cols-4 gap-1">
+          <button type="button" onClick={() => document.getElementById('customer-top')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-stone-700">
+            <Store className="h-5 w-5" />{L ? 'الرئيسية' : 'Home'}
+          </button>
+          <button type="button" onClick={() => document.getElementById('hair-consultation')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-stone-700">
+            <Camera className="h-5 w-5" />{L ? 'الاستشارة' : 'Consult'}
+          </button>
+          <button type="button" onClick={() => document.getElementById('visit-history')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-stone-700">
+            <CalendarCheck className="h-5 w-5" />{L ? 'زياراتي' : 'Visits'}
+          </button>
+          <button type="button" onClick={() => document.getElementById('rewards')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-stone-700">
+            <Gift className="h-5 w-5" />{L ? 'المكافآت' : 'Rewards'}
+          </button>
+        </div>
+      </nav>
     </div>
   );
 }
