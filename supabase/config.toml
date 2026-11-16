@@ -1,0 +1,7 @@
+project_id = "ueexdjxrpjlfnxsgcqjt"
+
+[functions.shaveup-hair-ai]
+verify_jwt = false
+
+[functions.cloudflare-connection-test]
+verify_jwt = false
