@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.cloudflare-connection-test]
 verify_jwt = false
+
+[functions.shop-admin-login]
+verify_jwt = false

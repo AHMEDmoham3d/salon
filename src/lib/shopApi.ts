@@ -78,7 +78,7 @@ export async function registerShop(
   return { shop, admin };
 }
 
-/* ---------- Admin login (shop-scoped) ---------- */
+/* ---------- Admin login (server-side lookup) ---------- */
 
 export async function adminLogin(
   phone: string,
@@ -87,19 +87,31 @@ export async function adminLogin(
   const normalizedPhone = phone.trim();
   const normalizedEmail = email.trim().toLowerCase();
 
-  const { data: admin, error } = await supabase
-    .from('shop_admins')
-    .select('*, shop:shops(*)')
-    .eq('phone', normalizedPhone)
-    .eq('email', normalizedEmail)
-    .maybeSingle();
+  if (!normalizedPhone || !normalizedEmail) {
+    return null;
+  }
 
-  if (error) throw error;
-  if (!admin || !admin.shop) return null;
+  const { data, error } = await supabase.functions.invoke(
+    'shop-admin-login',
+    {
+      body: {
+        phone: normalizedPhone,
+        email: normalizedEmail,
+      },
+    }
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data?.ok || !data.shop || !data.admin) {
+    return null;
+  }
 
   return {
-    shop: admin.shop as Shop,
-    admin: admin as ShopAdmin,
+    shop: data.shop as Shop,
+    admin: data.admin as ShopAdmin,
   };
 }
 
