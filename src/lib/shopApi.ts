@@ -128,6 +128,65 @@ export async function adminLogin(
   };
 }
 
+/* ---------- Admin session verification ---------- */
+
+export async function verifyAdminSession(
+  sessionToken: string
+): Promise<{
+  shop: Shop;
+  admin: ShopAdmin;
+  expiresAt: string;
+} | null> {
+  if (
+    typeof sessionToken !== 'string' ||
+    !sessionToken.trim()
+  ) {
+    return null;
+  }
+
+  const { data, error } = await supabase.functions.invoke(
+    'shop-admin-verify',
+    {
+      body: {
+        sessionToken,
+      },
+    }
+  );
+
+  if (error) {
+    console.error(
+      'Session verification request failed:',
+      error
+    );
+
+    throw error;
+  }
+
+  if (
+    !data?.ok ||
+    !data.shop ||
+    !data.admin ||
+    !data.expiresAt
+  ) {
+    return null;
+  }
+
+  const expiresAt = new Date(data.expiresAt);
+
+  if (
+    !Number.isFinite(expiresAt.getTime()) ||
+    expiresAt.getTime() <= Date.now()
+  ) {
+    return null;
+  }
+
+  return {
+    shop: data.shop as Shop,
+    admin: data.admin as ShopAdmin,
+    expiresAt: data.expiresAt as string,
+  };
+}
+
 export async function getShopById(
   shopId: string
 ): Promise<Shop | null> {

@@ -1,5 +1,5 @@
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Building2,
   Lock,
@@ -13,14 +13,13 @@ import {
   CheckCircle2,
   UserPlus,
 } from 'lucide-react';
-import Modal from '@/components/Modal';
 import { AdminDashboard } from '@/pages/AdminPage';
 import {
   adminLogin,
   registerShop,
+  verifyAdminSession,
   type ShopRegistration,
 } from '@/lib/shopApi';
-import { getShopById } from '@/lib/shopApi';
 import {
   COMPANY_NAME,
   SYSTEM_NAME,
@@ -76,34 +75,79 @@ export default function AdminPage() {
   const [session, setSession] = useState<Session | null>(loadSession);
   const [shop, setShop] = useState<Shop | null>(null);
   const [shopLoading, setShopLoading] = useState(true);
+  const [sessionError, setSessionError] = useState('');
+  const [verifyAttempt, setVerifyAttempt] = useState(0);
   const [mode, setMode] = useState<'login' | 'register'>('login');
 
   // Keeps the newly registered shop visible while awaiting company approval.
   // Registration itself does not create an authenticated admin session.
   const [registrationShop, setRegistrationShop] = useState<Shop | null>(null);
 
-  const refreshShop = useCallback(async () => {
-    if (!session) {
-      setShop(null);
-      setShopLoading(false);
-      return;
-    }
+  // Use primitive session values as dependencies to avoid repeated verification.
+  const sessionToken = session?.sessionToken;
+  const sessionShopId = session?.shopId;
 
-    setShopLoading(true);
-
-    try {
-      const currentShop = await getShopById(session.shopId);
-      setShop(currentShop);
-    } catch {
-      setShop(null);
-    } finally {
-      setShopLoading(false);
-    }
-  }, [session]);
-
+  // Verify the stored session with the server before showing the dashboard.
   useEffect(() => {
-    refreshShop();
-  }, [refreshShop]);
+    let cancelled = false;
+
+    const verifySession = async () => {
+      if (!sessionToken || !sessionShopId) {
+        if (!registrationShop) {
+          setShop(null);
+          setSessionError('');
+          setShopLoading(false);
+        }
+
+        return;
+      }
+
+      setShopLoading(true);
+      setSessionError('');
+
+      try {
+        const result = await verifyAdminSession(sessionToken);
+
+        if (cancelled) return;
+
+        if (!result || result.shop.id !== sessionShopId) {
+          clearSession();
+          setSession(null);
+          setShop(null);
+          setSessionError('');
+          setShopLoading(false);
+          return;
+        }
+
+        const verifiedSession: Session = {
+          shopId: result.shop.id,
+          sessionToken,
+          expiresAt: result.expiresAt,
+        };
+
+        saveSession(verifiedSession);
+        setSession(verifiedSession);
+        setShop(result.shop);
+        setShopLoading(false);
+      } catch (error) {
+        if (cancelled) return;
+
+        console.error('Admin session verification failed:', error);
+
+        setSessionError(
+          'تعذر الاتصال للتحقق من جلسة الدخول. تأكد من اتصال الإنترنت وحاول مرة أخرى.'
+        );
+
+        setShopLoading(false);
+      }
+    };
+
+    verifySession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionToken, sessionShopId, registrationShop, verifyAttempt]);
 
   const handleLogin = (
     shop: Shop,
@@ -122,7 +166,8 @@ export default function AdminPage() {
       setSession(newSession);
       setRegistrationShop(null);
       setShop(shop);
-      setShopLoading(false);
+      setSessionError('');
+      setShopLoading(true);
       return;
     }
 
@@ -131,6 +176,7 @@ export default function AdminPage() {
     setSession(null);
     setRegistrationShop(shop);
     setShop(shop);
+    setSessionError('');
     setShopLoading(false);
   };
 
@@ -139,8 +185,17 @@ export default function AdminPage() {
     setSession(null);
     setRegistrationShop(null);
     setShop(null);
+    setSessionError('');
     setShopLoading(false);
     setMode('login');
+  };
+
+  const retrySessionVerification = () => {
+    if (session) {
+      setSessionError('');
+      setShopLoading(true);
+      setVerifyAttempt((current) => current + 1);
+    }
   };
 
   if (!session && !registrationShop) {
@@ -157,6 +212,38 @@ export default function AdminPage() {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-stone-400" />
+      </div>
+    );
+  }
+
+  if (sessionError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-stone-50 px-4">
+        <div className="card max-w-md p-8 text-center">
+          <XCircle className="mx-auto h-10 w-10 text-red-500" />
+
+          <p className="mt-3 font-bold text-stone-900">
+            تعذر التحقق من جلسة الدخول
+          </p>
+
+          <p className="mt-2 text-sm text-stone-600">
+            {sessionError}
+          </p>
+
+          <button
+            onClick={retrySessionVerification}
+            className="btn-primary mt-5 w-full"
+          >
+            إعادة المحاولة
+          </button>
+
+          <button
+            onClick={handleLogout}
+            className="btn-ghost mt-2 w-full"
+          >
+            العودة لتسجيل الدخول
+          </button>
+        </div>
       </div>
     );
   }
@@ -270,7 +357,7 @@ export default function AdminPage() {
     );
   }
 
-  // Approved shops require an authenticated session.
+  // Approved shops require a verified authenticated session.
   if (!session) {
     return (
       <AdminAuth
