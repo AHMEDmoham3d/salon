@@ -78,12 +78,17 @@ export async function registerShop(
   return { shop, admin };
 }
 
-/* ---------- Admin login (server-side lookup) ---------- */
+/* ---------- Admin login (server-side lookup + session) ---------- */
 
 export async function adminLogin(
   phone: string,
   email: string
-): Promise<{ shop: Shop; admin: ShopAdmin } | null> {
+): Promise<{
+  shop: Shop;
+  admin: ShopAdmin;
+  sessionToken: string;
+  expiresAt: string;
+} | null> {
   const normalizedPhone = phone.trim();
   const normalizedEmail = email.trim().toLowerCase();
 
@@ -105,13 +110,21 @@ export async function adminLogin(
     throw error;
   }
 
-  if (!data?.ok || !data.shop || !data.admin) {
+  if (
+    !data?.ok ||
+    !data.shop ||
+    !data.admin ||
+    !data.sessionToken ||
+    !data.expiresAt
+  ) {
     return null;
   }
 
   return {
     shop: data.shop as Shop,
     admin: data.admin as ShopAdmin,
+    sessionToken: data.sessionToken as string,
+    expiresAt: data.expiresAt as string,
   };
 }
 
@@ -151,10 +164,6 @@ export type ShopSettingsUpdate = {
   regular_haircut_price?: number;
 };
 
-/**
- * Update the shop's display name, logo URL, and/or ordinary haircut price.
- * Only fields explicitly provided by the caller are sent to Supabase.
- */
 export async function updateShopSettings(
   shopId: string,
   updates: ShopSettingsUpdate
@@ -192,10 +201,6 @@ export async function updateShopSettings(
   return data;
 }
 
-/**
- * Upload a shop logo to the public shop-logos bucket and save its public URL
- * in shops.logo_url. Accepted formats: JPEG, PNG, and WebP; maximum size: 2 MB.
- */
 export async function uploadShopLogo(
   shopId: string,
   file: File
