@@ -61,6 +61,7 @@ import {
   type Plan,
   type RevenueStats,
   type SubscriptionAlert,
+  type PaymentMethod,
 } from '@/lib/api';
 import { REGULAR_HAIRCUT_PRICE, COMPANY_FEE_PER_VISIT, COMPANY_NAME, SYSTEM_NAME } from '@/lib/supabase';
 import { getShopById } from '@/lib/shopApi';
@@ -754,6 +755,7 @@ function VisitsTab({
   const [rows, setRows] = useState<VisitRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
 
   const loadRows = useCallback(async () => {
     setLoading(true);
@@ -802,7 +804,7 @@ function VisitsTab({
     if (row.visitToday || row.recording || row.customer.is_blocked) return;
     setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, recording: true } : r)));
     try {
-      const result = await recordVisit(row.customer.id, { forcePaid, shopId });
+      const result = await recordVisit(row.customer.id, { forcePaid, shopId, paymentMethod });
       const newVisit = result.visit;
       setRows((prev) =>
         prev
@@ -876,6 +878,17 @@ function VisitsTab({
           placeholder="ابحث عن عميل..."
           className="input pr-12"
         />
+      </div>
+
+      <div className="mb-4 rounded-xl border border-stone-200 bg-white p-3">
+        <label className="label">طريقة التحصيل للحلاقة العادية</label>
+        <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)} className="input">
+          <option value="cash">نقدًا</option>
+          <option value="instapay">InstaPay</option>
+          <option value="vodafone_cash">Vodafone Cash</option>
+          <option value="card">بطاقة بنكية</option>
+        </select>
+        <p className="mt-1 text-xs text-stone-500">تُستخدم هذه الطريقة عند تسجيل حلاقة عادية فقط، ولا تُسجّل دفعة جديدة عند استخدام الاشتراك.</p>
       </div>
 
       <div className="mb-3 flex items-center gap-2 text-sm font-bold text-stone-600">
@@ -1693,8 +1706,8 @@ function CustomerDrawer({
         open={subOpen}
         onClose={() => setSubOpen(false)}
         plans={plans}
-        onSubscribe={async (planId) => {
-          await createSubscription(customer.id, planId, shopId);
+        onSubscribe={async (planId, paymentMethod) => {
+          await createSubscription(customer.id, planId, shopId, paymentMethod);
           setSubOpen(false);
           await load();
           onChanged();
@@ -1726,9 +1739,10 @@ function SubscribeModal({
   open: boolean;
   onClose: () => void;
   plans: Plan[];
-  onSubscribe: (planId: string) => Promise<void>;
+  onSubscribe: (planId: string, paymentMethod: PaymentMethod) => Promise<void>;
 }) {
   const [planId, setPlanId] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -1739,7 +1753,7 @@ function SubscribeModal({
     if (!planId) return;
     setSaving(true);
     try {
-      await onSubscribe(planId);
+      await onSubscribe(planId, paymentMethod);
     } finally {
       setSaving(false);
     }
@@ -1773,8 +1787,18 @@ function SubscribeModal({
             </div>
           </button>
         ))}
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+          <label className="label">طريقة دفع الاشتراك بالكامل *</label>
+          <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)} className="input">
+            <option value="cash">نقدًا</option>
+            <option value="instapay">InstaPay</option>
+            <option value="vodafone_cash">Vodafone Cash</option>
+            <option value="card">بطاقة بنكية</option>
+          </select>
+          <p className="mt-1 text-xs text-stone-600">يتم تسجيل قيمة الباقة كاملة عند التفعيل، ولا يتم تفعيل الاشتراك كدفعة جزئية.</p>
+        </div>
         <div className="flex gap-3 pt-2">
-          <button onClick={submit} disabled={saving} className="btn-gold flex-1">
+          <button onClick={submit} disabled={saving || !planId} className="btn-gold flex-1">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarPlus className="h-4 w-4" />}
             {saving ? 'جاري...' : 'تفعيل الاشتراك'}
           </button>
@@ -1800,11 +1824,12 @@ function RecordVisitModal({
   onClose: () => void;
   active: boolean;
   remaining: number;
-  onRecord: (opts: { haircutType: string; notes: string; forcePaid: boolean }) => Promise<void>;
+  onRecord: (opts: { haircutType: string; notes: string; forcePaid: boolean; paymentMethod: PaymentMethod }) => Promise<void>;
 }) {
   const [haircutType, setHaircutType] = useState('حلاقة عامة');
   const [notes, setNotes] = useState('');
   const [forcePaid, setForcePaid] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [saving, setSaving] = useState(false);
 
   const canUseSub = active && remaining > 0 && !forcePaid;
@@ -1812,7 +1837,7 @@ function RecordVisitModal({
   const submit = async () => {
     setSaving(true);
     try {
-      await onRecord({ haircutType, notes, forcePaid });
+      await onRecord({ haircutType, notes, forcePaid, paymentMethod });
       setNotes('');
       setForcePaid(false);
     } finally {
@@ -1861,6 +1886,18 @@ function RecordVisitModal({
             </span>
           )}
         </div>
+
+        {!canUseSub && (
+          <div>
+            <label className="label">طريقة الدفع *</label>
+            <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)} className="input">
+              <option value="cash">نقدًا</option>
+              <option value="instapay">InstaPay</option>
+              <option value="vodafone_cash">Vodafone Cash</option>
+              <option value="card">بطاقة بنكية</option>
+            </select>
+          </div>
+        )}
 
         <div>
           <label className="label">ملاحظات</label>

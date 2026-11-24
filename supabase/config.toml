@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.shop-admin-login]
 verify_jwt = false
+
+[functions.shop-admin-verify]
+verify_jwt = false

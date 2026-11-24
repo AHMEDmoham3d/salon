@@ -1,10 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseApiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseApiKey =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const supabase = createClient(supabaseUrl, supabaseApiKey, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
 });
 
 /**
@@ -54,6 +60,34 @@ export type Subscription = {
 
 export type PaymentType = 'subscription' | 'paid';
 
+/**
+ * Payment methods supported by payment_transactions.
+ */
+export type PaymentMethod =
+  | 'cash'
+  | 'instapay'
+  | 'vodafone_cash'
+  | 'card';
+
+/**
+ * Payment transaction stored in Supabase.
+ */
+export type PaymentTransaction = {
+  id: string;
+  shop_id: string | null;
+  customer_id: string | null;
+  visit_id: string | null;
+  subscription_id: string | null;
+  payment_kind: 'visit' | 'subscription' | 'other';
+  amount: number;
+  payment_method: PaymentMethod | 'unknown';
+  payment_status: 'recorded' | 'refunded' | 'void';
+  payment_date: string;
+  notes: string | null;
+  external_reference: string | null;
+  created_at: string;
+};
+
 export type Visit = {
   id: string;
   customer_id: string;
@@ -76,10 +110,16 @@ export type CustomerWithStats = Customer & {
 export const REGULAR_HAIRCUT_PRICE = 50;
 
 export const COMPANY_FEE_PER_VISIT = 10;
+
 export const COMPANY_NAME = 'رؤية';
+
 export const SYSTEM_NAME = 'BarberOS';
 
-export type ShopStatus = 'pending' | 'approved' | 'rejected' | 'blocked';
+export type ShopStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'blocked';
 
 export type Shop = {
   id: string;
