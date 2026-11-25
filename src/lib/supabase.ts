@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -80,6 +81,8 @@ export type PaymentTransaction = {
   subscription_id: string | null;
   payment_kind: 'visit' | 'subscription' | 'other';
   amount: number;
+  company_fee_amount: number;
+  service_name: string | null;
   payment_method: PaymentMethod | 'unknown';
   payment_status: 'recorded' | 'refunded' | 'void';
   payment_date: string;

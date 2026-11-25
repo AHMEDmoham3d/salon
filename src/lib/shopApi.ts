@@ -17,6 +17,60 @@ const ALLOWED_SHOP_LOGO_TYPES = [
   'image/webp',
 ];
 
+/* ---------- Shared helpers ---------- */
+
+function getMonthKey(dateValue: string): string {
+  const date = new Date(dateValue);
+
+  if (!Number.isFinite(date.getTime())) {
+    return '';
+  }
+
+  return `${date.getFullYear()}-${String(
+    date.getMonth() + 1
+  ).padStart(2, '0')}`;
+}
+
+function getCurrentMonthStart(): string {
+  const now = new Date();
+
+  return new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    1
+  ).toISOString();
+}
+
+function isInCurrentMonth(
+  dateValue: string,
+  monthStart: string
+): boolean {
+  const date = new Date(dateValue).getTime();
+  const start = new Date(monthStart).getTime();
+
+  return (
+    Number.isFinite(date) &&
+    Number.isFinite(start) &&
+    date >= start
+  );
+}
+
+function getRecordedFee(
+  transactions: {
+    company_fee_amount: number | null;
+  }[]
+): number {
+  return transactions.reduce(
+    (sum, transaction) =>
+      sum + Number(transaction.company_fee_amount ?? 0),
+    0
+  );
+}
+
+function getFeeUnits(fee: number): number {
+  return fee / COMPANY_FEE_PER_VISIT;
+}
+
 /* ---------- Shop registration ---------- */
 
 export type ShopRegistration = {
@@ -400,7 +454,38 @@ export async function getAllVisits(): Promise<{
   return data ?? [];
 }
 
-/* ---------- Shop revenue + company fee (real-time) ---------- */
+/* ---------- Recorded payment transactions ---------- */
+
+async function getShopPaymentTransactions(shopId: string) {
+  const { data, error } = await supabase
+    .from('payment_transactions')
+    .select(
+      'id, shop_id, customer_id, visit_id, subscription_id, payment_kind, amount, payment_status, payment_date, company_fee_amount, service_name'
+    )
+    .eq('shop_id', shopId)
+    .eq('payment_status', 'recorded')
+    .order('payment_date', { ascending: false });
+
+  if (error) throw error;
+
+  return data ?? [];
+}
+
+async function getAllRecordedPaymentTransactions() {
+  const { data, error } = await supabase
+    .from('payment_transactions')
+    .select(
+      'id, shop_id, customer_id, visit_id, subscription_id, payment_kind, amount, payment_status, payment_date, company_fee_amount, service_name'
+    )
+    .eq('payment_status', 'recorded')
+    .order('payment_date', { ascending: false });
+
+  if (error) throw error;
+
+  return data ?? [];
+}
+
+/* ---------- Shop revenue + company fee ---------- */
 
 export type ShopInvoice = {
   shop: Shop;
@@ -410,6 +495,8 @@ export type ShopInvoice = {
   totalFee: number;
   thisMonthRevenue: number;
   thisMonthNetRevenue: number;
+  thisMonthFeeUnits: number;
+  totalFeeUnits: number;
   isPaid: boolean;
 };
 
@@ -418,6 +505,7 @@ export type MonthFeeDetail = {
   monthLabel: string;
   visits: number;
   fee: number;
+  feeUnits: number;
   paid: boolean;
 };
 
@@ -428,33 +516,37 @@ export async function getShopInvoice(
 
   if (!shop) return null;
 
-  const visits = await getShopVisits(shopId);
-  const now = new Date();
+  const [visits, transactions] = await Promise.all([
+    getShopVisits(shopId),
+    getShopPaymentTransactions(shopId),
+  ]);
 
-  const monthStart = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    1
-  ).toISOString();
+  const monthStart = getCurrentMonthStart();
 
-  const thisMonthVisits = visits.filter(
-    (v) => new Date(v.visit_date).toISOString() >= monthStart
+  // Actual visits are counted independently from company fees.
+  const thisMonthVisits = visits.filter((visit) =>
+    isInCurrentMonth(visit.visit_date, monthStart)
   );
 
-  const thisMonthFee =
-    thisMonthVisits.length * COMPANY_FEE_PER_VISIT;
+  // Company fees come only from explicitly recorded transactions.
+  // Package usage does not create a new company fee.
+  const thisMonthTransactions = transactions.filter(
+    (transaction) =>
+      isInCurrentMonth(transaction.payment_date, monthStart)
+  );
 
-  const totalFee =
-    visits.length * COMPANY_FEE_PER_VISIT;
+  const thisMonthFee = getRecordedFee(
+    thisMonthTransactions
+  );
 
-  const thisMonthRevenue = visits
-    .filter(
-      (v) => new Date(v.visit_date).toISOString() >= monthStart
-    )
-    .reduce(
-      (sum, v) => sum + Number(v.charge_amount),
-      0
-    );
+  const totalFee = getRecordedFee(transactions);
+
+  // Revenue includes recorded visit, subscription and other payments.
+  const thisMonthRevenue = thisMonthTransactions.reduce(
+    (sum, transaction) =>
+      sum + Number(transaction.amount ?? 0),
+    0
+  );
 
   const thisMonthNetRevenue =
     thisMonthRevenue - thisMonthFee;
@@ -467,9 +559,13 @@ export async function getShopInvoice(
     totalFee,
     thisMonthRevenue,
     thisMonthNetRevenue,
+    thisMonthFeeUnits: getFeeUnits(thisMonthFee),
+    totalFeeUnits: getFeeUnits(totalFee),
     isPaid: false,
   };
 }
+
+/* ---------- Company-wide fees ---------- */
 
 export async function getCompanyTotalFees(): Promise<{
   totalShops: number;
@@ -479,16 +575,25 @@ export async function getCompanyTotalFees(): Promise<{
   totalFees: number;
   thisMonthFees: number;
   thisMonthVisits: number;
+  totalFeeUnits: number;
+  thisMonthFeeUnits: number;
   shopBreakdown: {
     shop: Shop;
     visits: number;
     fee: number;
+    feeUnits: number;
     thisMonthVisits: number;
     thisMonthFee: number;
+    thisMonthFeeUnits: number;
     paid: boolean;
   }[];
 }> {
-  const shops = await getAllShops();
+  const [shops, allVisits, allTransactions] =
+    await Promise.all([
+      getAllShops(),
+      getAllVisits(),
+      getAllRecordedPaymentTransactions(),
+    ]);
 
   const approvedShops = shops.filter(
     (shop) => shop.status === 'approved'
@@ -498,24 +603,21 @@ export async function getCompanyTotalFees(): Promise<{
     (shop) => shop.status === 'pending'
   );
 
-  const allVisits = await getAllVisits();
-  const now = new Date();
-
-  const monthStart = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    1
-  ).toISOString();
+  const monthStart = getCurrentMonthStart();
 
   let totalVisits = 0;
   let thisMonthVisits = 0;
+  let totalFees = 0;
+  let thisMonthFees = 0;
 
   const shopBreakdown: {
     shop: Shop;
     visits: number;
     fee: number;
+    feeUnits: number;
     thisMonthVisits: number;
     thisMonthFee: number;
+    thisMonthFeeUnits: number;
     paid: boolean;
   }[] = [];
 
@@ -524,26 +626,39 @@ export async function getCompanyTotalFees(): Promise<{
       (visit) => visit.shop_id === shop.id
     );
 
-    const shopThisMonth = shopVisits.filter(
+    const shopThisMonthVisits = shopVisits.filter(
       (visit) =>
-        new Date(visit.visit_date).toISOString() >= monthStart
+        isInCurrentMonth(visit.visit_date, monthStart)
     );
 
-    const fee =
-      shopVisits.length * COMPANY_FEE_PER_VISIT;
+    const shopTransactions = allTransactions.filter(
+      (transaction) => transaction.shop_id === shop.id
+    );
 
-    const thisMonthFee =
-      shopThisMonth.length * COMPANY_FEE_PER_VISIT;
+    const shopThisMonthTransactions =
+      shopTransactions.filter((transaction) =>
+        isInCurrentMonth(transaction.payment_date, monthStart)
+      );
+
+    const fee = getRecordedFee(shopTransactions);
+
+    const thisMonthFee = getRecordedFee(
+      shopThisMonthTransactions
+    );
 
     totalVisits += shopVisits.length;
-    thisMonthVisits += shopThisMonth.length;
+    thisMonthVisits += shopThisMonthVisits.length;
+    totalFees += fee;
+    thisMonthFees += thisMonthFee;
 
     shopBreakdown.push({
       shop,
       visits: shopVisits.length,
       fee,
-      thisMonthVisits: shopThisMonth.length,
+      feeUnits: getFeeUnits(fee),
+      thisMonthVisits: shopThisMonthVisits.length,
       thisMonthFee,
+      thisMonthFeeUnits: getFeeUnits(thisMonthFee),
       paid: false,
     });
   }
@@ -553,10 +668,11 @@ export async function getCompanyTotalFees(): Promise<{
     approvedShops: approvedShops.length,
     pendingShops: pendingShops.length,
     totalVisits,
-    totalFees: totalVisits * COMPANY_FEE_PER_VISIT,
-    thisMonthFees:
-      thisMonthVisits * COMPANY_FEE_PER_VISIT,
+    totalFees,
+    thisMonthFees,
     thisMonthVisits,
+    totalFeeUnits: getFeeUnits(totalFees),
+    thisMonthFeeUnits: getFeeUnits(thisMonthFees),
     shopBreakdown,
   };
 }
@@ -566,26 +682,55 @@ export async function getCompanyTotalFees(): Promise<{
 export async function getShopMonthlyFees(
   shopId: string
 ): Promise<MonthFeeDetail[]> {
-  const visits = await getShopVisits(shopId);
-  const byMonth = new Map<string, number>();
+  const [visits, transactions] = await Promise.all([
+    getShopVisits(shopId),
+    getShopPaymentTransactions(shopId),
+  ]);
 
+  const monthlyData = new Map<
+    string,
+    {
+      visits: number;
+      fee: number;
+    }
+  >();
+
+  // Count actual visits independently from fee transactions.
   for (const visit of visits) {
-    const date = new Date(visit.visit_date);
+    const key = getMonthKey(visit.visit_date);
 
-    const key =
-      `${date.getFullYear()}-${String(
-        date.getMonth() + 1
-      ).padStart(2, '0')}`;
+    if (!key) continue;
 
-    byMonth.set(
-      key,
-      (byMonth.get(key) ?? 0) + 1
+    const current = monthlyData.get(key) ?? {
+      visits: 0,
+      fee: 0,
+    };
+
+    current.visits += 1;
+    monthlyData.set(key, current);
+  }
+
+  // Add only recorded company fees.
+  for (const transaction of transactions) {
+    const key = getMonthKey(transaction.payment_date);
+
+    if (!key) continue;
+
+    const current = monthlyData.get(key) ?? {
+      visits: 0,
+      fee: 0,
+    };
+
+    current.fee += Number(
+      transaction.company_fee_amount ?? 0
     );
+
+    monthlyData.set(key, current);
   }
 
   const result: MonthFeeDetail[] = [];
 
-  for (const [month, count] of byMonth) {
+  for (const [month, values] of monthlyData) {
     const [year, monthNumber] = month.split('-');
 
     const label = new Intl.DateTimeFormat('ar-EG', {
@@ -601,8 +746,9 @@ export async function getShopMonthlyFees(
     result.push({
       month,
       monthLabel: label,
-      visits: count,
-      fee: count * COMPANY_FEE_PER_VISIT,
+      visits: values.visits,
+      fee: values.fee,
+      feeUnits: getFeeUnits(values.fee),
       paid: false,
     });
   }

@@ -65,6 +65,7 @@ import {
 } from '@/lib/api';
 import { REGULAR_HAIRCUT_PRICE, COMPANY_FEE_PER_VISIT, COMPANY_NAME, SYSTEM_NAME } from '@/lib/supabase';
 import { getShopById } from '@/lib/shopApi';
+import { supabase } from '@/lib/supabase';
 import ShopSettingsTab from '@/components/ShopSettingsTab';
 
 type Tab = 'overview' | 'customers' | 'visits' | 'revenue' | 'subscriptions' | 'settings';
@@ -302,14 +303,17 @@ function CompanyNoticeModal({
               <p className="mb-1.5 font-bold text-stone-900">البند الثالث — الرسوم</p>
               <p className="mb-1">
                 مقابل استخدام النظام، تُحسب رسوم خدمة قدرها{' '}
-                <span className="font-bold text-amber-700">{formatPrice(COMPANY_FEE_PER_VISIT)}</span> على كل زيارة تتم في
-                المحل — سواء للعملاء المشتركين أو غير المشتركين. ويُقرّ المحل بما يلي:
+                <span className="font-bold text-amber-700">{formatPrice(COMPANY_FEE_PER_VISIT)}</span> على كل حلاقة عادية مدفوعة،
+                وتُحسب رسوم الباقة عند شرائها بواقع {formatPrice(COMPANY_FEE_PER_VISIT)} عن كل زيارة مشمولة فيها.
+                ولا تُفرض رسوم جديدة عند استخدام زيارة من الباقة. ويُقرّ المحل بما يلي:
               </p>
               <ul className="mt-1.5 space-y-1 pr-4">
                 <li className="flex gap-1.5"><span className="font-bold text-stone-900">•</span> هذه الرسوم <span className="font-bold">سارية في الفترة الحالية فقط</span>، وتُحتسب كرسوم رمزية تشمل صيانة النظام وتحديثاته والدعم الفني واستضافة البيانات بشكل آمن.</li>
                 <li className="flex gap-1.5"><span className="font-bold text-stone-900">•</span> قد يتم في المستقبل تعديل الرسوم (زيادة أو تحويلها لاشتراك شهري ثابت من المحل)، وسيتم إخطار المحل قبل أي تغيير بمدة كافية.</li>
-                <li className="flex gap-1.5"><span className="font-bold text-stone-900">•</span> الرسوم ليست مرتفعة — فمقابل كل زيارة يدفع المحل {formatPrice(COMPANY_FEE_PER_VISIT)} فقط، بينما يحصل على نظام إدارة كامل، تتبع عملاء، تنبيهات اشتراكات، حساب أرباح، ونظام ولاء تلقائي.</li>
-                <li className="flex gap-1.5"><span className="font-bold text-stone-900">•</span> تُحسب الرسوم تلقائياً من سجلات الزيارات الفعلية، وتظهر في تقرير شهري تفصيلي.</li>
+                <li className="flex gap-1.5"><span className="font-bold text-stone-900">•</span> الحلاقة العادية المدفوعة عليها رسوم ثابتة قدرها {formatPrice(COMPANY_FEE_PER_VISIT)} بغض النظر عن سعر الحلاقة الذي يحدده المحل.</li>
+                <li className="flex gap-1.5"><span className="font-bold text-stone-900">•</span> رسوم الباقة تُحصّل مرة واحدة عند بيعها حسب عدد الزيارات المشمولة؛ ولا تُحصّل رسوم إضافية عند استخدام زياراتها.</li>
+                <li className="flex gap-1.5"><span className="font-bold text-stone-900">•</span> الخدمات الإضافية المدفوعة أثناء استخدام الباقة تذهب بالكامل للمحل ولا تُفرض عليها رسوم زيارة جديدة.</li>
+                <li className="flex gap-1.5"><span className="font-bold text-stone-900">•</span> تظهر الرسوم المسجلة في تقرير الإيرادات التفصيلي.</li>
               </ul>
             </div>
 
@@ -427,12 +431,12 @@ function CompanyNoticeModal({
             على محلك.
           </p>
           <p>
-            مقابل استخدام النظام، تُحسب رسوم رمزية قدرها{' '}
-            <span className="font-bold text-amber-700">{formatPrice(COMPANY_FEE_PER_VISIT)}</span> فقط على كل زيارة تتم في
-            المحل — سواء للعملاء المشتركين أو غير المشتركين. <span className="font-bold">هذه الرسوم سارية في الفترة
-            الحالية فقط</span>، وقد يتم في المستقبل تعديلها (زيادة أو تحويلها لاشتراك شهري ثابت)، وسيتم إخطارك قبل
-            أي تغيير. الرسوم ليست مرتفعة — فمقابل {formatPrice(COMPANY_FEE_PER_VISIT)} فقط تحصل على نظام إدارة كامل
-            لتتبع عملائك واشتراكاتهم وزياراتك ونظام ولاء وحساب أرباح وتنبيهات تلقائية.
+            مقابل استخدام النظام، تُحسب رسوم قدرها{' '}
+            <span className="font-bold text-amber-700">{formatPrice(COMPANY_FEE_PER_VISIT)}</span> على كل حلاقة عادية مدفوعة،
+            بينما تُحصّل رسوم الباقة مرة واحدة عند شرائها حسب عدد الزيارات المشمولة فيها.
+            لا تُفرض رسوم جديدة عند استخدام زيارة من الباقة، والخدمات الإضافية أثناء زيارة الباقة تذهب بالكامل للمحل.
+            <span className="font-bold"> هذه الرسوم سارية في الفترة الحالية فقط</span>، وقد يتم في المستقبل تعديلها
+            (زيادة أو تحويلها لاشتراك شهري ثابت)، وسيتم إخطارك قبل أي تغيير.
           </p>
         </div>
 
@@ -503,18 +507,23 @@ function Overview({
     totalCustomers: 0,
     activeSubs: 0,
     totalVisits: 0,
-    totalPaid: 0,
     expiringSoon: 0,
     loading: true,
   });
+  const [financial, setFinancial] = useState<RevenueStats | null>(null);
+  const [financialError, setFinancialError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     const loadStats = async () => {
       setStats((current) => ({ ...current, loading: true }));
+      setFinancialError(false);
       try {
-        const { subscriptions, visits } = await getShopActivityData(customers);
+        const [{ subscriptions, visits }, revenue] = await Promise.all([
+          getShopActivityData(customers),
+          getRevenueStats(customers),
+        ]);
         const latestByCustomer = new Map<string, Subscription>();
         for (const subscription of subscriptions) {
           if (!latestByCustomer.has(subscription.customer_id)) {
@@ -534,24 +543,21 @@ function Overview({
           if (daysLeft <= 7) expiringSoon++;
         }
 
-        const totalPaid = visits
-          .filter((visit) => visit.payment_type === 'paid')
-          .reduce((sum, visit) => sum + Number(visit.charge_amount), 0);
-
         if (!cancelled) {
           setStats({
             totalCustomers: customers.length,
             activeSubs,
             totalVisits: visits.length,
-            totalPaid,
             expiringSoon,
             loading: false,
           });
+          setFinancial(revenue);
         }
       } catch (error) {
         console.error('Failed to load shop overview:', error);
         if (!cancelled) {
           setStats((current) => ({ ...current, totalCustomers: customers.length, loading: false }));
+          setFinancialError(true);
         }
       }
     };
@@ -565,6 +571,13 @@ function Overview({
     { label: 'اشتراكات نشطة', value: stats.activeSubs, icon: CheckCircle2, tone: 'bg-emerald-600 text-emerald-50' },
     { label: 'إجمالي الزيارات', value: stats.totalVisits, icon: Scissors, tone: 'bg-amber-500 text-stone-950' },
     { label: 'قربت تنتهي', value: stats.expiringSoon, icon: CalendarClock, tone: 'bg-orange-500 text-orange-50' },
+  ];
+
+  const financeCards = [
+    { label: 'إجمالي التحصيلات', value: financial ? formatPrice(financial.totalRevenue) : '—', detail: 'قيمة الحلاقات والاشتراكات المسجلة والقديمة المتاحة', tone: 'text-stone-900' },
+    { label: 'رسوم الشركة', value: financial ? formatPrice(financial.companyFee) : '—', detail: 'الحلاقة المدفوعة + رسوم الباقات عند البيع', tone: 'text-amber-700' },
+    { label: 'صافي المحل بعد الرسوم', value: financial ? formatPrice(financial.netRevenue) : '—', detail: 'إجمالي التحصيلات ناقص رسوم الشركة', tone: 'text-emerald-700' },
+    { label: 'رسوم الشركة هذا الشهر', value: financial ? formatPrice(financial.thisMonthCompanyFee) : '—', detail: `${financial?.thisMonthCompanyFeeUnits ?? 0} وحدة رسوم خلال الشهر`, tone: 'text-orange-700' },
   ];
 
   return (
@@ -585,27 +598,43 @@ function Overview({
         ))}
       </div>
 
-      {/* Company fee banner */}
-      <div className="card overflow-hidden border-amber-200">
-        <div className="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-l from-amber-50 to-stone-50 p-4">
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-xl bg-stone-900 text-amber-400">
-              <Building2 className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="font-bold text-stone-900">
-                رسوم {COMPANY_NAME}: {formatPrice(COMPANY_FEE_PER_VISIT)} لكل زيارة
-              </p>
-              <p className="text-xs text-stone-600">تُحسب تلقائياً على كل زيارة — راجع تفاصيل الإيرادات</p>
-            </div>
+      <section className="card overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 p-4">
+          <div>
+            <h3 className="font-bold text-stone-900">الملخص المالي للمحل</h3>
+            <p className="mt-1 text-xs text-stone-500">إجمالي العمليات المتاحة في سجلات النظام، وليس رصيدًا نقديًا لحظيًا.</p>
           </div>
           <button onClick={onGoRevenue} className="inline-flex items-center gap-1.5 rounded-lg bg-stone-900 px-4 py-2 text-xs font-bold text-amber-50">
             <Wallet className="h-3.5 w-3.5" />
-            عرض الإيرادات
+            تفاصيل الإيرادات
             <ArrowUpRight className="h-3.5 w-3.5" />
           </button>
         </div>
-      </div>
+        {financialError ? (
+          <div className="p-5 text-sm text-red-700">
+            تعذر تحميل الملخص المالي. راجع اتصال قاعدة البيانات وسجلات التحصيل.
+          </div>
+        ) : (
+          <div className="grid gap-px bg-stone-200 sm:grid-cols-2 xl:grid-cols-4">
+            {financeCards.map((item) => (
+              <div key={item.label} className="bg-white p-4">
+                <p className="text-xs font-bold text-stone-500">{item.label}</p>
+                {stats.loading ? (
+                  <div className="mt-3 h-7 w-28 animate-shimmer rounded" />
+                ) : (
+                  <p className={`mt-2 font-display text-2xl font-extrabold ${item.tone}`}>{item.value}</p>
+                )}
+                <p className="mt-1 text-[11px] leading-5 text-stone-500">{item.detail}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="border-t border-stone-200 bg-stone-50 px-4 py-3 text-xs leading-6 text-stone-600">
+          رسوم الحلاقة العادية المدفوعة {formatPrice(COMPANY_FEE_PER_VISIT)} لكل زيارة، حتى لو العميل مشترك في باقة.
+          رسوم الباقة تُحسب مرة واحدة عند البيع حسب عدد زياراتها. استخدام زيارة الباقة لا يضيف رسومًا جديدة،
+          والخدمات الإضافية أثناءها تذهب بالكامل للمحل.
+        </div>
+      </section>
 
       {/* Alerts preview */}
       {stats.expiringSoon > 0 && (
@@ -755,7 +784,8 @@ function VisitsTab({
   const [rows, setRows] = useState<VisitRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [visitModalRow, setVisitModalRow] = useState<VisitRow | null>(null);
+  const [visitModalForcePaid, setVisitModalForcePaid] = useState(false);
 
   const loadRows = useCallback(async () => {
     setLoading(true);
@@ -799,12 +829,12 @@ function VisitsTab({
     loadRows();
   }, [loadRows]);
 
-  const markVisited = async (idx: number, forcePaid: boolean) => {
+  const markVisited = async (idx: number, opts: { haircutType: string; serviceName: string; customCharge: number; notes: string; forcePaid: boolean; paymentMethod: PaymentMethod }) => {
     const row = rows[idx];
-    if (row.visitToday || row.recording || row.customer.is_blocked) return;
+    if (row.visitToday || row.recording || row.customer.is_blocked) return false;
     setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, recording: true } : r)));
     try {
-      const result = await recordVisit(row.customer.id, { forcePaid, shopId, paymentMethod });
+      const result = await recordVisit(row.customer.id, { ...opts, shopId });
       const newVisit = result.visit;
       setRows((prev) =>
         prev
@@ -816,8 +846,11 @@ function VisitsTab({
             return a.customer.name.localeCompare(b.customer.name, 'ar');
           })
       );
-    } catch {
+      return true;
+    } catch (error) {
+      console.error('Failed to record visit:', error);
       setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, recording: false } : r)));
+      return false;
     }
   };
 
@@ -843,7 +876,8 @@ function VisitsTab({
   const filtered = filter.trim() ? rows.filter((r) => r.customer.name.includes(filter.trim())) : rows;
   const visitedCount = rows.filter((r) => r.visitToday).length;
   const subscribedCount = rows.filter((r) => r.sub?.status === 'active').length;
-  const todayCompanyFee = visitedCount * COMPANY_FEE_PER_VISIT;
+  const paidVisitCount = rows.filter((r) => r.visitToday?.payment_type === 'paid').length;
+  const todayCompanyFee = paidVisitCount * COMPANY_FEE_PER_VISIT;
 
   return (
     <div>
@@ -866,7 +900,7 @@ function VisitsTab({
         <div className="card border-amber-200 bg-amber-50/50 p-3 text-center">
           <Building2 className="mx-auto h-5 w-5 text-amber-600" />
           <p className="mt-1 font-display text-xl font-extrabold text-amber-700">{formatPrice(todayCompanyFee)}</p>
-          <p className="text-[11px] font-bold text-stone-500">رسوم الشركة اليوم</p>
+          <p className="text-[11px] font-bold text-stone-500">رسوم الحلاقات العادية المدفوعة المسجلة اليوم</p>
         </div>
       </div>
 
@@ -878,17 +912,6 @@ function VisitsTab({
           placeholder="ابحث عن عميل..."
           className="input pr-12"
         />
-      </div>
-
-      <div className="mb-4 rounded-xl border border-stone-200 bg-white p-3">
-        <label className="label">طريقة التحصيل للحلاقة العادية</label>
-        <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)} className="input">
-          <option value="cash">نقدًا</option>
-          <option value="instapay">InstaPay</option>
-          <option value="vodafone_cash">Vodafone Cash</option>
-          <option value="card">بطاقة بنكية</option>
-        </select>
-        <p className="mt-1 text-xs text-stone-500">تُستخدم هذه الطريقة عند تسجيل حلاقة عادية فقط، ولا تُسجّل دفعة جديدة عند استخدام الاشتراك.</p>
       </div>
 
       <div className="mb-3 flex items-center gap-2 text-sm font-bold text-stone-600">
@@ -968,14 +991,14 @@ function VisitsTab({
                 ) : active && remaining > 0 ? (
                   <div className="flex gap-1.5">
                     <button
-                      onClick={() => markVisited(idx, false)}
+                      onClick={() => { setVisitModalRow(row); setVisitModalForcePaid(false); }}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700"
                     >
                       <CheckCircle2 className="h-4 w-4" />
                       اشتراك
                     </button>
                     <button
-                      onClick={() => markVisited(idx, true)}
+                      onClick={() => { setVisitModalRow(row); setVisitModalForcePaid(true); }}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-stone-950 transition hover:bg-amber-600"
                     >
                       <Coins className="h-4 w-4" />
@@ -984,7 +1007,7 @@ function VisitsTab({
                   </div>
                 ) : (
                   <button
-                    onClick={() => markVisited(idx, false)}
+                    onClick={() => { setVisitModalRow(row); setVisitModalForcePaid(false); }}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-stone-950 transition hover:bg-amber-600"
                   >
                     <Scissors className="h-4 w-4" />
@@ -996,6 +1019,22 @@ function VisitsTab({
           })}
         </div>
       )}
+
+      <RecordVisitModal
+        regularHaircutPrice={regularHaircutPrice}
+        open={!!visitModalRow}
+        onClose={() => setVisitModalRow(null)}
+        active={visitModalRow?.sub?.status === 'active'}
+        remaining={visitModalRow?.sub?.plan ? Math.max(0, visitModalRow.sub.plan.haircut_count - visitModalRow.sub.haircuts_used) : 0}
+        initialForcePaid={visitModalForcePaid}
+        onRecord={async (opts) => {
+          if (!visitModalRow) return;
+          const rowIndex = rows.findIndex((r) => r.customer.id === visitModalRow.customer.id);
+          if (rowIndex < 0) return;
+          const saved = await markVisited(rowIndex, opts);
+          if (saved) setVisitModalRow(null);
+        }}
+      />
     </div>
   );
 }
@@ -1212,15 +1251,135 @@ function SubscriptionsTab({
 function RevenueTab({ shopId, customers }: { shopId: string; customers: Customer[] }) {
   const [stats, setStats] = useState<RevenueStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [transactions, setTransactions] = useState<Array<{
+    id: string;
+    customer_id: string | null;
+    payment_kind: 'visit' | 'subscription' | 'other';
+    amount: number;
+    company_fee_amount: number;
+    service_name: string | null;
+    payment_method: string;
+    payment_status: 'recorded' | 'refunded' | 'void';
+    payment_date: string;
+    notes: string | null;
+  }>>([]);
+  const [ledgerLoading, setLedgerLoading] = useState(true);
+  const [ledgerError, setLedgerError] = useState('');
+  const [customerFilter, setCustomerFilter] = useState('');
+  const [operationFilter, setOperationFilter] = useState('all');
+  const [methodFilter, setMethodFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       setLoading(true);
-      const s = await getRevenueStats(customers);
-      setStats(s);
-      setLoading(false);
+      try {
+        const s = await getRevenueStats(customers);
+        if (!cancelled) setStats(s);
+      } catch (error) {
+        console.error('Failed to load revenue stats:', error);
+        if (!cancelled) setStats(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
+    return () => { cancelled = true; };
   }, [customers, shopId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLedgerLoading(true);
+      setLedgerError('');
+      try {
+        const { data, error } = await supabase
+          .from('payment_transactions')
+          .select('id, customer_id, payment_kind, amount, company_fee_amount, service_name, payment_method, payment_status, payment_date, notes')
+          .eq('shop_id', shopId)
+          .order('payment_date', { ascending: false });
+        if (error) throw error;
+        if (!cancelled) setTransactions((data ?? []) as typeof transactions);
+      } catch (error) {
+        console.error('Failed to load payment ledger:', error);
+        if (!cancelled) {
+          setTransactions([]);
+          setLedgerError(error instanceof Error ? error.message : 'تعذر تحميل سجل التحصيلات');
+        }
+      } finally {
+        if (!cancelled) setLedgerLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [shopId]);
+
+  const customerNames = new Map(customers.map((customer) => [customer.id, customer.name]));
+  const filteredTransactions = transactions.filter((transaction) => {
+    const customerName = transaction.customer_id ? customerNames.get(transaction.customer_id) ?? '' : '';
+    const searchMatch = !customerFilter.trim() || customerName.toLowerCase().includes(customerFilter.trim().toLowerCase());
+    const date = transaction.payment_date.slice(0, 10);
+    const fromMatch = !dateFrom || date >= dateFrom;
+    const toMatch = !dateTo || date <= dateTo;
+    const methodMatch = methodFilter === 'all' || transaction.payment_method === methodFilter;
+    const statusMatch = statusFilter === 'all' || transaction.payment_status === statusFilter;
+    const operation = transaction.payment_kind === 'subscription'
+      ? 'subscription'
+      : Number(transaction.company_fee_amount) > 0 ? 'regular' : 'extra';
+    const operationMatch = operationFilter === 'all' || operation === operationFilter;
+    return searchMatch && fromMatch && toMatch && methodMatch && statusMatch && operationMatch;
+  });
+
+  const recordedFiltered = filteredTransactions.filter((transaction) => transaction.payment_status === 'recorded');
+  const filteredCollected = recordedFiltered.reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0);
+  const filteredFees = recordedFiltered.reduce((sum, transaction) => sum + Number(transaction.company_fee_amount || 0), 0);
+  const filteredNet = filteredCollected - filteredFees;
+
+  // Reports are derived only from recorded payment transactions.
+  const reportTransactions = filteredTransactions.filter((transaction) => transaction.payment_status === 'recorded');
+  const reportMaxMonth = new Date();
+  const monthlyReport = Array.from({ length: 6 }, (_, index) => {
+    const monthDate = new Date(reportMaxMonth.getFullYear(), reportMaxMonth.getMonth() - (5 - index), 1);
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const rows = reportTransactions.filter((transaction) => {
+      const date = new Date(transaction.payment_date);
+      return date.getFullYear() === year && date.getMonth() === month;
+    });
+    const collected = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    const fees = rows.reduce((sum, row) => sum + Number(row.company_fee_amount || 0), 0);
+    const packages = rows.filter((row) => row.payment_kind === 'subscription').reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    const regular = rows.filter((row) => row.payment_kind === 'visit' && Number(row.company_fee_amount || 0) > 0).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    const extras = rows.filter((row) => row.payment_kind === 'visit' && Number(row.company_fee_amount || 0) === 0).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    return { label: monthDate.toLocaleDateString('ar-EG', { month: 'short' }), collected, fees, net: collected - fees, packages, regular, extras };
+  });
+  const monthlyMax = Math.max(1, ...monthlyReport.map((row) => row.collected));
+  const dailyReport = Array.from({ length: 7 }, (_, index) => {
+    const day = new Date();
+    day.setHours(0, 0, 0, 0);
+    day.setDate(day.getDate() - (6 - index));
+    const rows = reportTransactions.filter((transaction) => {
+      const date = new Date(transaction.payment_date);
+      return date.getFullYear() === day.getFullYear() && date.getMonth() === day.getMonth() && date.getDate() === day.getDate();
+    });
+    const collected = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    const fees = rows.reduce((sum, row) => sum + Number(row.company_fee_amount || 0), 0);
+    return { label: day.toLocaleDateString('ar-EG', { weekday: 'short', day: 'numeric', month: 'short' }), collected, fees, net: collected - fees, count: rows.length };
+  });
+  const paymentMethodReport = [
+    { key: 'cash', label: 'كاش' },
+    { key: 'instapay', label: 'InstaPay' },
+    { key: 'vodafone_cash', label: 'Vodafone Cash' },
+    { key: 'card', label: 'بطاقة' },
+    { key: 'unknown', label: 'غير محدد' },
+  ].map((method) => ({
+    ...method,
+    amount: reportTransactions.filter((row) => row.payment_method === method.key).reduce((sum, row) => sum + Number(row.amount || 0), 0),
+  }));
+  const paymentMethodMax = Math.max(1, ...paymentMethodReport.map((row) => row.amount));
+  const additionalServicesRevenue = reportTransactions.filter((row) => row.payment_kind === 'visit' && Number(row.company_fee_amount || 0) === 0).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const packageSalesRevenue = reportTransactions.filter((row) => row.payment_kind === 'subscription').reduce((sum, row) => sum + Number(row.amount || 0), 0);
 
   if (loading || !stats) {
     return (
@@ -1290,21 +1449,21 @@ function RevenueTab({ shopId, customers }: { shopId: string; customers: Customer
             </div>
             <div>
               <h3 className="font-bold text-stone-900">رسوم {COMPANY_NAME}</h3>
-              <p className="text-xs text-stone-600">{formatPrice(COMPANY_FEE_PER_VISIT)} لكل زيارة — سواء مشترك أو غير مشترك</p>
+              <p className="text-xs text-stone-600">الحلاقة العادية المدفوعة: {formatPrice(COMPANY_FEE_PER_VISIT)}، والباقة: تُحصّل رسومها عند البيع حسب عدد الزيارات المشمولة</p>
             </div>
           </div>
 
           <div className="space-y-3">
             <div className="flex items-center justify-between rounded-xl bg-white/70 p-3">
-              <span className="text-sm text-stone-600">إجمالي الزيارات × {formatPrice(COMPANY_FEE_PER_VISIT)}</span>
-              <span className="font-bold text-stone-900">{stats.totalVisits} × {formatPrice(COMPANY_FEE_PER_VISIT)}</span>
+              <span className="text-sm text-stone-600">طريقة احتساب الرسوم</span>
+              <span className="text-left text-sm font-bold text-stone-900">العادية المدفوعة: {formatPrice(COMPANY_FEE_PER_VISIT)} · الباقة: حسب عدد زياراتها عند البيع</span>
             </div>
             <div className="flex items-center justify-between rounded-xl bg-white/70 p-3">
-              <span className="text-sm text-stone-600">الرسوم المستحقة (كل الوقت)</span>
+              <span className="text-sm text-stone-600">الرسوم المستحقة (كل الوقت · {stats.companyFeeUnits} وحدة رسوم)</span>
               <span className="font-bold text-amber-700">{formatPrice(stats.companyFee)}</span>
             </div>
             <div className="flex items-center justify-between rounded-xl border border-amber-300 bg-amber-100/60 p-3">
-              <span className="text-sm font-bold text-stone-700">رسوم هذا الشهر ({stats.thisMonthVisits} زيارة)</span>
+              <span className="text-sm font-bold text-stone-700">رسوم هذا الشهر ({stats.thisMonthCompanyFeeUnits} وحدة رسوم)</span>
               <span className="font-bold text-amber-800">{formatPrice(stats.thisMonthCompanyFee)}</span>
             </div>
           </div>
@@ -1318,6 +1477,157 @@ function RevenueTab({ shopId, customers }: { shopId: string; customers: Customer
           <p className="font-display text-2xl font-extrabold text-emerald-600">{formatPrice(stats.netRevenue)}</p>
         </div>
       </div>
+
+      {/* Financial reports and charts: source is the recorded transaction ledger. */}
+      <section className="card space-y-5 p-5">
+        <div>
+          <h3 className="font-display text-lg font-extrabold text-stone-900">التقارير والرسوم البيانية</h3>
+          <p className="mt-1 text-xs text-stone-500">التقارير التالية تتأثر بفلاتر سجل التحصيلات، وتعتمد على العمليات المسجلة فقط.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-stone-200 p-3"><p className="text-xs font-bold text-stone-500">مبيعات الباقات</p><p className="mt-1 text-xl font-extrabold text-stone-900">{formatPrice(packageSalesRevenue)}</p></div>
+          <div className="rounded-xl border border-stone-200 p-3"><p className="text-xs font-bold text-stone-500">الخدمات الإضافية بدون رسوم شركة</p><p className="mt-1 text-xl font-extrabold text-stone-900">{formatPrice(additionalServicesRevenue)}</p></div>
+          <div className="rounded-xl border border-stone-200 p-3"><p className="text-xs font-bold text-stone-500">عدد عمليات التحصيل المسجلة</p><p className="mt-1 text-xl font-extrabold text-stone-900">{reportTransactions.length}</p></div>
+        </div>
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div className="rounded-xl bg-stone-50 p-4">
+            <h4 className="mb-4 text-sm font-extrabold text-stone-800">التحصيلات وصافي المحل — آخر 6 أشهر</h4>
+            <div className="flex h-44 items-end gap-3 border-b border-stone-300 pb-2">
+              {monthlyReport.map((month) => (
+                <div key={month.label + monthlyReport.indexOf(month)} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1">
+                  <div className="flex h-full w-full items-end justify-center gap-1">
+                    <div title={`التحصيلات: ${formatPrice(month.collected)}`} className="w-1/2 max-w-5 rounded-t bg-stone-800" style={{ height: `${Math.max(2, (month.collected / monthlyMax) * 100)}%` }} />
+                    <div title={`صافي المحل: ${formatPrice(month.net)}`} className="w-1/2 max-w-5 rounded-t bg-emerald-500" style={{ height: `${Math.max(2, (month.net / monthlyMax) * 100)}%` }} />
+                  </div>
+                  <span className="text-[10px] font-bold text-stone-500">{month.label}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-4 text-[11px] text-stone-600"><span className="inline-flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-sm bg-stone-800" /> إجمالي التحصيل</span><span className="inline-flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /> صافي المحل</span></div>
+          </div>
+          <div className="rounded-xl bg-stone-50 p-4">
+            <h4 className="mb-4 text-sm font-extrabold text-stone-800">توزيع التحصيل حسب طريقة الدفع</h4>
+            <div className="space-y-3">
+              {paymentMethodReport.map((method) => (
+                <div key={method.key}>
+                  <div className="mb-1 flex justify-between gap-2 text-xs"><span className="font-bold text-stone-700">{method.label}</span><span className="text-stone-600">{formatPrice(method.amount)}</span></div>
+                  <div className="h-2 overflow-hidden rounded-full bg-stone-200"><div className="h-full rounded-full bg-amber-500" style={{ width: `${(method.amount / paymentMethodMax) * 100}%` }} /></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="overflow-x-auto rounded-xl border border-stone-200">
+          <table className="w-full min-w-[620px] text-right text-sm">
+            <thead className="bg-stone-100 text-xs text-stone-600"><tr><th className="p-3">الشهر</th><th className="p-3">التحصيل</th><th className="p-3">رسوم الشركة</th><th className="p-3">صافي المحل</th><th className="p-3">الباقات</th><th className="p-3">الحلاقات العادية</th><th className="p-3">الخدمات الإضافية</th></tr></thead>
+            <tbody>{monthlyReport.map((month, index) => <tr key={`${month.label}-${index}`} className="border-t border-stone-100"><td className="p-3 font-bold">{month.label}</td><td className="p-3">{formatPrice(month.collected)}</td><td className="p-3 text-amber-700">{formatPrice(month.fees)}</td><td className="p-3 font-bold text-emerald-700">{formatPrice(month.net)}</td><td className="p-3">{formatPrice(month.packages)}</td><td className="p-3">{formatPrice(month.regular)}</td><td className="p-3">{formatPrice(month.extras)}</td></tr>)}</tbody>
+          </table>
+        </div>
+        <div className="overflow-x-auto rounded-xl border border-stone-200">
+          <div className="border-b border-stone-200 bg-stone-50 px-3 py-2 text-sm font-extrabold text-stone-800">التقرير اليومي — آخر 7 أيام</div>
+          <table className="w-full min-w-[520px] text-right text-sm">
+            <thead className="bg-stone-100 text-xs text-stone-600"><tr><th className="p-3">اليوم</th><th className="p-3">عدد العمليات</th><th className="p-3">التحصيل</th><th className="p-3">رسوم الشركة</th><th className="p-3">صافي المحل</th></tr></thead>
+            <tbody>{dailyReport.map((day, index) => <tr key={`${day.label}-${index}`} className="border-t border-stone-100"><td className="p-3 font-bold">{day.label}</td><td className="p-3">{day.count}</td><td className="p-3">{formatPrice(day.collected)}</td><td className="p-3 text-amber-700">{formatPrice(day.fees)}</td><td className="p-3 font-bold text-emerald-700">{formatPrice(day.net)}</td></tr>)}</tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Payment ledger: values come from recorded payment_transactions only. */}
+      <section className="card space-y-4 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="font-display text-lg font-extrabold text-stone-900">سجل التحصيلات والعمليات المالية</h3>
+            <p className="mt-1 text-xs text-stone-500">كل صف يمثل عملية تحصيل مسجلة. استخدام زيارة الباقة وحده لا ينشئ تحصيلًا جديدًا.</p>
+          </div>
+          <span className="rounded-lg bg-stone-100 px-3 py-1.5 text-xs font-bold text-stone-600">{filteredTransactions.length} عملية</span>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="rounded-xl bg-stone-50 p-3">
+            <p className="text-xs font-bold text-stone-500">إجمالي التحصيلات المسجلة حسب الفلاتر</p>
+            <p className="mt-1 text-xl font-extrabold text-stone-900">{formatPrice(filteredCollected)}</p>
+          </div>
+          <div className="rounded-xl bg-amber-50 p-3">
+            <p className="text-xs font-bold text-amber-700">رسوم الشركة</p>
+            <p className="mt-1 text-xl font-extrabold text-amber-800">{formatPrice(filteredFees)}</p>
+          </div>
+          <div className="rounded-xl bg-emerald-50 p-3">
+            <p className="text-xs font-bold text-emerald-700">صافي المحل بعد الرسوم</p>
+            <p className="mt-1 text-xl font-extrabold text-emerald-800">{formatPrice(filteredNet)}</p>
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <input value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)} className="input" placeholder="بحث باسم العميل" />
+          <select value={operationFilter} onChange={(e) => setOperationFilter(e.target.value)} className="input">
+            <option value="all">كل أنواع العمليات</option>
+            <option value="regular">حلاقة عادية مدفوعة</option>
+            <option value="subscription">بيع باقة / اشتراك</option>
+            <option value="extra">خدمة إضافية بدون رسوم شركة</option>
+          </select>
+          <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)} className="input">
+            <option value="all">كل طرق الدفع</option>
+            <option value="cash">كاش</option>
+            <option value="instapay">InstaPay</option>
+            <option value="vodafone_cash">Vodafone Cash</option>
+            <option value="card">بطاقة</option>
+            <option value="unknown">غير محدد</option>
+          </select>
+          <label className="text-xs font-bold text-stone-600">من تاريخ<input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="input mt-1" /></label>
+          <label className="text-xs font-bold text-stone-600">إلى تاريخ<input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="input mt-1" /></label>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="input">
+            <option value="all">كل الحالات</option>
+            <option value="recorded">مسجل</option>
+            <option value="refunded">مسترد</option>
+            <option value="void">ملغي</option>
+          </select>
+        </div>
+
+        {ledgerLoading ? (
+          <div className="h-28 animate-shimmer rounded-xl" />
+        ) : ledgerError ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">تعذر تحميل سجل التحصيلات: {ledgerError}</div>
+        ) : filteredTransactions.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-stone-300 p-8 text-center text-sm text-stone-500">لا توجد عمليات مطابقة للفلاتر الحالية.</div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-stone-200">
+            <table className="w-full min-w-[850px] text-right text-sm">
+              <thead className="bg-stone-100 text-xs text-stone-600">
+                <tr>
+                  <th className="p-3">التاريخ</th><th className="p-3">العميل</th><th className="p-3">نوع العملية</th>
+                  <th className="p-3">المبلغ المحصل</th><th className="p-3">رسوم الشركة</th><th className="p-3">صافي المحل</th>
+                  <th className="p-3">طريقة الدفع</th><th className="p-3">الحالة</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTransactions.map((transaction) => {
+                  const customerName = transaction.customer_id ? customerNames.get(transaction.customer_id) ?? 'عميل غير معروف' : '—';
+                  const isPackage = transaction.payment_kind === 'subscription';
+                  const fee = Number(transaction.company_fee_amount || 0);
+                  const amount = Number(transaction.amount || 0);
+                  const operationLabel = isPackage ? 'بيع باقة' : fee > 0 ? 'حلاقة عادية' : 'خدمة إضافية';
+                  const methodLabel: Record<string, string> = { cash: 'كاش', instapay: 'InstaPay', vodafone_cash: 'Vodafone Cash', card: 'بطاقة', unknown: 'غير محدد' };
+                  const statusLabel: Record<string, string> = { recorded: 'مسجل', refunded: 'مسترد', void: 'ملغي' };
+                  const active = transaction.payment_status === 'recorded';
+                  return (
+                    <tr key={transaction.id} className="border-t border-stone-100">
+                      <td className="whitespace-nowrap p-3 text-xs text-stone-600">{formatDateTime(transaction.payment_date)}</td>
+                      <td className="p-3 font-bold text-stone-800">{customerName}</td>
+                      <td className="p-3"><span className="rounded-lg bg-stone-100 px-2 py-1 text-xs font-bold">{operationLabel}</span>{transaction.service_name && <p className="mt-1 text-xs text-stone-500">{transaction.service_name}</p>}</td>
+                      <td className="whitespace-nowrap p-3 font-bold">{formatPrice(amount)}</td>
+                      <td className="whitespace-nowrap p-3 text-amber-700">{formatPrice(fee)}</td>
+                      <td className="whitespace-nowrap p-3 font-bold text-emerald-700">{formatPrice(active ? amount - fee : 0)}</td>
+                      <td className="whitespace-nowrap p-3 text-xs">{methodLabel[transaction.payment_method] ?? transaction.payment_method}</td>
+                      <td className="p-3"><span className={`rounded-lg px-2 py-1 text-xs font-bold ${active ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-600'}`}>{statusLabel[transaction.payment_status] ?? transaction.payment_status}</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="text-xs leading-6 text-stone-500">الأرقام في ملخص السجل أعلاه محسوبة من العمليات ذات الحالة «مسجل» فقط. المبالغ المستردة والملغاة تظهر في السجل للمراجعة ولا تدخل في إجمالي التحصيل أو صافي المحل. رسوم زيارة الباقة صفر عند الاستخدام؛ ورسوم الباقة تظهر في عملية بيعها.</p>
+      </section>
 
       {/* Why pay the fee - features */}
       <div className="card p-5">
@@ -1343,8 +1653,8 @@ function RevenueTab({ shopId, customers }: { shopId: string; customers: Customer
           ))}
         </div>
         <div className="mt-4 rounded-xl bg-amber-50 p-3 text-center text-sm text-stone-700">
-          <span className="font-bold">باختصار:</span> بدفع {formatPrice(COMPANY_FEE_PER_VISIT)} فقط لكل زيارة، توفر على
-          نفسك إدارة الورق وتتبع العملاء وتنبيهات الاشتراكات — وتستعيد وقتك للتركيز على الحلاقة نفسها.
+          <span className="font-bold">باختصار:</span> تُحسب رسوم الحلاقة العادية المدفوعة ورسوم الباقات عند بيعها،
+          مقابل إدارة العملاء والاشتراكات والزيارات ونظام الولاء وتقارير الإيرادات.
         </div>
       </div>
     </div>
@@ -1817,6 +2127,7 @@ function RecordVisitModal({
   onClose,
   active,
   remaining,
+  initialForcePaid,
   onRecord,
 }: {
   regularHaircutPrice: number;
@@ -1824,20 +2135,31 @@ function RecordVisitModal({
   onClose: () => void;
   active: boolean;
   remaining: number;
-  onRecord: (opts: { haircutType: string; notes: string; forcePaid: boolean; paymentMethod: PaymentMethod }) => Promise<void>;
+  initialForcePaid?: boolean;
+  onRecord: (opts: { haircutType: string; serviceName: string; customCharge: number; notes: string; forcePaid: boolean; paymentMethod: PaymentMethod }) => Promise<void>;
 }) {
-  const [haircutType, setHaircutType] = useState('حلاقة عامة');
+  const [serviceName, setServiceName] = useState('حلاقة عامة');
   const [notes, setNotes] = useState('');
   const [forcePaid, setForcePaid] = useState(false);
+  const [customCharge, setCustomCharge] = useState(regularHaircutPrice);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setServiceName('حلاقة عامة');
+    setNotes('');
+    setForcePaid(!!initialForcePaid);
+    setCustomCharge(active && remaining > 0 && !initialForcePaid ? 0 : regularHaircutPrice);
+    setPaymentMethod('cash');
+  }, [open, initialForcePaid, active, remaining, regularHaircutPrice]);
 
   const canUseSub = active && remaining > 0 && !forcePaid;
 
   const submit = async () => {
     setSaving(true);
     try {
-      await onRecord({ haircutType, notes, forcePaid, paymentMethod });
+      await onRecord({ haircutType: serviceName, serviceName, customCharge: Number(customCharge), notes, forcePaid, paymentMethod });
       setNotes('');
       setForcePaid(false);
     } finally {
@@ -1846,17 +2168,11 @@ function RecordVisitModal({
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="تسجيل حلاقة" maxWidth="max-w-md">
+    <Modal open={open} onClose={onClose} title="تسجيل زيارة" maxWidth="max-w-md">
       <div className="space-y-4">
         <div>
-          <label className="label">نوع الحلاقة</label>
-          <select value={haircutType} onChange={(e) => setHaircutType(e.target.value)} className="input">
-            <option value="حلاقة عامة">حلاقة عامة</option>
-            <option value="حلاقة + تحديد">حلاقة + تحديد</option>
-            <option value="حلاقة + غسيل">حلاقة + غسيل</option>
-            <option value="تهذيب لحية">تهذيب لحية</option>
-            <option value="قص عصري">قص عصري</option>
-          </select>
+          <label className="label">اسم الخدمة *</label>
+          <input value={serviceName} onChange={(e) => setServiceName(e.target.value)} className="input" placeholder="مثال: حلاقة، تنظيف بشرة، تهذيب لحية" />
         </div>
 
         {active && remaining > 0 && (
@@ -1865,7 +2181,7 @@ function RecordVisitModal({
               <input
                 type="checkbox"
                 checked={forcePaid}
-                onChange={(e) => setForcePaid(e.target.checked)}
+                onChange={(e) => { setForcePaid(e.target.checked); setCustomCharge(e.target.checked ? regularHaircutPrice : 0); }}
                 className="h-4 w-4 accent-amber-600"
               />
               <span className="text-sm font-bold text-stone-700">احتسابها كحلاقة عادية (لا تخصم من الاشتراك)</span>
@@ -1877,17 +2193,23 @@ function RecordVisitModal({
           {canUseSub ? (
             <span className="flex items-center gap-1.5">
               <CheckCircle2 className="h-4 w-4" />
-              ستُخصم من اشتراكه — بدون رسوم (متبقي {remaining} حلاقة)
+              ستُخصم زيارة من الباقة — رسوم الشركة محسوبة عند شراء الباقة (متبقي {remaining} زيارة)
             </span>
           ) : (
             <span className="flex items-center gap-1.5">
               <Coins className="h-4 w-4" />
-              ستحسب كحلاقة عادية بقيمة {formatPrice(regularHaircutPrice)}
+              زيارة مدفوعة — رسوم الشركة الثابتة {formatPrice(COMPANY_FEE_PER_VISIT)}
             </span>
           )}
         </div>
 
-        {!canUseSub && (
+        <div>
+          <label className="label">{canUseSub ? 'قيمة الخدمة الإضافية (اختياري)' : 'سعر الخدمة *'}</label>
+          <input type="number" min={canUseSub ? 0 : 0.01} step="0.01" value={customCharge} onChange={(e) => setCustomCharge(Number(e.target.value))} className="input" />
+          {canUseSub && <p className="mt-1 text-xs text-stone-500">اترك القيمة صفرًا إذا كانت الزيارة من الباقة بدون خدمة إضافية مدفوعة.</p>}
+        </div>
+
+        {(!canUseSub || Number(customCharge) > 0) && (
           <div>
             <label className="label">طريقة الدفع *</label>
             <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)} className="input">
@@ -1905,7 +2227,7 @@ function RecordVisitModal({
         </div>
 
         <div className="flex gap-3">
-          <button onClick={submit} disabled={saving} className="btn-primary flex-1">
+          <button onClick={submit} disabled={saving || !serviceName.trim() || (!canUseSub && (!Number.isFinite(Number(customCharge)) || Number(customCharge) <= 0)) || (canUseSub && (!Number.isFinite(Number(customCharge)) || Number(customCharge) < 0))} className="btn-primary flex-1">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scissors className="h-4 w-4" />}
             {saving ? 'جاري التسجيل...' : 'تأكيد التسجيل'}
           </button>

@@ -34,6 +34,8 @@ export type PaymentTransaction = {
   subscription_id: string | null;
   payment_kind: 'visit' | 'subscription' | 'other';
   amount: number;
+  company_fee_amount: number;
+  service_name: string | null;
   payment_method: PaymentMethod | 'unknown';
   payment_status: 'recorded' | 'refunded' | 'void';
   payment_date: string;
@@ -346,6 +348,8 @@ export async function createSubscription(
       subscription_id: subscription.id,
       payment_kind: 'subscription',
       amount,
+      company_fee_amount: Number(plan.haircut_count) * COMPANY_FEE_PER_VISIT,
+      service_name: null,
       payment_method: paymentMethod,
       payment_status: 'recorded',
       payment_date: new Date().toISOString(),
@@ -518,6 +522,7 @@ export type RecordVisitOptions = {
   customCharge?: number;
   shopId?: string;
   paymentMethod?: PaymentMethod;
+  serviceName?: string;
 };
 
 /**
@@ -577,6 +582,42 @@ async function createVisitRecord(
       throw subscriptionError;
     }
 
+    const extraServiceAmount = Number(opts.customCharge ?? 0);
+
+    if (!Number.isFinite(extraServiceAmount) || extraServiceAmount < 0) {
+      await supabase.from('subscriptions')
+        .update({ haircuts_used: sub.haircuts_used })
+        .eq('id', sub.id);
+      await supabase.from('visits').delete().eq('id', visit.id);
+      throw new Error('قيمة الخدمة الإضافية غير صحيحة');
+    }
+
+    if (extraServiceAmount > 0) {
+      const { error: extraPaymentError } = await supabase
+        .from('payment_transactions')
+        .insert({
+          shop_id: opts.shopId ?? null,
+          customer_id: customerId,
+          visit_id: visit.id,
+          payment_kind: 'visit',
+          amount: extraServiceAmount,
+          company_fee_amount: 0,
+          service_name: opts.serviceName ?? opts.haircutType ?? 'خدمة إضافية',
+          payment_method: opts.paymentMethod ?? 'cash',
+          payment_status: 'recorded',
+          payment_date: visitDate,
+          notes: 'تحصيل خدمة إضافية أثناء استخدام الباقة',
+        });
+
+      if (extraPaymentError) {
+        await supabase.from('subscriptions')
+          .update({ haircuts_used: sub.haircuts_used })
+          .eq('id', sub.id);
+        await supabase.from('visits').delete().eq('id', visit.id);
+        throw new Error(`لم يتم تسجيل الخدمة الإضافية: ${extraPaymentError.message}`);
+      }
+    }
+
     return {
       visit,
       subscription: updatedSubscription,
@@ -621,6 +662,8 @@ async function createVisitRecord(
       visit_id: visit.id,
       payment_kind: 'visit',
       amount: charge,
+      company_fee_amount: COMPANY_FEE_PER_VISIT,
+      service_name: opts.serviceName ?? opts.haircutType ?? 'خدمة',
       payment_method: opts.paymentMethod ?? 'cash',
       payment_status: 'recorded',
       payment_date: visitDate,
@@ -741,6 +784,10 @@ export type RevenueStats = {
   netRevenue: number;
   thisMonthVisits: number;
   thisMonthCompanyFee: number;
+  /** Number of fee-bearing units: ordinary paid visits + package visits sold. */
+  companyFeeUnits: number;
+  /** Fee-bearing units recorded/estimated in the current calendar month. */
+  thisMonthCompanyFeeUnits: number;
 };
 
 /**
@@ -888,11 +935,67 @@ export async function getRevenueStats(
   const totalRevenue =
     revenueFromPaid + revenueFromSubscriptions;
 
-  const companyFee =
-    totalVisits * COMPANY_FEE_PER_VISIT;
+  const legacyCompanyFee =
+    legacyPaidVisits.length * COMPANY_FEE_PER_VISIT +
+    legacySubscriptions.reduce(
+      (sum, subscription) =>
+        sum + Number(subscription.plan?.haircut_count ?? 0) * COMPANY_FEE_PER_VISIT,
+      0
+    );
+
+  const recordedCompanyFee = recordedTransactions.reduce(
+    (sum, transaction) =>
+      sum + Number(transaction.company_fee_amount ?? 0),
+    0
+  );
+
+  const companyFee = recordedCompanyFee + legacyCompanyFee;
+
+  // A fee-bearing unit is either one collected ordinary visit or one visit
+  // included in a package at the time that package is sold. A package visit
+  // being used later is NOT a new fee-bearing unit.
+  const companyFeeUnits =
+    (recordedCompanyFee + legacyCompanyFee) / COMPANY_FEE_PER_VISIT;
+
+  const monthEnd = new Date(
+    now.getFullYear(),
+    now.getMonth() + 1,
+    1
+  );
+
+  const thisMonthRecordedCompanyFee = recordedTransactions
+    .filter((transaction) => {
+      const paymentTime = new Date(transaction.payment_date).getTime();
+      return paymentTime >= monthStart.getTime() && paymentTime < monthEnd.getTime();
+    })
+    .reduce(
+      (sum, transaction) =>
+        sum + Number(transaction.company_fee_amount ?? 0),
+      0
+    );
+
+  const thisMonthLegacyCompanyFee =
+    legacyPaidVisits
+      .filter((visit) => {
+        const time = new Date(visit.visit_date).getTime();
+        return time >= monthStart.getTime() && time < monthEnd.getTime();
+      }).length * COMPANY_FEE_PER_VISIT +
+    legacySubscriptions
+      .filter((subscription) => {
+        const time = new Date(subscription.created_at).getTime();
+        return time >= monthStart.getTime() && time < monthEnd.getTime();
+      })
+      .reduce(
+        (sum, subscription) =>
+          sum + Number(subscription.plan?.haircut_count ?? 0) * COMPANY_FEE_PER_VISIT,
+        0
+      );
 
   const thisMonthCompanyFee =
-    thisMonthVisits * COMPANY_FEE_PER_VISIT;
+    thisMonthRecordedCompanyFee + thisMonthLegacyCompanyFee;
+
+  const thisMonthCompanyFeeUnits =
+    thisMonthCompanyFee / COMPANY_FEE_PER_VISIT;
 
   const netRevenue = totalRevenue - companyFee;
 
@@ -907,6 +1010,8 @@ export async function getRevenueStats(
     netRevenue,
     thisMonthVisits,
     thisMonthCompanyFee,
+    companyFeeUnits,
+    thisMonthCompanyFeeUnits,
   };
 }
 
