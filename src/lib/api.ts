@@ -1,4 +1,3 @@
-
 import {
   supabase,
   type Customer,
@@ -176,10 +175,6 @@ export async function updateCustomer(
   if (error) throw error;
 }
 
-/**
- * WhatsApp receipt consent is shared across this customer's shop records
- * when the same phone number is used in multiple shops.
- */
 export async function getWhatsAppReceiptConsent(
   phone: string
 ): Promise<boolean> {
@@ -278,13 +273,6 @@ export async function getSubscriptionsByCustomer(
   return data ?? [];
 }
 
-/**
- * Creates a subscription and records its full payment.
- *
- * The subscription is created only with a full payment.
- * The payment method defaults to cash until the Admin UI passes
- * the method selected by the shop owner.
- */
 export async function createSubscription(
   customerId: string,
   planId: string,
@@ -392,9 +380,19 @@ export async function getVisitsByCustomer(
   return data ?? [];
 }
 
+function dedupeById<T extends { id: string }>(items: T[]): T[] {
+  const map = new Map<string, T>();
+  for (const item of items) {
+    if (!map.has(item.id)) {
+      map.set(item.id, item);
+    }
+  }
+  return Array.from(map.values());
+}
+
 /**
- * Loads subscriptions and visits in batches.
- * Customers passed to this function should already be shop-scoped.
+ * Loads subscriptions and visits strictly isolated to shopId when provided.
+ * Never mixes null shop_id rows or other shops' records into a specific shop.
  */
 export async function getShopActivityData(
   customers: Customer[],
@@ -402,11 +400,13 @@ export async function getShopActivityData(
     includeSubscriptions?: boolean;
     includeVisits?: boolean;
     visitsSince?: string;
+    shopId?: string;
   } = {}
 ): Promise<{ subscriptions: Subscription[]; visits: Visit[] }> {
+  const shopId = options.shopId ?? customers[0]?.shop_id ?? undefined;
   const customerIds = customers.map((customer) => customer.id);
 
-  if (customerIds.length === 0) {
+  if (!shopId && customerIds.length === 0) {
     return {
       subscriptions: [],
       visits: [],
@@ -420,16 +420,32 @@ export async function getShopActivityData(
     options.includeVisits !== false;
 
   const idBatches: string[][] = [];
-
   for (let i = 0; i < customerIds.length; i += 100) {
     idBatches.push(customerIds.slice(i, i + 100));
   }
 
   const loadSubscriptions = async (): Promise<Subscription[]> => {
-    const results = await Promise.all(
+    if (shopId) {
+      const collected: Subscription[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase
+          .from('subscriptions')
+          .select('*, plan:plans(*)')
+          .eq('shop_id', shopId)
+          .order('created_at', { ascending: false })
+          .range(from, from + 999);
+
+        if (error) throw error;
+        const page = (data ?? []) as Subscription[];
+        collected.push(...page);
+        if (page.length < 1000) break;
+      }
+      return dedupeById(collected);
+    }
+
+    const byCustomers = await Promise.all(
       idBatches.map(async (ids) => {
         const rows: Subscription[] = [];
-
         for (let from = 0; ; from += 1000) {
           const { data, error } = await supabase
             .from('subscriptions')
@@ -439,26 +455,42 @@ export async function getShopActivityData(
             .range(from, from + 999);
 
           if (error) throw error;
-
           const page = (data ?? []) as Subscription[];
-
           rows.push(...page);
-
           if (page.length < 1000) break;
         }
-
         return rows;
       })
     );
-
-    return results.flat();
+    return dedupeById(byCustomers.flat());
   };
 
   const loadVisits = async (): Promise<Visit[]> => {
-    const results = await Promise.all(
+    if (shopId) {
+      const collected: Visit[] = [];
+      for (let from = 0; ; from += 1000) {
+        let query = supabase
+          .from('visits')
+          .select('*')
+          .eq('shop_id', shopId)
+          .order('visit_date', { ascending: false });
+
+        if (options.visitsSince) {
+          query = query.gte('visit_date', options.visitsSince);
+        }
+
+        const { data, error } = await query.range(from, from + 999);
+        if (error) throw error;
+        const page = (data ?? []) as Visit[];
+        collected.push(...page);
+        if (page.length < 1000) break;
+      }
+      return dedupeById(collected);
+    }
+
+    const byCustomers = await Promise.all(
       idBatches.map(async (ids) => {
         const rows: Visit[] = [];
-
         for (let from = 0; ; from += 1000) {
           let query = supabase
             .from('visits')
@@ -467,46 +499,82 @@ export async function getShopActivityData(
             .order('visit_date', { ascending: false });
 
           if (options.visitsSince) {
-            query = query.gte(
-              'visit_date',
-              options.visitsSince
-            );
+            query = query.gte('visit_date', options.visitsSince);
           }
 
-          const { data, error } = await query.range(
-            from,
-            from + 999
-          );
-
+          const { data, error } = await query.range(from, from + 999);
           if (error) throw error;
-
           const page = (data ?? []) as Visit[];
-
           rows.push(...page);
-
           if (page.length < 1000) break;
         }
-
         return rows;
       })
     );
-
-    return results.flat();
+    return dedupeById(byCustomers.flat());
   };
 
   const [subscriptions, visits] = await Promise.all([
-    includeSubscriptions
-      ? loadSubscriptions()
-      : Promise.resolve([]),
-    includeVisits
-      ? loadVisits()
-      : Promise.resolve([]),
+    includeSubscriptions ? loadSubscriptions() : Promise.resolve([]),
+    includeVisits ? loadVisits() : Promise.resolve([]),
   ]);
 
   return {
     subscriptions,
     visits,
   };
+}
+
+export async function getShopPaymentTransactions(
+  shopId: string | undefined,
+  customerIds: string[]
+): Promise<PaymentTransaction[]> {
+  if (shopId) {
+    const collected: PaymentTransaction[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase
+        .from('payment_transactions')
+        .select('*')
+        .eq('shop_id', shopId)
+        .order('payment_date', { ascending: false })
+        .range(from, from + 999);
+
+      if (error) throw error;
+      const page = (data ?? []) as PaymentTransaction[];
+      collected.push(...page);
+      if (page.length < 1000) break;
+    }
+    return dedupeById(collected);
+  }
+
+  if (customerIds.length === 0) return [];
+
+  const batches: string[][] = [];
+  for (let i = 0; i < customerIds.length; i += 100) {
+    batches.push(customerIds.slice(i, i + 100));
+  }
+
+  const byCustomers = await Promise.all(
+    batches.map(async (ids) => {
+      const rows: PaymentTransaction[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase
+          .from('payment_transactions')
+          .select('*')
+          .in('customer_id', ids)
+          .order('payment_date', { ascending: false })
+          .range(from, from + 999);
+
+        if (error) throw error;
+        const page = (data ?? []) as PaymentTransaction[];
+        rows.push(...page);
+        if (page.length < 1000) break;
+      }
+      return rows;
+    })
+  );
+
+  return dedupeById(byCustomers.flat());
 }
 
 export type RecordVisitResult = {
@@ -525,11 +593,6 @@ export type RecordVisitOptions = {
   serviceName?: string;
 };
 
-/**
- * Creates a visit covered by a subscription or a normal paid visit.
- * Subscription-covered visits do not create another payment transaction.
- * Regular visits create a payment transaction linked to the visit.
- */
 async function createVisitRecord(
   customerId: string,
   visitDate: string,
@@ -718,6 +781,13 @@ export async function recordVisit(
 export async function deleteVisit(
   visitId: string
 ): Promise<void> {
+  const { error: paymentDeleteError } = await supabase
+    .from('payment_transactions')
+    .delete()
+    .eq('visit_id', visitId);
+
+  if (paymentDeleteError) throw paymentDeleteError;
+
   const { error } = await supabase
     .from('visits')
     .delete()
@@ -784,61 +854,26 @@ export type RevenueStats = {
   netRevenue: number;
   thisMonthVisits: number;
   thisMonthCompanyFee: number;
-  /** Number of fee-bearing units: ordinary paid visits + package visits sold. */
   companyFeeUnits: number;
-  /** Fee-bearing units recorded/estimated in the current calendar month. */
   thisMonthCompanyFeeUnits: number;
 };
 
-/**
- * Returns recorded payments, plus legacy revenue for old records
- * that do not yet have a linked payment transaction.
- *
- * A transaction with refunded or void status still marks its linked
- * record as migrated, so the old amount is not counted again.
- */
 export async function getRevenueStats(
-  customers: Customer[]
+  customers: Customer[],
+  shopId?: string
 ): Promise<RevenueStats> {
+  const effectiveShopId = shopId ?? customers[0]?.shop_id ?? undefined;
   const { subscriptions, visits } =
-    await getShopActivityData(customers);
+    await getShopActivityData(customers, { shopId: effectiveShopId });
 
   const customerIds = customers.map(
     (customer) => customer.id
   );
 
-  const batches: string[][] = [];
-
-  for (let i = 0; i < customerIds.length; i += 100) {
-    batches.push(customerIds.slice(i, i + 100));
-  }
-
-  const transactionResults = await Promise.all(
-    batches.map(async (ids) => {
-      const rows: PaymentTransaction[] = [];
-
-      for (let from = 0; ; from += 1000) {
-        const { data, error } = await supabase
-          .from('payment_transactions')
-          .select('*')
-          .in('customer_id', ids)
-          .order('payment_date', { ascending: false })
-          .range(from, from + 999);
-
-        if (error) throw error;
-
-        const page = (data ?? []) as PaymentTransaction[];
-
-        rows.push(...page);
-
-        if (page.length < 1000) break;
-      }
-
-      return rows;
-    })
+  const transactions = await getShopPaymentTransactions(
+    effectiveShopId,
+    customerIds
   );
-
-  const transactions = transactionResults.flat();
 
   const transactionVisitIds = new Set(
     transactions
@@ -951,9 +986,6 @@ export async function getRevenueStats(
 
   const companyFee = recordedCompanyFee + legacyCompanyFee;
 
-  // A fee-bearing unit is either one collected ordinary visit or one visit
-  // included in a package at the time that package is sold. A package visit
-  // being used later is NOT a new fee-bearing unit.
   const companyFeeUnits =
     (recordedCompanyFee + legacyCompanyFee) / COMPANY_FEE_PER_VISIT;
 
@@ -1025,11 +1057,13 @@ export type SubscriptionAlert = {
 };
 
 export async function getSubscriptionAlerts(
-  customers: Customer[]
+  customers: Customer[],
+  shopId?: string
 ): Promise<SubscriptionAlert[]> {
+  const effectiveShopId = shopId ?? customers[0]?.shop_id ?? undefined;
   const { subscriptions } = await getShopActivityData(
     customers,
-    { includeVisits: false }
+    { includeVisits: false, shopId: effectiveShopId }
   );
 
   const customerById = new Map(

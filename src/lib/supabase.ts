@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -6,11 +5,36 @@ const supabaseApiKey =
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
   import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+async function safeAuthLock<R>(
+  name: string,
+  _acquireTimeout: number,
+  fn: () => Promise<R>
+): Promise<R> {
+  if (typeof navigator !== 'undefined' && navigator.locks?.request) {
+    try {
+      return await navigator.locks.request(
+        name,
+        { ifAvailable: true },
+        async (lock) => {
+          if (!lock) {
+            return await fn();
+          }
+          return await fn();
+        }
+      );
+    } catch {
+      return await fn();
+    }
+  }
+  return await fn();
+}
+
 export const supabase = createClient(supabaseUrl, supabaseApiKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    lock: safeAuthLock,
   },
 });
 
