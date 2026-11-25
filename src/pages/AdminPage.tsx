@@ -32,6 +32,8 @@ import {
   Settings,
   BarChart3,
   Layers,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import Modal from '@/components/Modal';
 import {
@@ -88,6 +90,8 @@ type LedgerTx = {
 type ShopFinancialSnapshot = {
   transactions: LedgerTx[];
   recordedTransactions: LedgerTx[];
+  subscriptions: Subscription[];
+  visits: Visit[];
   totalCollected: number;
   totalCompanyFees: number;
   netShopRevenue: number;
@@ -239,6 +243,8 @@ async function fetchShopFinancialSnapshot(
   return {
     transactions,
     recordedTransactions: recorded,
+    subscriptions,
+    visits,
     totalCollected,
     totalCompanyFees,
     netShopRevenue: totalCollected - totalCompanyFees,
@@ -1481,6 +1487,28 @@ function SubscriptionsTab({
   );
 }
 
+/* ---------- Helper for formatting time & customer package context ---------- */
+function formatTimeOnly(isoDate: string): string {
+  const d = new Date(isoDate);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+}
+
+type ActivityDetailItem = {
+  id: string;
+  timeLabel: string;
+  customerName: string;
+  actionSummary: string;
+  amount: number;
+  fee: number;
+  net: number;
+  isSubscribed: boolean;
+  packageName?: string;
+  packagePrice?: number;
+  packageUsed?: number;
+  packageTotal?: number;
+};
+
 /* ---------- Revenue, Analytics & Ledger tab ---------- */
 function RevenueTab({
   shopId,
@@ -1502,6 +1530,8 @@ function RevenueTab({
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [expandedMonthKey, setExpandedMonthKey] = useState<string | null>(null);
+  const [expandedDayKey, setExpandedDayKey] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -1536,9 +1566,47 @@ function RevenueTab({
   }, [customers, shopId, refreshTick]);
 
   const transactions = snapshot?.transactions ?? [];
+  const allSubscriptions = snapshot?.subscriptions ?? [];
+  const allVisits = snapshot?.visits ?? [];
+
   const customerNames = useMemo(
     () => new Map(customers.map((customer) => [customer.id, customer.name])),
     [customers]
+  );
+
+  const latestSubByCustomer = useMemo(() => {
+    const map = new Map<string, Subscription>();
+    for (const s of allSubscriptions) {
+      if (!map.has(s.customer_id)) {
+        map.set(s.customer_id, s);
+      }
+    }
+    return map;
+  }, [allSubscriptions]);
+
+  const subById = useMemo(() => {
+    const map = new Map<string, Subscription>();
+    for (const s of allSubscriptions) {
+      map.set(s.id, s);
+    }
+    return map;
+  }, [allSubscriptions]);
+
+  const buildCustomerSubMeta = useCallback(
+    (customerId: string | null, subscriptionId?: string | null) => {
+      const sub = (subscriptionId ? subById.get(subscriptionId) : null) ?? (customerId ? latestSubByCustomer.get(customerId) : null);
+      if (!sub || sub.status === 'cancelled') {
+        return { isSubscribed: false as const };
+      }
+      return {
+        isSubscribed: true as const,
+        packageName: sub.plan?.name ?? 'باقة اشتراك',
+        packagePrice: Number(sub.plan?.price ?? 0),
+        packageUsed: Number(sub.haircuts_used ?? 0),
+        packageTotal: Number(sub.plan?.haircut_count ?? 0),
+      };
+    },
+    [subById, latestSubByCustomer]
   );
 
   const filteredTransactions = useMemo(() => {
@@ -1568,35 +1636,137 @@ function RevenueTab({
 
   const reportTransactions = recordedFiltered;
   const now = new Date();
-  const monthlyReport = Array.from({ length: 6 }, (_, index) => {
-    const monthDate = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
-    const year = monthDate.getFullYear();
-    const month = monthDate.getMonth();
-    const rows = reportTransactions.filter((transaction) => {
-      const date = new Date(transaction.payment_date);
-      return date.getFullYear() === year && date.getMonth() === month;
+
+  const monthlyReport = useMemo(() => {
+    return Array.from({ length: 6 }, (_, index) => {
+      const monthDate = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
+      const year = monthDate.getFullYear();
+      const month = monthDate.getMonth();
+      const key = `${year}-${month}`;
+      const rows = reportTransactions.filter((transaction) => {
+        const date = new Date(transaction.payment_date);
+        return date.getFullYear() === year && date.getMonth() === month;
+      });
+      const collected = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+      const fees = rows.reduce((sum, row) => sum + Number(row.company_fee_amount || 0), 0);
+      const packages = rows.filter((row) => row.payment_kind === 'subscription').reduce((sum, row) => sum + Number(row.amount || 0), 0);
+      const regular = rows.filter((row) => row.payment_kind === 'visit' && Number(row.company_fee_amount || 0) > 0).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+      const extras = rows.filter((row) => row.payment_kind === 'visit' && Number(row.company_fee_amount || 0) === 0).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+
+      const details: ActivityDetailItem[] = rows.map((tx) => {
+        const cName = tx.customer_id ? customerNames.get(tx.customer_id) ?? 'عميل' : 'عميل';
+        const subMeta = buildCustomerSubMeta(tx.customer_id, tx.subscription_id);
+        const amt = Number(tx.amount || 0);
+        const fee = Number(tx.company_fee_amount || 0);
+        const opLabel =
+          tx.payment_kind === 'subscription'
+            ? `اشترى باقة (${tx.service_name || subMeta.packageName || 'باقة'})`
+            : fee > 0
+            ? `عمل ${tx.service_name || 'حلاقة عادية'}`
+            : `عمل خدمة إضافية (${tx.service_name || 'إضافية'})`;
+        return {
+          id: tx.id,
+          timeLabel: `${formatDate(tx.payment_date)} · ${formatTimeOnly(tx.payment_date)}`,
+          customerName: cName,
+          actionSummary: opLabel,
+          amount: amt,
+          fee,
+          net: amt - fee,
+          ...subMeta,
+        };
+      });
+
+      return {
+        key,
+        label: monthDate.toLocaleDateString('ar-EG', { month: 'long' }),
+        shortLabel: monthDate.toLocaleDateString('ar-EG', { month: 'short' }),
+        collected,
+        fees,
+        net: collected - fees,
+        packages,
+        regular,
+        extras,
+        details,
+      };
     });
-    const collected = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-    const fees = rows.reduce((sum, row) => sum + Number(row.company_fee_amount || 0), 0);
-    const packages = rows.filter((row) => row.payment_kind === 'subscription').reduce((sum, row) => sum + Number(row.amount || 0), 0);
-    const regular = rows.filter((row) => row.payment_kind === 'visit' && Number(row.company_fee_amount || 0) > 0).reduce((sum, row) => sum + Number(row.amount || 0), 0);
-    const extras = rows.filter((row) => row.payment_kind === 'visit' && Number(row.company_fee_amount || 0) === 0).reduce((sum, row) => sum + Number(row.amount || 0), 0);
-    return { label: monthDate.toLocaleDateString('ar-EG', { month: 'short' }), collected, fees, net: collected - fees, packages, regular, extras };
-  });
+  }, [reportTransactions, now, customerNames, buildCustomerSubMeta]);
+
   const monthlyMax = Math.max(1, ...monthlyReport.map((row) => row.collected));
 
-  const dailyReport = Array.from({ length: 7 }, (_, index) => {
-    const day = new Date();
-    day.setHours(0, 0, 0, 0);
-    day.setDate(day.getDate() - (6 - index));
-    const rows = reportTransactions.filter((transaction) => {
-      const date = new Date(transaction.payment_date);
-      return date.getFullYear() === day.getFullYear() && date.getMonth() === day.getMonth() && date.getDate() === day.getDate();
+  const dailyReport = useMemo(() => {
+    return Array.from({ length: 7 }, (_, index) => {
+      const day = new Date();
+      day.setHours(0, 0, 0, 0);
+      day.setDate(day.getDate() - (6 - index));
+      const key = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`;
+
+      const dayTx = reportTransactions.filter((transaction) => {
+        const date = new Date(transaction.payment_date);
+        return date.getFullYear() === day.getFullYear() && date.getMonth() === day.getMonth() && date.getDate() === day.getDate();
+      });
+
+      const dayVisits = allVisits.filter((v) => {
+        const date = new Date(v.visit_date);
+        return date.getFullYear() === day.getFullYear() && date.getMonth() === day.getMonth() && date.getDate() === day.getDate();
+      });
+
+      const collected = dayTx.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+      const fees = dayTx.reduce((sum, row) => sum + Number(row.company_fee_amount || 0), 0);
+
+      const details: ActivityDetailItem[] = [];
+
+      for (const v of dayVisits) {
+        const cName = v.customer_id ? customerNames.get(v.customer_id) ?? 'عميل' : 'عميل';
+        const subMeta = buildCustomerSubMeta(v.customer_id, v.subscription_id);
+        const amt = Number(v.charge_amount || 0);
+        const fee = v.payment_type === 'paid' ? COMPANY_FEE_PER_VISIT : 0;
+        details.push({
+          id: `visit-${v.id}`,
+          timeLabel: formatTimeOnly(v.visit_date),
+          customerName: cName,
+          actionSummary:
+            v.payment_type === 'subscription'
+              ? `جالك وعمل ${v.haircut_type || 'حلاقة'} (خصم من الباقة)`
+              : `جالك وعمل ${v.haircut_type || 'حلاقة عادية'}`,
+          amount: amt,
+          fee,
+          net: amt - fee,
+          ...subMeta,
+        });
+      }
+
+      for (const tx of dayTx) {
+        if (tx.payment_kind === 'subscription') {
+          const cName = tx.customer_id ? customerNames.get(tx.customer_id) ?? 'عميل' : 'عميل';
+          const subMeta = buildCustomerSubMeta(tx.customer_id, tx.subscription_id);
+          const amt = Number(tx.amount || 0);
+          const fee = Number(tx.company_fee_amount || 0);
+          details.push({
+            id: `tx-${tx.id}`,
+            timeLabel: formatTimeOnly(tx.payment_date),
+            customerName: cName,
+            actionSummary: `اشترى ${tx.service_name || subMeta.packageName || 'باقة'}`,
+            amount: amt,
+            fee,
+            net: amt - fee,
+            ...subMeta,
+          });
+        }
+      }
+
+      return {
+        key,
+        label: day.toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long' }),
+        shortLabel: day.toLocaleDateString('ar-EG', { weekday: 'short', day: 'numeric', month: 'short' }),
+        collected,
+        fees,
+        net: collected - fees,
+        count: details.length,
+        details,
+      };
     });
-    const collected = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-    const fees = rows.reduce((sum, row) => sum + Number(row.company_fee_amount || 0), 0);
-    return { label: day.toLocaleDateString('ar-EG', { weekday: 'short', day: 'numeric', month: 'short' }), collected, fees, net: collected - fees, count: rows.length };
-  });
+  }, [reportTransactions, allVisits, customerNames, buildCustomerSubMeta]);
+
   const dailyMax = Math.max(1, ...dailyReport.map((row) => row.collected));
 
   const paymentMethodReport = [
@@ -1738,7 +1908,7 @@ function RevenueTab({
           <BarChart3 className="h-5 w-5 text-stone-700" />
           <div>
             <h3 className="font-display text-base font-extrabold text-stone-900">التقارير والرسوم البيانية ومقارنة الفترات</h3>
-            <p className="mt-0.5 text-xs text-stone-500">تعتمد على العمليات المسجلة وتستجيب لفلاتر سجل التحصيلات.</p>
+            <p className="mt-0.5 text-xs text-stone-500">اضغط على أي يوم أو شهر لعرض تفاصيل العملاء والباقات والزيارات.</p>
           </div>
         </div>
 
@@ -1777,7 +1947,7 @@ function RevenueTab({
                       style={{ height: `${Math.max(2, (month.net / monthlyMax) * 100)}%` }}
                     />
                   </div>
-                  <span className="text-[10px] font-bold text-stone-500">{month.label}</span>
+                  <span className="text-[10px] font-bold text-stone-500">{month.shortLabel}</span>
                 </div>
               ))}
             </div>
@@ -1797,7 +1967,7 @@ function RevenueTab({
                     className="w-full max-w-7 rounded-t bg-stone-700"
                     style={{ height: `${Math.max(3, (day.collected / dailyMax) * 100)}%` }}
                   />
-                  <span className="truncate text-[9px] font-bold text-stone-500">{day.label.split(' ')[0]}</span>
+                  <span className="truncate text-[9px] font-bold text-stone-500">{day.shortLabel.split(' ')[0]}</span>
                 </div>
               ))}
             </div>
@@ -1850,64 +2020,168 @@ function RevenueTab({
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white">
-          <div className="border-b border-stone-200 bg-stone-50 px-3.5 py-2 text-xs font-extrabold text-stone-800">
-            التقرير الشهري — آخر 6 أشهر
+        {/* Compact Expandable Monthly Summary (No large table) */}
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-extrabold text-stone-800">ملخص آخر 6 أشهر (اضغط على الشهر للتفاصيل)</h4>
+            <span className="text-[11px] text-stone-500">عرض مدمج</span>
           </div>
-          <table className="w-full min-w-[540px] border-collapse text-right text-xs tabular-nums">
-            <thead className="bg-stone-50/80 text-[11px] font-bold text-stone-600">
-              <tr>
-                <th className="px-2.5 py-2">الشهر</th>
-                <th className="px-2.5 py-2">التحصيل</th>
-                <th className="px-2.5 py-2">رسوم الشركة</th>
-                <th className="px-2.5 py-2">صافي المحل</th>
-                <th className="px-2.5 py-2">الباقات</th>
-                <th className="px-2.5 py-2">الحلاقات العادية</th>
-                <th className="px-2.5 py-2">الخدمات الإضافية</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-100">
-              {monthlyReport.map((month, index) => (
-                <tr key={`${month.label}-${index}`} className="transition hover:bg-stone-50/70">
-                  <td className="whitespace-nowrap px-2.5 py-2 font-bold text-stone-800">{month.label}</td>
-                  <td className="whitespace-nowrap px-2.5 py-2 font-semibold text-stone-900">{formatPrice(month.collected)}</td>
-                  <td className="whitespace-nowrap px-2.5 py-2 text-stone-600">{formatPrice(month.fees)}</td>
-                  <td className="whitespace-nowrap px-2.5 py-2 font-bold text-emerald-700">{formatPrice(month.net)}</td>
-                  <td className="whitespace-nowrap px-2.5 py-2 text-stone-700">{formatPrice(month.packages)}</td>
-                  <td className="whitespace-nowrap px-2.5 py-2 text-stone-700">{formatPrice(month.regular)}</td>
-                  <td className="whitespace-nowrap px-2.5 py-2 text-stone-700">{formatPrice(month.extras)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="space-y-2">
+            {monthlyReport.map((month) => {
+              const isOpen = expandedMonthKey === month.key;
+              return (
+                <div key={month.key} className="rounded-xl border border-stone-200 bg-white overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedMonthKey(isOpen ? null : month.key)}
+                    className="flex w-full flex-wrap items-center justify-between gap-2 px-4 py-3 text-right transition hover:bg-stone-50"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-sm font-extrabold text-stone-900">{month.label}</span>
+                      <span className="rounded-md bg-stone-100 px-2 py-0.5 text-[11px] font-bold text-stone-600">
+                        {month.details.length} عملية
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 text-xs tabular-nums">
+                      <span className="font-bold text-stone-800">تحصيل: {formatPrice(month.collected)}</span>
+                      <span className="font-bold text-emerald-700">صافي: {formatPrice(month.net)}</span>
+                      {isOpen ? <ChevronUp className="h-4 w-4 text-stone-500" /> : <ChevronDown className="h-4 w-4 text-stone-500" />}
+                    </div>
+                  </button>
+
+                  {isOpen && (
+                    <div className="border-t border-stone-100 bg-stone-50/60 p-3.5 space-y-2.5">
+                      <div className="flex flex-wrap gap-3 text-[11px] font-bold text-stone-600">
+                        <span>رسوم الشركة: {formatPrice(month.fees)}</span>
+                        <span>·</span>
+                        <span>باقات: {formatPrice(month.packages)}</span>
+                        <span>·</span>
+                        <span>حلاقات عادية: {formatPrice(month.regular)}</span>
+                        <span>·</span>
+                        <span>خدمات إضافية: {formatPrice(month.extras)}</span>
+                      </div>
+                      {month.details.length === 0 ? (
+                        <p className="text-xs text-stone-500">لا توجد عمليات مسجلة في هذا الشهر.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {month.details.map((item) => (
+                            <div key={item.id} className="rounded-lg border border-stone-200 bg-white p-3 text-xs space-y-1">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="font-extrabold text-stone-900">
+                                  {item.customerName} — {item.actionSummary}
+                                </span>
+                                <span className="text-[11px] font-bold text-stone-500">{item.timeLabel}</span>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2 text-[11px] text-stone-600">
+                                <span>المبلغ: <strong>{formatPrice(item.amount)}</strong></span>
+                                <span>·</span>
+                                <span>رسوم: <strong>{formatPrice(item.fee)}</strong></span>
+                                <span>·</span>
+                                <span className="text-emerald-700">صافي: <strong>{formatPrice(item.net)}</strong></span>
+                              </div>
+                              <div className="pt-0.5 text-[11px]">
+                                {item.isSubscribed ? (
+                                  <span className="inline-flex flex-wrap items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-0.5 font-bold text-emerald-800 ring-1 ring-emerald-200">
+                                    <span>مشترك في باقة: {item.packageName}</span>
+                                    <span>· سعرها: {formatPrice(item.packagePrice ?? 0)}</span>
+                                    <span>· خلص منها: {item.packageUsed ?? 0} من {item.packageTotal ?? 0} زيارة</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center rounded-md bg-stone-100 px-2 py-0.5 font-bold text-stone-600">
+                                    غير مشترك في باقة
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white">
-          <div className="border-b border-stone-200 bg-stone-50 px-3.5 py-2 text-xs font-extrabold text-stone-800">
-            التقرير اليومي — آخر 7 أيام
+        {/* Compact Expandable Daily Summary (No large table) */}
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-extrabold text-stone-800">ملخص آخر 7 أيام (اضغط على اليوم لعرض مين جالك وعمل إيه)</h4>
+            <span className="text-[11px] text-stone-500">عرض مدمج</span>
           </div>
-          <table className="w-full min-w-[420px] border-collapse text-right text-xs tabular-nums">
-            <thead className="bg-stone-50/80 text-[11px] font-bold text-stone-600">
-              <tr>
-                <th className="px-2.5 py-2">اليوم</th>
-                <th className="px-2.5 py-2">عدد العمليات</th>
-                <th className="px-2.5 py-2">التحصيل</th>
-                <th className="px-2.5 py-2">رسوم الشركة</th>
-                <th className="px-2.5 py-2">صافي المحل</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-100">
-              {dailyReport.map((day, index) => (
-                <tr key={`${day.label}-${index}`} className="transition hover:bg-stone-50/70">
-                  <td className="whitespace-nowrap px-2.5 py-2 font-bold text-stone-800">{day.label}</td>
-                  <td className="whitespace-nowrap px-2.5 py-2 text-stone-700">{day.count}</td>
-                  <td className="whitespace-nowrap px-2.5 py-2 font-semibold text-stone-900">{formatPrice(day.collected)}</td>
-                  <td className="whitespace-nowrap px-2.5 py-2 text-stone-600">{formatPrice(day.fees)}</td>
-                  <td className="whitespace-nowrap px-2.5 py-2 font-bold text-emerald-700">{formatPrice(day.net)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="space-y-2">
+            {dailyReport.map((day) => {
+              const isOpen = expandedDayKey === day.key;
+              return (
+                <div key={day.key} className="rounded-xl border border-stone-200 bg-white overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedDayKey(isOpen ? null : day.key)}
+                    className="flex w-full flex-wrap items-center justify-between gap-2 px-4 py-3 text-right transition hover:bg-stone-50"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-sm font-extrabold text-stone-900">{day.label}</span>
+                      <span className="rounded-md bg-stone-100 px-2 py-0.5 text-[11px] font-bold text-stone-600">
+                        {day.count} حركة
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 text-xs tabular-nums">
+                      <span className="font-bold text-stone-800">تحصيل: {formatPrice(day.collected)}</span>
+                      <span className="font-bold text-emerald-700">صافي: {formatPrice(day.net)}</span>
+                      {isOpen ? <ChevronUp className="h-4 w-4 text-stone-500" /> : <ChevronDown className="h-4 w-4 text-stone-500" />}
+                    </div>
+                  </button>
+
+                  {isOpen && (
+                    <div className="border-t border-stone-100 bg-stone-50/60 p-3.5 space-y-2.5">
+                      <div className="flex flex-wrap gap-3 text-[11px] font-bold text-stone-600">
+                        <span>رسوم الشركة: {formatPrice(day.fees)}</span>
+                        <span>·</span>
+                        <span>صافي المحل: {formatPrice(day.net)}</span>
+                      </div>
+                      {day.details.length === 0 ? (
+                        <p className="text-xs text-stone-500">لا توجد زيارات أو عمليات في هذا اليوم.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {day.details.map((item) => (
+                            <div key={item.id} className="rounded-lg border border-stone-200 bg-white p-3 text-xs space-y-1">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="font-extrabold text-stone-900">
+                                  {item.customerName} — {item.actionSummary}
+                                </span>
+                                <span className="text-[11px] font-bold text-stone-500">الساعة {item.timeLabel}</span>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2 text-[11px] text-stone-600">
+                                <span>المبلغ: <strong>{formatPrice(item.amount)}</strong></span>
+                                <span>·</span>
+                                <span>رسوم الشركة: <strong>{formatPrice(item.fee)}</strong></span>
+                                <span>·</span>
+                                <span className="text-emerald-700">صافي المحل: <strong>{formatPrice(item.net)}</strong></span>
+                              </div>
+                              <div className="pt-0.5 text-[11px]">
+                                {item.isSubscribed ? (
+                                  <span className="inline-flex flex-wrap items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-0.5 font-bold text-emerald-800 ring-1 ring-emerald-200">
+                                    <span>مشترك في باقة: {item.packageName}</span>
+                                    <span>· سعرها: {formatPrice(item.packagePrice ?? 0)}</span>
+                                    <span>· خلص منها: {item.packageUsed ?? 0} من {item.packageTotal ?? 0} زيارة</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center rounded-md bg-stone-100 px-2 py-0.5 font-bold text-stone-600">
+                                    غير مشترك في باقة
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </section>
 
