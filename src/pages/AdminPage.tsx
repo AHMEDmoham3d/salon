@@ -66,9 +66,11 @@ import {
   type SubscriptionAlert,
   type PaymentMethod,
 } from '@/lib/api';
-import { REGULAR_HAIRCUT_PRICE, COMPANY_FEE_PER_VISIT, COMPANY_NAME, SYSTEM_NAME, supabase } from '@/lib/supabase';
+import { REGULAR_HAIRCUT_PRICE, COMPANY_FEE_PER_VISIT, SYSTEM_NAME, supabase } from '@/lib/supabase';
 import { getShopById } from '@/lib/shopApi';
 import ShopSettingsTab from '@/components/ShopSettingsTab';
+
+const BRAND_NAME = 'ulmi';
 
 type Tab = 'overview' | 'customers' | 'visits' | 'subscriptions' | 'revenue' | 'settings';
 
@@ -113,6 +115,176 @@ type ShopFinancialSnapshot = {
   subscriptionVisitsUsed: number;
   regularVisitsCount: number;
 };
+
+type ContractSignatureRecord = {
+  shopId: string;
+  contractNumber: string;
+  signedAt: string;
+  signerName: string;
+  shopName: string;
+  contractVersion: string;
+};
+
+const CONTRACT_VERSION = 'v2.0-ulmi';
+
+function getContractStorageKey(shopId: string) {
+  return `ulmi_smart_contract_sig_${shopId}`;
+}
+
+function generateDeterministicContractId(shopId: string, shopName?: string) {
+  const prefix = (shopName || 'UL')
+    .replace(/[^a-zA-Z\u0600-\u06FF]/g, '')
+    .slice(0, 2)
+    .toUpperCase() || 'UL';
+  let hash = 0;
+  for (let i = 0; i < shopId.length; i++) {
+    hash = (hash * 31 + shopId.charCodeAt(i)) % 9000;
+  }
+  const code = String(1000 + Math.abs(hash));
+  return `${BRAND_NAME.toUpperCase()}-${prefix}-2026-${code}`;
+}
+
+function readLocalContractSignature(shopId: string): ContractSignatureRecord | null {
+  try {
+    const raw = localStorage.getItem(getContractStorageKey(shopId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ContractSignatureRecord;
+    if (!parsed?.signedAt || parsed.shopId !== shopId) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalContractSignature(record: ContractSignatureRecord) {
+  try {
+    localStorage.setItem(getContractStorageKey(record.shopId), JSON.stringify(record));
+  } catch {
+    // تجاهل أخطاء التخزين المحلي
+  }
+}
+
+async function fetchContractSignature(shopId: string): Promise<ContractSignatureRecord | null> {
+  const localSig = readLocalContractSignature(shopId);
+  try {
+    const { data, error } = await supabase
+      .from('shop_contracts')
+      .select('shop_id, contract_number, signed_at, signer_name, shop_name, contract_version')
+      .eq('shop_id', shopId)
+      .order('signed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!error && data?.signed_at) {
+      const dbRecord: ContractSignatureRecord = {
+        shopId: data.shop_id,
+        contractNumber: data.contract_number || generateDeterministicContractId(shopId, data.shop_name),
+        signedAt: data.signed_at,
+        signerName: data.signer_name || '',
+        shopName: data.shop_name || '',
+        contractVersion: data.contract_version || CONTRACT_VERSION,
+      };
+      writeLocalContractSignature(dbRecord);
+      return dbRecord;
+    }
+  } catch {
+    // في حال عدم وجود جدول shop_contracts نعتمد على المحلي
+  }
+  return localSig;
+}
+
+async function persistContractSignature(record: ContractSignatureRecord): Promise<void> {
+  writeLocalContractSignature(record);
+  try {
+    await supabase.from('shop_contracts').upsert(
+      {
+        shop_id: record.shopId,
+        contract_number: record.contractNumber,
+        signed_at: record.signedAt,
+        signer_name: record.signerName,
+        shop_name: record.shopName,
+        contract_version: record.contractVersion,
+      },
+      { onConflict: 'shop_id' }
+    );
+  } catch {
+    // سقوط آمن إذا لم يُنشأ جدول shop_contracts بعد
+  }
+}
+
+function UlmiWordmark({
+  variant = 'light',
+  size = 'md',
+}: {
+  variant?: 'light' | 'dark';
+  size?: 'sm' | 'md' | 'lg';
+}) {
+  const dims =
+    size === 'sm'
+      ? { width: 58, height: 22 }
+      : size === 'lg'
+      ? { width: 96, height: 36 }
+      : { width: 74, height: 28 };
+  const fill = variant === 'dark' ? '#FFFFFF' : '#09090B';
+
+  return (
+    <svg
+      width={dims.width}
+      height={dims.height}
+      viewBox="0 0 240 86"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      role="img"
+      aria-label={BRAND_NAME}
+      className="inline-block shrink-0 select-none"
+    >
+      {/* u */}
+      <path
+        d="M14 38V56C14 68.7025 24.2975 79 37 79C49.7025 79 60 68.7025 60 56V38"
+        stroke={fill}
+        strokeWidth="22"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M60 38V68"
+        stroke={fill}
+        strokeWidth="22"
+        strokeLinecap="round"
+      />
+      {/* l */}
+      <path
+        d="M84 15V68"
+        stroke={fill}
+        strokeWidth="22"
+        strokeLinecap="round"
+      />
+      {/* m */}
+      <path
+        d="M108 68V52C108 43.1634 115.163 36 124 36C132.837 36 140 43.1634 140 52V68"
+        stroke={fill}
+        strokeWidth="22"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M140 68V52C140 43.1634 147.163 36 156 36C164.837 36 172 43.1634 172 52V68"
+        stroke={fill}
+        strokeWidth="22"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* i */}
+      <path
+        d="M214 38V68"
+        stroke={fill}
+        strokeWidth="22"
+        strokeLinecap="round"
+      />
+      <circle cx="214" cy="15" r="11" fill={fill} />
+    </svg>
+  );
+}
 
 function isSameLocalDay(isoDate: string, refDate: Date): boolean {
   const d = new Date(isoDate);
@@ -276,6 +448,10 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
   const [addOpen, setAddOpen] = useState(false);
   const [selected, setSelected] = useState<Customer | null>(null);
   const [noticeOpen, setNoticeOpen] = useState(false);
+  const [noticeInitialView, setNoticeInitialView] = useState<'notice' | 'contract'>('notice');
+  const [mandatoryContract, setMandatoryContract] = useState(false);
+  const [contractSignature, setContractSignature] = useState<ContractSignatureRecord | null>(null);
+  const [contractChecked, setContractChecked] = useState(false);
   const [shopInfo, setShopInfo] = useState<{ shop_name: string; owner_name: string; logo_url?: string | null } | null>(null);
   const [regularHaircutPrice, setRegularHaircutPrice] = useState(REGULAR_HAIRCUT_PRICE);
   const [refreshTick, setRefreshTick] = useState(0);
@@ -286,17 +462,42 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
 
   useEffect(() => {
     let active = true;
-    Promise.all([getShopById(shopId), getShopRegularHaircutPrice(shopId)])
-      .then(([shop, price]) => {
+    Promise.all([
+      getShopById(shopId),
+      getShopRegularHaircutPrice(shopId),
+      fetchContractSignature(shopId),
+    ])
+      .then(([shop, price, sig]) => {
         if (!active) return;
         if (shop) {
           setShopInfo({ shop_name: shop.shop_name, owner_name: shop.owner_name, logo_url: shop.logo_url ?? null });
         }
         setRegularHaircutPrice(price);
+        setContractSignature(sig);
+        setContractChecked(true);
+        if (!sig) {
+          setNoticeInitialView('contract');
+          setMandatoryContract(true);
+          setNoticeOpen(true);
+        }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (active) setContractChecked(true);
+      });
     return () => { active = false; };
   }, [shopId]);
+
+  const openContractModal = useCallback((forceMandatory: boolean) => {
+    setNoticeInitialView('contract');
+    setMandatoryContract(forceMandatory);
+    setNoticeOpen(true);
+  }, []);
+
+  const openNoticeModal = useCallback(() => {
+    setNoticeInitialView('notice');
+    setMandatoryContract(!contractSignature);
+    setNoticeOpen(true);
+  }, [contractSignature]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -323,8 +524,39 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
     { k: 'settings', label: 'إعدادات المحل', icon: Settings },
   ];
 
+  const isContractSigned = !!contractSignature;
+
   return (
     <div className="animate-fade-in mx-auto max-w-6xl space-y-6 px-4 py-7 sm:px-6">
+      {contractChecked && !isContractSigned && (
+        <div className="flex flex-col justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50/90 p-4 text-stone-900 shadow-2xs sm:flex-row sm:items-center">
+          <div className="flex items-start gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-stone-900 text-white">
+              <ShieldAlert className="h-5 w-5 text-amber-300" />
+            </div>
+            <div className="space-y-0.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-extrabold text-stone-900">توقيع العقد الإلكتروني إلزامي</span>
+                <span className="rounded-md bg-amber-200/80 px-2 py-0.5 text-[10px] font-extrabold text-stone-900">
+                  مطلوب للتوثيق الرسمي
+                </span>
+              </div>
+              <p className="text-xs leading-relaxed text-stone-700">
+                لم يتم توثيق عقد ترخيص <span className="font-bold"><UlmiWordmark variant="light" size="sm" /></span> لهذا المحل بعد. يُرجى مراجعة البنود وتوقيع العقد إلكترونيًا لاعتماد التوثيق بالكامل.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => openContractModal(true)}
+            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-stone-900 px-4 text-xs font-extrabold text-white transition hover:bg-stone-800"
+          >
+            <FileText className="h-4 w-4" />
+            <span>توقيع العقد الآن</span>
+          </button>
+        </div>
+      )}
+
       <header className="card border-stone-200/90 bg-white p-5 sm:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           {/* Brand + Shop Identity */}
@@ -353,10 +585,33 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
                     {shopInfo.owner_name}
                   </span>
                 )}
+                {isContractSigned ? (
+                  <button
+                    type="button"
+                    onClick={() => openContractModal(false)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 transition hover:bg-emerald-100"
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-700" />
+                    <span>العقد موثّق ({contractSignature.contractNumber})</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => openContractModal(true)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-[11px] font-extrabold text-amber-900 transition hover:bg-amber-100"
+                  >
+                    <Lock className="h-3 w-3" />
+                    <span>بانتظار التوقيع الإجباري</span>
+                  </button>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
-                <span>إدارة العملاء والباقات والزيارات والمالية</span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span>إدارة العملاء والباقات والزيارات والمالية</span>
+                  <span>·</span>
+                  <UlmiWordmark variant="light" size="sm" />
+                </span>
                 <span className="hidden text-stone-300 sm:inline">•</span>
                 <span className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50/90 px-2.5 py-1 font-bold text-stone-800">
                   <Scissors className="h-3.5 w-3.5 text-stone-600" />
@@ -371,16 +626,26 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => setNoticeOpen(true)}
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3.5 text-xs font-bold text-stone-700 transition hover:border-stone-300 hover:bg-stone-100"
+                onClick={openNoticeModal}
+                className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3.5 text-xs font-bold transition ${
+                  !isContractSigned
+                    ? 'border-amber-300 bg-amber-50 text-stone-900 hover:bg-amber-100'
+                    : 'border-stone-200 bg-stone-50 text-stone-700 hover:border-stone-300 hover:bg-stone-100'
+                }`}
               >
-                <Building2 className="h-4 w-4 shrink-0 text-stone-600" />
-                <span>إشعار الشركة</span>
+                <Building2 className="h-4 w-4 shrink-0 text-stone-700" />
+                <span>{isContractSigned ? 'الإشعار والعقد' : 'العقد الإجباري'}</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => setAddOpen(true)}
+                onClick={() => {
+                  if (!isContractSigned) {
+                    openContractModal(true);
+                    return;
+                  }
+                  setAddOpen(true);
+                }}
                 className="btn-primary h-10 px-4 text-xs"
               >
                 <UserPlus className="h-4 w-4 shrink-0" />
@@ -436,8 +701,20 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
             loading={loading}
             search={search}
             setSearch={setSearch}
-            onSelect={setSelected}
-            onAdd={() => setAddOpen(true)}
+            onSelect={(c) => {
+              if (!isContractSigned) {
+                openContractModal(true);
+                return;
+              }
+              setSelected(c);
+            }}
+            onAdd={() => {
+              if (!isContractSigned) {
+                openContractModal(true);
+                return;
+              }
+              setAddOpen(true);
+            }}
           />
         )}
         {tab === 'visits' && (
@@ -445,7 +722,15 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
             shopId={shopId}
             customers={customers}
             regularHaircutPrice={regularHaircutPrice}
-            onSelectCustomer={setSelected}
+            isContractSigned={isContractSigned}
+            onRequireContract={() => openContractModal(true)}
+            onSelectCustomer={(c) => {
+              if (!isContractSigned) {
+                openContractModal(true);
+                return;
+              }
+              setSelected(c);
+            }}
             onMutated={bumpData}
           />
         )}
@@ -454,7 +739,13 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
             shopId={shopId}
             customers={customers}
             refreshTick={refreshTick}
-            onSelectCustomer={setSelected}
+            onSelectCustomer={(c) => {
+              if (!isContractSigned) {
+                openContractModal(true);
+                return;
+              }
+              setSelected(c);
+            }}
           />
         )}
         {tab === 'revenue' && (
@@ -496,129 +787,352 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
           bumpData();
         }}
       />
-      <CompanyNoticeModal open={noticeOpen} onClose={() => setNoticeOpen(false)} shopInfo={shopInfo} />
+      <CompanyNoticeModal
+        open={noticeOpen}
+        onClose={() => {
+          if (mandatoryContract && !contractSignature) return;
+          setNoticeOpen(false);
+        }}
+        shopId={shopId}
+        shopInfo={shopInfo}
+        initialView={noticeInitialView}
+        mandatory={mandatoryContract && !contractSignature}
+        existingSignature={contractSignature}
+        onContractSigned={(sig) => {
+          setContractSignature(sig);
+          setMandatoryContract(false);
+          bumpData();
+        }}
+      />
     </div>
   );
 }
 
-/* ---------- Company Notice Modal (professional + electronic contract) ---------- */
+/* ---------- Smart Mandatory Company Notice & Electronic Contract Modal ---------- */
 function CompanyNoticeModal({
   open,
   onClose,
+  shopId,
   shopInfo,
+  initialView = 'notice',
+  mandatory = false,
+  existingSignature,
+  onContractSigned,
 }: {
   open: boolean;
   onClose: () => void;
+  shopId: string;
   shopInfo: { shop_name: string; owner_name: string } | null;
+  initialView?: 'notice' | 'contract';
+  mandatory?: boolean;
+  existingSignature: ContractSignatureRecord | null;
+  onContractSigned: (sig: ContractSignatureRecord) => void;
 }) {
-  const [view, setView] = useState<'notice' | 'contract'>('notice');
+  const [view, setView] = useState<'notice' | 'contract'>(initialView);
+  const [signerName, setSignerName] = useState('');
+  const [confirmShopData, setConfirmShopData] = useState(false);
+  const [confirmFinancialTerms, setConfirmFinancialTerms] = useState(false);
   const [agreed, setAgreed] = useState(false);
-  const [signed, setSigned] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [signedRecord, setSignedRecord] = useState<ContractSignatureRecord | null>(existingSignature);
+  const [err, setErr] = useState('');
+
   const today = new Date().toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' });
-  const contractId = shopInfo ? `${shopInfo.shop_name.substring(0, 2).toUpperCase()}-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}` : '';
+  const contractId = useMemo(
+    () => existingSignature?.contractNumber || generateDeterministicContractId(shopId, shopInfo?.shop_name),
+    [existingSignature?.contractNumber, shopId, shopInfo?.shop_name]
+  );
 
   useEffect(() => {
     if (open) {
-      setView('notice');
-      setAgreed(false);
-      setSigned(false);
+      setView(mandatory ? 'contract' : initialView);
+      setSignedRecord(existingSignature);
+      setSignerName(existingSignature?.signerName || shopInfo?.owner_name || '');
+      setConfirmShopData(!!existingSignature);
+      setConfirmFinancialTerms(!!existingSignature);
+      setAgreed(!!existingSignature);
+      setErr('');
     }
-  }, [open]);
+  }, [open, initialView, mandatory, existingSignature, shopInfo?.owner_name]);
+
+  const canSign =
+    !!signerName.trim() &&
+    confirmShopData &&
+    confirmFinancialTerms &&
+    agreed &&
+    !saving;
+
+  const handleSignContract = async () => {
+    if (!signerName.trim()) {
+      setErr('يرجى إدخال اسم الموقّع الرسمي على العقد');
+      return;
+    }
+    if (!confirmShopData || !confirmFinancialTerms || !agreed) {
+      setErr('يجب تأكيد كافة الإقرارات والموافقة على بنود العقد لإتمام التوثيق');
+      return;
+    }
+    setSaving(true);
+    setErr('');
+    try {
+      const record: ContractSignatureRecord = {
+        shopId,
+        contractNumber: contractId,
+        signedAt: new Date().toISOString(),
+        signerName: signerName.trim(),
+        shopName: shopInfo?.shop_name || 'محل مسجّل',
+        contractVersion: CONTRACT_VERSION,
+      };
+      await persistContractSignature(record);
+      setSignedRecord(record);
+      onContractSigned(record);
+    } catch {
+      setErr('تعذر حفظ توثيق العقد حاليًا، يرجى المحاولة مرة أخرى');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (view === 'contract') {
+    const isAlreadySigned = !!signedRecord;
     return (
-      <Modal open={open} onClose={onClose} title="عقد ترخيص استخدام النظام" maxWidth="max-w-3xl">
+      <Modal
+        open={open}
+        onClose={() => {
+          if (mandatory && !signedRecord) return;
+          onClose();
+        }}
+        title="عقد ترخيص استخدام النظام الإلكتروني"
+        maxWidth="max-w-3xl"
+      >
         <div className="space-y-4">
-          <div className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="grid h-12 w-12 place-items-center rounded-xl bg-stone-900 text-white">
-                  <FileText className="h-6 w-6" />
+          {/* Header with ulmi Wordmark & Smart Status */}
+          <div className="rounded-2xl border border-stone-200 bg-stone-900 p-5 text-white">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3.5">
+                <div className="grid h-12 w-16 place-items-center rounded-xl bg-white px-2">
+                  <UlmiWordmark variant="light" size="sm" />
                 </div>
                 <div>
-                  <p className="font-display text-lg font-extrabold text-stone-900">عقد ترخيص استخدام نظام {SYSTEM_NAME}</p>
-                  <p className="text-xs text-stone-500">رقم العقد: {contractId}</p>
+                  <p className="font-display text-base font-extrabold text-white sm:text-lg">
+                    عقد ترخيص استخدام نظام {SYSTEM_NAME}
+                  </p>
+                  <p className="text-xs text-stone-300">
+                    رقم العقد الذكي: <span className="font-bold text-white">{contractId}</span> · النسخة {CONTRACT_VERSION}
+                  </p>
                 </div>
               </div>
-              <div className="text-left text-xs text-stone-500">
-                <p>تاريخ الإصدار</p>
-                <p className="font-bold text-stone-700">{today}</p>
+              <div className="text-left text-xs">
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-extrabold ${
+                    isAlreadySigned
+                      ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/40'
+                      : 'bg-amber-400/20 text-amber-200 ring-1 ring-amber-300/40'
+                  }`}
+                >
+                  {isAlreadySigned ? <ShieldCheck className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+                  {isAlreadySigned ? 'موقّع وموثّق' : 'توقيع إلزامي'}
+                </span>
+                <p className="mt-1 text-[11px] text-stone-400">{today}</p>
               </div>
             </div>
           </div>
 
-          <div className="max-h-[50vh] space-y-4 overflow-y-auto rounded-2xl border border-stone-200 bg-white p-5 text-sm leading-relaxed text-stone-700">
+          {/* Smart Parties Summary */}
+          <div className="grid gap-2.5 rounded-2xl border border-stone-200 bg-stone-50 p-4 text-xs sm:grid-cols-3">
             <div>
-              <p className="mb-2 font-bold text-stone-900">تمهيد</p>
+              <p className="font-bold text-stone-500">الطرف الأول (الشركة المالكة)</p>
+              <div className="mt-1 flex items-center gap-1.5 font-extrabold text-stone-900">
+                <UlmiWordmark variant="light" size="sm" />
+                <span>— {SYSTEM_NAME}</span>
+              </div>
+            </div>
+            <div>
+              <p className="font-bold text-stone-500">الطرف الثاني (المنشأة / المحل)</p>
+              <p className="mt-1 font-extrabold text-stone-900">{shopInfo?.shop_name || 'محل مسجّل'}</p>
+            </div>
+            <div>
+              <p className="font-bold text-stone-500">المسؤول / المالك المسجّل</p>
+              <p className="mt-1 font-extrabold text-stone-900">{shopInfo?.owner_name || '—'}</p>
+            </div>
+          </div>
+
+          {/* Structured Contract Clauses */}
+          <div className="max-h-[42vh] space-y-3.5 overflow-y-auto rounded-2xl border border-stone-200 bg-white p-5 text-sm leading-relaxed text-stone-700">
+            <div>
+              <p className="mb-1 font-extrabold text-stone-900">1. التمهيد وحجية العقد الذكي</p>
               <p>
-                إنه في يوم <span className="font-bold">{today}</span>، تم الاتفاق بين طرف أول شركة{' '}
-                <span className="font-bold text-stone-900">{COMPANY_NAME}</span> (المُنشئة والمالكة لنظام{' '}
-                <span className="font-bold">{SYSTEM_NAME}</span>) وبين طرف ثانٍ محل الحلاقة المُسجّل باسم{' '}
-                <span className="font-bold text-stone-900">{shopInfo?.shop_name ?? '—'}</span>، المملوك للسيد/ة{' '}
-                <span className="font-bold text-stone-900">{shopInfo?.owner_name ?? '—'}</span>، على ترخيص استخدام النظام
-                وفقاً للشروط والأحكام الآتية.
+                أُبرم هذا العقد إلكترونيًا بين شركة <span className="font-bold text-stone-900">{BRAND_NAME}</span> (مالكة ومشغّلة نظام{' '}
+                <span className="font-bold text-stone-900">{SYSTEM_NAME}</span>) وبين منشأة{' '}
+                <span className="font-bold text-stone-900">{shopInfo?.shop_name ?? '—'}</span> المملوكة للسيد/ة{' '}
+                <span className="font-bold text-stone-900">{shopInfo?.owner_name ?? '—'}</span>، ويُعد التوقيع الإلكتروني الموثّق ملزمًا للطرفين سواء للمنشآت الجديدة أو المنشآت القائمة التي تستمر في استخدام النظام.
+              </p>
+            </div>
+
+            <div>
+              <p className="mb-1 font-extrabold text-stone-900">2. القواعد المالية ورسوم التشغيل</p>
+              <ul className="list-disc space-y-1 pr-5 text-xs sm:text-sm">
+                <li>
+                  الحلاقة العادية المدفوعة تخضع لرسوم ثابتة لصالح شركة <span className="font-bold">{BRAND_NAME}</span> قدرها{' '}
+                  <span className="font-bold text-stone-900">{formatPrice(COMPANY_FEE_PER_VISIT)}</span>، ويُحسب صافي المحل بخصم هذه الرسوم من قيمة العملية.
+                </li>
+                <li>
+                  بيع الباقات والاشتراكات تُحتسب رسومه مرة واحدة عند تفعيل البيع وفق عدد زيارات الباقة، بينما استخدام زيارة من الباقة لا يضيف رسومًا جديدة ولا يُعدّ تحصيلًا إضافيًا.
+                </li>
+                <li>
+                  أي خدمة إضافية تُسجّل أثناء زيارة الباقة لا تخضع لرسوم إضافية لصالح شركة <span className="font-bold">{BRAND_NAME}</span> وتؤول بالكامل للمحل.
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <p className="mb-1 font-extrabold text-stone-900">3. دقة البيانات والالتزام التشغيلي</p>
+              <p className="text-xs sm:text-sm">
+                يلتزم الطرف الثاني بتسجيل الزيارات والتحصيلات بدقة ومصداقية عبر لوحة الإدارة، ويقر بصحة بيانات المحل والمالك الظاهرة في هذا العقد، كما تلتزم شركة <span className="font-bold">{BRAND_NAME}</span> بتوفير المنصة واستمرارية تشغيل السجلات والتقارير.
               </p>
             </div>
           </div>
 
-          <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-stone-200 bg-stone-50 p-3">
-            <input
-              type="checkbox"
-              checked={agreed}
-              onChange={(e) => setAgreed(e.target.checked)}
-              className="mt-0.5 h-5 w-5 shrink-0 accent-stone-900"
-            />
-            <span className="text-sm font-bold text-stone-700">
-              أوافق على جميع بنود هذا العقد الإلكتروني الموثّق بين محلي وشركة {COMPANY_NAME}.
-            </span>
-          </label>
+          {!isAlreadySigned ? (
+            <div className="space-y-3 rounded-2xl border border-stone-200 bg-stone-50/80 p-4">
+              <div>
+                <label className="label">الاسم الكامل للموقّع (إلزامي للتوثيق) *</label>
+                <input
+                  value={signerName}
+                  onChange={(e) => {
+                    setSignerName(e.target.value);
+                    if (err) setErr('');
+                  }}
+                  className="input bg-white"
+                  placeholder="اكتب اسم المالك أو المفوض بالتوقيع"
+                />
+              </div>
 
-          <div className="flex gap-3">
-            <button
-              onClick={() => { setSigned(true); setTimeout(onClose, 800); }}
-              disabled={!agreed || signed}
-              className="btn-primary flex-1 disabled:opacity-50"
-            >
-              {signed ? <CheckCircle2 className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-              {signed ? 'تم التوقيع والتوثيق' : 'توقيع وموافقة على العقد'}
-            </button>
-            <button onClick={() => setView('notice')} className="btn-ghost">
-              رجوع
-            </button>
-          </div>
+              <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-stone-200 bg-white p-3">
+                <input
+                  type="checkbox"
+                  checked={confirmShopData}
+                  onChange={(e) => {
+                    setConfirmShopData(e.target.checked);
+                    if (err) setErr('');
+                  }}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-stone-900"
+                />
+                <span className="text-xs font-bold text-stone-700 sm:text-sm">
+                  أقر بصحة بيانات المحل ({shopInfo?.shop_name ?? '—'}) واسم المسؤول ({shopInfo?.owner_name ?? '—'}).
+                </span>
+              </label>
 
-          {signed && (
-            <div className="flex items-center gap-2 rounded-xl border border-stone-200 bg-stone-100 p-3 text-sm font-bold text-stone-800">
-              <ShieldCheck className="h-4 w-4 text-emerald-700" />
-              تم توثيق العقد إلكترونياً برقم {contractId} — محفوظ في نظام {COMPANY_NAME}
+              <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-stone-200 bg-white p-3">
+                <input
+                  type="checkbox"
+                  checked={confirmFinancialTerms}
+                  onChange={(e) => {
+                    setConfirmFinancialTerms(e.target.checked);
+                    if (err) setErr('');
+                  }}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-stone-900"
+                />
+                <span className="text-xs font-bold text-stone-700 sm:text-sm">
+                  أوافق على آلية احتساب رسوم شركة {BRAND_NAME} ({formatPrice(COMPANY_FEE_PER_VISIT)} للحلاقة العادية، ورسوم الباقات مرة واحدة عند البيع، و0 رسوم على الخدمات الإضافية).
+                </span>
+              </label>
+
+              <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-stone-300 bg-white p-3">
+                <input
+                  type="checkbox"
+                  checked={agreed}
+                  onChange={(e) => {
+                    setAgreed(e.target.checked);
+                    if (err) setErr('');
+                  }}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-stone-900"
+                />
+                <span className="text-xs font-extrabold text-stone-900 sm:text-sm">
+                  أوافق موافقة نهائية وملزمة على جميع بنود هذا العقد الإلكتروني الموثّق مع شركة {BRAND_NAME}.
+                </span>
+              </label>
+
+              {err && (
+                <p className="text-xs font-extrabold text-red-600">{err}</p>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 text-xs font-bold text-emerald-900">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-700" />
+                <span>
+                  تم توثيق العقد برقم <span className="font-extrabold">{signedRecord.contractNumber}</span> بواسطة{' '}
+                  <span className="font-extrabold">{signedRecord.signerName || shopInfo?.owner_name || 'المسؤول'}</span>
+                </span>
+              </div>
+              <span className="text-[11px] text-emerald-800">
+                بتاريخ: {formatDateTime(signedRecord.signedAt)}
+              </span>
             </div>
           )}
+
+          <div className="flex flex-wrap gap-3">
+            {!isAlreadySigned ? (
+              <button
+                type="button"
+                onClick={handleSignContract}
+                disabled={!canSign}
+                className="btn-primary flex-1 disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+                {saving ? 'جاري التوثيق والحفظ...' : 'توقيع وموافقة إلزامية على العقد'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onClose}
+                className="btn-primary flex-1"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                <span>تم التوثيق — متابعة</span>
+              </button>
+            )}
+
+            {!mandatory && (
+              <button type="button" onClick={() => setView('notice')} className="btn-ghost">
+                عرض الإشعار
+              </button>
+            )}
+          </div>
         </div>
       </Modal>
     );
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={`إشعار من ${COMPANY_NAME}`} maxWidth="max-w-lg">
+    <Modal open={open} onClose={onClose} title={`إشعار من ${BRAND_NAME}`} maxWidth="max-w-lg">
       <div className="space-y-4">
-        <div className="flex items-center gap-3 rounded-2xl border border-stone-200 bg-stone-900 p-4 text-white">
-          <div className="grid h-12 w-12 place-items-center rounded-xl bg-white/10">
-            <Building2 className="h-6 w-6 text-stone-100" />
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-stone-900 p-4 text-white">
+          <div className="flex items-center gap-3">
+            <div className="grid h-12 w-16 place-items-center rounded-xl bg-white px-2">
+              <UlmiWordmark variant="light" size="sm" />
+            </div>
+            <div>
+              <p className="text-xs text-stone-300">إدارة أنظمة الحلاقة الذكية — {SYSTEM_NAME}</p>
+              <p className="mt-0.5 text-[11px] text-stone-400">
+                حالة العقد: {existingSignature ? `موثّق (${existingSignature.contractNumber})` : 'مطلوب التوقيع'}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="font-display text-lg font-extrabold">{COMPANY_NAME}</p>
-            <p className="text-xs text-stone-300">إدارة أنظمة الحلاقة الذكية — {SYSTEM_NAME}</p>
-          </div>
+          <Building2 className="h-5 w-5 shrink-0 text-stone-300" />
         </div>
+
         <p className="text-sm leading-relaxed text-stone-700">
-          الحلاقة العادية المدفوعة تخضع لرسوم شركة ثابتة قدرها <span className="font-bold text-stone-900">{formatPrice(COMPANY_FEE_PER_VISIT)}</span>، وبيع الباقات يحتسب رسومها مرة واحدة عند البيع وفق قواعد النظام، بينما استخدام زيارة الباقة لا يضيف رسومًا جديدة والخدمات الإضافية أثناء زيارة الباقة تذهب بالكامل للمحل.
+          الحلاقة العادية المدفوعة تخضع لرسوم شركة ثابتة قدرها{' '}
+          <span className="font-bold text-stone-900">{formatPrice(COMPANY_FEE_PER_VISIT)}</span>، وبيع الباقات يحتسب رسومها مرة واحدة عند البيع وفق قواعد النظام، بينما استخدام زيارة الباقة لا يضيف رسومًا جديدة والخدمات الإضافية أثناء زيارة الباقة تذهب بالكامل للمحل.
         </p>
+
         <div className="flex gap-3">
-          <button onClick={() => setView('contract')} className="btn-primary flex-1">
+          <button type="button" onClick={() => setView('contract')} className="btn-primary flex-1">
             <FileText className="h-4 w-4" />
-            عرض وتوقيع العقد
+            {existingSignature ? 'عرض العقد الموثّق' : 'عرض وتوقيع العقد'}
           </button>
-          <button onClick={onClose} className="btn-ghost">
+          <button type="button" onClick={onClose} className="btn-ghost">
             إغلاق
           </button>
         </div>
@@ -961,12 +1475,16 @@ function VisitsTab({
   shopId,
   customers,
   regularHaircutPrice,
+  isContractSigned,
+  onRequireContract,
   onSelectCustomer,
   onMutated,
 }: {
   shopId: string;
   customers: Customer[];
   regularHaircutPrice: number;
+  isContractSigned: boolean;
+  onRequireContract: () => void;
   onSelectCustomer: (c: Customer) => void;
   onMutated: () => void;
 }) {
@@ -1072,6 +1590,15 @@ function VisitsTab({
   const subscribedCount = rows.filter((r) => r.sub?.status === 'active').length;
   const paidVisitCount = rows.filter((r) => r.visitToday?.payment_type === 'paid').length;
   const todayCompanyFee = paidVisitCount * COMPANY_FEE_PER_VISIT;
+
+  const openVisitAction = (row: VisitRow, forcePaid: boolean) => {
+    if (!isContractSigned) {
+      onRequireContract();
+      return;
+    }
+    setVisitModalRow(row);
+    setVisitModalForcePaid(forcePaid);
+  };
 
   return (
     <div className="space-y-4">
@@ -1185,14 +1712,14 @@ function VisitsTab({
                   ) : active && remaining > 0 ? (
                     <>
                       <button
-                        onClick={() => { setVisitModalRow(row); setVisitModalForcePaid(false); }}
+                        onClick={() => openVisitAction(row, false)}
                         className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-800"
                       >
                         <CheckCircle2 className="h-4 w-4" />
                         اشتراك
                       </button>
                       <button
-                        onClick={() => { setVisitModalRow(row); setVisitModalForcePaid(true); }}
+                        onClick={() => openVisitAction(row, true)}
                         className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-bold text-stone-800 transition hover:bg-stone-50"
                       >
                         <Coins className="h-4 w-4 text-stone-600" />
@@ -1201,7 +1728,7 @@ function VisitsTab({
                     </>
                   ) : (
                     <button
-                      onClick={() => { setVisitModalRow(row); setVisitModalForcePaid(false); }}
+                      onClick={() => openVisitAction(row, false)}
                       className="inline-flex items-center gap-1.5 rounded-xl bg-stone-900 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-stone-800"
                     >
                       <Scissors className="h-4 w-4" />
@@ -1636,9 +2163,9 @@ function RevenueTab({
   const filteredNet = filteredCollected - filteredFees;
 
   const reportTransactions = recordedFiltered;
-  const now = new Date();
 
   const monthlyReport = useMemo(() => {
+    const now = new Date();
     return Array.from({ length: 6 }, (_, index) => {
       const monthDate = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
       const year = monthDate.getFullYear();
@@ -1690,7 +2217,7 @@ function RevenueTab({
         details,
       };
     });
-  }, [reportTransactions, now, customerNames, buildCustomerSubMeta]);
+  }, [reportTransactions, customerNames, buildCustomerSubMeta]);
 
   const monthlyMax = Math.max(1, ...monthlyReport.map((row) => row.collected));
 
@@ -1873,11 +2400,14 @@ function RevenueTab({
       <section className="card overflow-hidden">
         <div className="p-5">
           <div className="mb-4 flex items-center gap-2.5">
-            <div className="grid h-9 w-9 place-items-center rounded-xl bg-stone-900 text-white">
-              <Building2 className="h-4 w-4" />
+            <div className="grid h-10 w-14 place-items-center rounded-xl bg-stone-900 px-1.5">
+              <UlmiWordmark variant="dark" size="sm" />
             </div>
             <div>
-              <h3 className="font-display text-base font-extrabold text-stone-900">رسوم {COMPANY_NAME}</h3>
+              <h3 className="flex items-center gap-1.5 font-display text-base font-extrabold text-stone-900">
+                <span>رسوم شركة</span>
+                <UlmiWordmark variant="light" size="sm" />
+              </h3>
               <p className="text-xs text-stone-500">
                 حلاقة عادية: {formatPrice(COMPANY_FEE_PER_VISIT)} · باقة: تُحسب رسومها عند البيع حسب عدد زياراتها · خدمة إضافية أثناء الباقة: 0 رسوم
               </p>
