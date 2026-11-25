@@ -34,6 +34,7 @@ import {
   Layers,
   ChevronDown,
   ChevronUp,
+  Calendar,
 } from 'lucide-react';
 import Modal from '@/components/Modal';
 import {
@@ -1788,6 +1789,9 @@ function RevenueTab({
   const subVisitsCount = stats?.subscriptionVisits ?? snapshot?.subscriptionVisitsUsed ?? 0;
   const totalVisitsCompare = Math.max(1, regularVisitsCount + subVisitsCount);
 
+  const activeMonthObj = monthlyReport.find((m) => m.key === expandedMonthKey) ?? null;
+  const activeDayObj = dailyReport.find((d) => d.key === expandedDayKey) ?? null;
+
   if (loading || !stats) {
     return (
       <div className="space-y-4">
@@ -1908,7 +1912,7 @@ function RevenueTab({
           <BarChart3 className="h-5 w-5 text-stone-700" />
           <div>
             <h3 className="font-display text-base font-extrabold text-stone-900">التقارير والرسوم البيانية ومقارنة الفترات</h3>
-            <p className="mt-0.5 text-xs text-stone-500">اضغط على أي يوم أو شهر لعرض تفاصيل العملاء والباقات والزيارات.</p>
+            <p className="mt-0.5 text-xs text-stone-500">تعتمد على العمليات المسجلة وتستجيب لفلاتر سجل التحصيلات.</p>
           </div>
         </div>
 
@@ -2020,161 +2024,190 @@ function RevenueTab({
           </div>
         </div>
 
-        {/* Compact Expandable Monthly Summary (No large table) */}
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-extrabold text-stone-800">ملخص آخر 6 أشهر (اضغط على الشهر للتفاصيل)</h4>
-            <span className="text-[11px] text-stone-500">عرض مدمج</span>
+        {/* Distinct Style A: Compact Monthly Tiles Grid (6 Months) */}
+        <div className="space-y-3 rounded-2xl border border-stone-200 bg-stone-50/60 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-stone-700" />
+              <h4 className="text-xs font-extrabold text-stone-900">ملخص آخر 6 أشهر (اضغط على الشهر للتفاصيل)</h4>
+            </div>
+            <span className="rounded-full border border-stone-200 bg-white px-2.5 py-0.5 text-[10px] font-bold text-stone-600">
+              شبكة الشهور
+            </span>
           </div>
-          <div className="space-y-2">
-            {monthlyReport.map((month) => {
-              const isOpen = expandedMonthKey === month.key;
-              return (
-                <div key={month.key} className="rounded-xl border border-stone-200 bg-white overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setExpandedMonthKey(isOpen ? null : month.key)}
-                    className="flex w-full flex-wrap items-center justify-between gap-2 px-4 py-3 text-right transition hover:bg-stone-50"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-sm font-extrabold text-stone-900">{month.label}</span>
-                      <span className="rounded-md bg-stone-100 px-2 py-0.5 text-[11px] font-bold text-stone-600">
-                        {month.details.length} عملية
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3 text-xs tabular-nums">
-                      <span className="font-bold text-stone-800">تحصيل: {formatPrice(month.collected)}</span>
-                      <span className="font-bold text-emerald-700">صافي: {formatPrice(month.net)}</span>
-                      {isOpen ? <ChevronUp className="h-4 w-4 text-stone-500" /> : <ChevronDown className="h-4 w-4 text-stone-500" />}
-                    </div>
-                  </button>
 
-                  {isOpen && (
-                    <div className="border-t border-stone-100 bg-stone-50/60 p-3.5 space-y-2.5">
-                      <div className="flex flex-wrap gap-3 text-[11px] font-bold text-stone-600">
-                        <span>رسوم الشركة: {formatPrice(month.fees)}</span>
-                        <span>·</span>
-                        <span>باقات: {formatPrice(month.packages)}</span>
-                        <span>·</span>
-                        <span>حلاقات عادية: {formatPrice(month.regular)}</span>
-                        <span>·</span>
-                        <span>خدمات إضافية: {formatPrice(month.extras)}</span>
-                      </div>
-                      {month.details.length === 0 ? (
-                        <p className="text-xs text-stone-500">لا توجد عمليات مسجلة في هذا الشهر.</p>
-                      ) : (
-                        <div className="space-y-2">
-                          {month.details.map((item) => (
-                            <div key={item.id} className="rounded-lg border border-stone-200 bg-white p-3 text-xs space-y-1">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <span className="font-extrabold text-stone-900">
-                                  {item.customerName} — {item.actionSummary}
-                                </span>
-                                <span className="text-[11px] font-bold text-stone-500">{item.timeLabel}</span>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2 text-[11px] text-stone-600">
-                                <span>المبلغ: <strong>{formatPrice(item.amount)}</strong></span>
-                                <span>·</span>
-                                <span>رسوم: <strong>{formatPrice(item.fee)}</strong></span>
-                                <span>·</span>
-                                <span className="text-emerald-700">صافي: <strong>{formatPrice(item.net)}</strong></span>
-                              </div>
-                              <div className="pt-0.5 text-[11px]">
-                                {item.isSubscribed ? (
-                                  <span className="inline-flex flex-wrap items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-0.5 font-bold text-emerald-800 ring-1 ring-emerald-200">
-                                    <span>مشترك في باقة: {item.packageName}</span>
-                                    <span>· سعرها: {formatPrice(item.packagePrice ?? 0)}</span>
-                                    <span>· خلص منها: {item.packageUsed ?? 0} من {item.packageTotal ?? 0} زيارة</span>
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center rounded-md bg-stone-100 px-2 py-0.5 font-bold text-stone-600">
-                                    غير مشترك في باقة
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+            {monthlyReport.map((month) => {
+              const isSelected = expandedMonthKey === month.key;
+              const hasActivity = month.details.length > 0 || month.collected > 0;
+              return (
+                <button
+                  key={month.key}
+                  type="button"
+                  onClick={() => setExpandedMonthKey(isSelected ? null : month.key)}
+                  className={`flex flex-col justify-between rounded-xl border p-3 text-right transition ${
+                    isSelected
+                      ? 'border-stone-900 bg-stone-900 text-white shadow-xs'
+                      : hasActivity
+                      ? 'border-emerald-200/90 bg-white text-stone-900 hover:border-emerald-300'
+                      : 'border-stone-200/80 bg-white/75 text-stone-600 hover:bg-white'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-display text-sm font-extrabold">{month.label}</span>
+                    <span
+                      className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                        isSelected
+                          ? 'bg-white/15 text-stone-100'
+                          : hasActivity
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-stone-100 text-stone-500'
+                      }`}
+                    >
+                      {month.details.length} عملية
+                    </span>
+                  </div>
+
+                  <div className="mt-2.5 flex items-baseline justify-between gap-2 border-t border-current/10 pt-2 text-xs tabular-nums">
+                    <span>تحصيل: <strong>{formatPrice(month.collected)}</strong></span>
+                    <span className={isSelected ? 'text-emerald-300' : 'text-emerald-700'}>
+                      صافي: <strong>{formatPrice(month.net)}</strong>
+                    </span>
+                  </div>
+                </button>
               );
             })}
           </div>
+
+          {activeMonthObj && (
+            <div className="rounded-xl border border-stone-200 bg-white p-3.5 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 pb-2">
+                <p className="text-xs font-extrabold text-stone-900">تفاصيل شهر {activeMonthObj.label}</p>
+                <div className="flex flex-wrap gap-2 text-[11px] font-bold text-stone-600">
+                  <span>رسوم: {formatPrice(activeMonthObj.fees)}</span>
+                  <span>·</span>
+                  <span>باقات: {formatPrice(activeMonthObj.packages)}</span>
+                  <span>·</span>
+                  <span>عادي: {formatPrice(activeMonthObj.regular)}</span>
+                  <span>·</span>
+                  <span>إضافي: {formatPrice(activeMonthObj.extras)}</span>
+                </div>
+              </div>
+
+              {activeMonthObj.details.length === 0 ? (
+                <p className="text-xs text-stone-500">لا توجد عمليات مسجلة في هذا الشهر.</p>
+              ) : (
+                <div className="space-y-2">
+                  {activeMonthObj.details.map((item) => (
+                    <div key={item.id} className="rounded-lg border border-stone-200/90 bg-stone-50/70 p-2.5 text-xs space-y-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-extrabold text-stone-900">
+                          {item.customerName} — {item.actionSummary}
+                        </span>
+                        <span className="text-[11px] font-bold text-stone-500">{item.timeLabel}</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-stone-600">
+                        <span>المبلغ: <strong>{formatPrice(item.amount)}</strong></span>
+                        <span>·</span>
+                        <span>رسوم: <strong>{formatPrice(item.fee)}</strong></span>
+                        <span>·</span>
+                        <span className="text-emerald-700">صافي: <strong>{formatPrice(item.net)}</strong></span>
+                      </div>
+                      <div className="pt-0.5 text-[11px]">
+                        {item.isSubscribed ? (
+                          <span className="inline-flex flex-wrap items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-0.5 font-bold text-emerald-800 ring-1 ring-emerald-200">
+                            <span>مشترك في باقة: {item.packageName}</span>
+                            <span>· سعرها: {formatPrice(item.packagePrice ?? 0)}</span>
+                            <span>· خلص منها: {item.packageUsed ?? 0} من {item.packageTotal ?? 0} زيارة</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-md bg-stone-200/70 px-2 py-0.5 font-bold text-stone-700">
+                            غير مشترك في باقة
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Compact Expandable Daily Summary (No large table) */}
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-extrabold text-stone-800">ملخص آخر 7 أيام (اضغط على اليوم لعرض مين جالك وعمل إيه)</h4>
-            <span className="text-[11px] text-stone-500">عرض مدمج</span>
+        {/* Distinct Style B: Compact Daily Timeline Strip (Last 7 Days) */}
+        <div className="space-y-3 rounded-2xl border border-stone-200 bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-emerald-700" />
+              <h4 className="text-xs font-extrabold text-stone-900">ملخص آخر 7 أيام (اضغط على اليوم لعرض مين جالك وعمل إيه)</h4>
+            </div>
+            <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+              سجل يومي تفاعلي
+            </span>
           </div>
-          <div className="space-y-2">
+
+          <div className="divide-y divide-stone-100 rounded-xl border border-stone-200/90 bg-stone-50/40">
             {dailyReport.map((day) => {
               const isOpen = expandedDayKey === day.key;
               return (
-                <div key={day.key} className="rounded-xl border border-stone-200 bg-white overflow-hidden">
+                <div key={day.key}>
                   <button
                     type="button"
                     onClick={() => setExpandedDayKey(isOpen ? null : day.key)}
-                    className="flex w-full flex-wrap items-center justify-between gap-2 px-4 py-3 text-right transition hover:bg-stone-50"
+                    className="flex w-full flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 text-right transition hover:bg-white"
                   >
                     <div className="flex items-center gap-2.5">
-                      <span className="text-sm font-extrabold text-stone-900">{day.label}</span>
-                      <span className="rounded-md bg-stone-100 px-2 py-0.5 text-[11px] font-bold text-stone-600">
+                      <span className={`h-2.5 w-2.5 rounded-full ${day.count > 0 ? 'bg-emerald-600' : 'bg-stone-300'}`} />
+                      <span className="text-xs font-extrabold text-stone-900">{day.label}</span>
+                      <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-stone-600 ring-1 ring-stone-200">
                         {day.count} حركة
                       </span>
                     </div>
-                    <div className="flex flex-wrap items-center gap-3 text-xs tabular-nums">
-                      <span className="font-bold text-stone-800">تحصيل: {formatPrice(day.collected)}</span>
-                      <span className="font-bold text-emerald-700">صافي: {formatPrice(day.net)}</span>
+
+                    <div className="flex items-center gap-3 text-xs tabular-nums">
+                      <span className="text-stone-700">تحصيل: <strong>{formatPrice(day.collected)}</strong></span>
+                      <span className="text-emerald-700">صافي: <strong>{formatPrice(day.net)}</strong></span>
                       {isOpen ? <ChevronUp className="h-4 w-4 text-stone-500" /> : <ChevronDown className="h-4 w-4 text-stone-500" />}
                     </div>
                   </button>
 
                   {isOpen && (
-                    <div className="border-t border-stone-100 bg-stone-50/60 p-3.5 space-y-2.5">
-                      <div className="flex flex-wrap gap-3 text-[11px] font-bold text-stone-600">
-                        <span>رسوم الشركة: {formatPrice(day.fees)}</span>
-                        <span>·</span>
-                        <span>صافي المحل: {formatPrice(day.net)}</span>
-                      </div>
+                    <div className="border-t border-stone-200/80 bg-white p-3 space-y-2">
                       {day.details.length === 0 ? (
                         <p className="text-xs text-stone-500">لا توجد زيارات أو عمليات في هذا اليوم.</p>
                       ) : (
-                        <div className="space-y-2">
-                          {day.details.map((item) => (
-                            <div key={item.id} className="rounded-lg border border-stone-200 bg-white p-3 text-xs space-y-1">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <span className="font-extrabold text-stone-900">
-                                  {item.customerName} — {item.actionSummary}
-                                </span>
-                                <span className="text-[11px] font-bold text-stone-500">الساعة {item.timeLabel}</span>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-2 text-[11px] text-stone-600">
-                                <span>المبلغ: <strong>{formatPrice(item.amount)}</strong></span>
-                                <span>·</span>
-                                <span>رسوم الشركة: <strong>{formatPrice(item.fee)}</strong></span>
-                                <span>·</span>
-                                <span className="text-emerald-700">صافي المحل: <strong>{formatPrice(item.net)}</strong></span>
-                              </div>
-                              <div className="pt-0.5 text-[11px]">
-                                {item.isSubscribed ? (
-                                  <span className="inline-flex flex-wrap items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-0.5 font-bold text-emerald-800 ring-1 ring-emerald-200">
-                                    <span>مشترك في باقة: {item.packageName}</span>
-                                    <span>· سعرها: {formatPrice(item.packagePrice ?? 0)}</span>
-                                    <span>· خلص منها: {item.packageUsed ?? 0} من {item.packageTotal ?? 0} زيارة</span>
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center rounded-md bg-stone-100 px-2 py-0.5 font-bold text-stone-600">
-                                    غير مشترك في باقة
-                                  </span>
-                                )}
-                              </div>
+                        day.details.map((item) => (
+                          <div key={item.id} className="rounded-lg border border-stone-200 bg-stone-50/60 p-2.5 text-xs space-y-1">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="font-extrabold text-stone-900">
+                                {item.customerName} — {item.actionSummary}
+                              </span>
+                              <span className="rounded bg-white px-2 py-0.5 text-[11px] font-bold text-stone-600 ring-1 ring-stone-200">
+                                الساعة {item.timeLabel}
+                              </span>
                             </div>
-                          ))}
-                        </div>
+                            <div className="flex flex-wrap items-center gap-2 text-[11px] text-stone-600">
+                              <span>المبلغ: <strong>{formatPrice(item.amount)}</strong></span>
+                              <span>·</span>
+                              <span>رسوم الشركة: <strong>{formatPrice(item.fee)}</strong></span>
+                              <span>·</span>
+                              <span className="text-emerald-700">صافي المحل: <strong>{formatPrice(item.net)}</strong></span>
+                            </div>
+                            <div className="pt-0.5 text-[11px]">
+                              {item.isSubscribed ? (
+                                <span className="inline-flex flex-wrap items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-0.5 font-bold text-emerald-800 ring-1 ring-emerald-200">
+                                  <span>مشترك في باقة: {item.packageName}</span>
+                                  <span>· سعرها: {formatPrice(item.packagePrice ?? 0)}</span>
+                                  <span>· خلص منها: {item.packageUsed ?? 0} من {item.packageTotal ?? 0} زيارة</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center rounded-md bg-stone-200/70 px-2 py-0.5 font-bold text-stone-700">
+                                  غير مشترك في باقة
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))
                       )}
                     </div>
                   )}
