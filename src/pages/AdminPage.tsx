@@ -317,113 +317,157 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
   ];
 
   return (
-    <div className="animate-fade-in mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          {shopInfo?.logo_url ? (
-            <img src={shopInfo.logo_url} alt={`شعار ${shopInfo.shop_name}`} className="h-14 w-14 shrink-0 rounded-2xl border border-stone-200 bg-white object-contain p-1" />
-          ) : (
-            <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-stone-900 font-display text-xl font-extrabold text-amber-400">
-              {shopInfo?.shop_name?.charAt(0) ?? 'م'}
+    <div className="animate-fade-in mx-auto max-w-6xl space-y-6 px-4 py-7 sm:px-6">
+      <header className="card border-stone-200/90 bg-white p-5 sm:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          {/* Brand + Shop Identity */}
+          <div className="flex min-w-0 items-center gap-4">
+            {shopInfo?.logo_url ? (
+              <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl border border-stone-200 bg-stone-50 p-1.5 shadow-2xs">
+                <img
+                  src={shopInfo.logo_url}
+                  alt={`شعار ${shopInfo.shop_name}`}
+                  className="h-full w-full rounded-xl object-contain"
+                />
+              </div>
+            ) : (
+              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-stone-900 font-display text-xl font-extrabold text-white shadow-2xs">
+                {shopInfo?.shop_name?.charAt(0) ?? 'م'}
+              </div>
+            )}
+
+            <div className="min-w-0 space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="truncate font-display text-xl font-extrabold text-stone-900 sm:text-2xl">
+                  {shopInfo?.shop_name || 'لوحة الإدارة'}
+                </h1>
+                {shopInfo?.owner_name && (
+                  <span className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-0.5 text-[11px] font-bold text-stone-600">
+                    {shopInfo.owner_name}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                <span>إدارة العملاء والباقات والزيارات والمالية</span>
+                <span className="hidden text-stone-300 sm:inline">•</span>
+                <span className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50/90 px-2.5 py-1 font-bold text-stone-800">
+                  <Scissors className="h-3.5 w-3.5 text-stone-600" />
+                  سعر الحلاقة العادية: {formatPrice(regularHaircutPrice)}
+                </span>
+              </div>
             </div>
-          )}
-          <div className="min-w-0">
-            <h1 className="font-display text-3xl font-extrabold text-stone-900">{shopInfo?.shop_name || 'لوحة الإدارة'}</h1>
-            <p className="mt-1 text-sm text-stone-600">إدارة التشغيل والمالية والعملاء والباقات ونظام الولاء</p>
-            <p className="mt-1 text-xs font-bold text-amber-700">سعر الحلاقة العادية: {formatPrice(regularHaircutPrice)}</p>
+          </div>
+
+          {/* Header Actions */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-stone-100 pt-4 lg:justify-end lg:border-t-0 lg:pt-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setNoticeOpen(true)}
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3.5 text-xs font-bold text-stone-700 transition hover:border-stone-300 hover:bg-stone-100"
+              >
+                <Building2 className="h-4 w-4 shrink-0 text-stone-600" />
+                <span>إشعار الشركة</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAddOpen(true)}
+                className="btn-primary h-10 px-4 text-xs"
+              >
+                <UserPlus className="h-4 w-4 shrink-0" />
+                <span>عميل جديد</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={onLogout}
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3.5 text-xs font-bold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900"
+            >
+              <LogOut className="h-4 w-4 shrink-0" />
+              <span>خروج</span>
+            </button>
           </div>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setNoticeOpen(true)}
-            className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-700 transition hover:bg-amber-100"
-          >
-            <Building2 className="h-4 w-4" />
-            إشعار الشركة
-          </button>
-          <button onClick={() => setAddOpen(true)} className="btn-primary">
-            <UserPlus className="h-4 w-4" />
-            عميل جديد
-          </button>
-          <button
-            onClick={onLogout}
-            className="inline-flex items-center gap-2 rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-sm font-bold text-stone-600 transition hover:bg-stone-100"
-          >
-            <LogOut className="h-4 w-4" />
-            خروج
-          </button>
-        </div>
-      </div>
+      </header>
 
-      {/* Tabs */}
-      <div className="mb-6 flex flex-wrap gap-1 rounded-xl border border-stone-200 bg-white p-1">
-        {tabs.map((t) => (
-          <button
-            key={t.k}
-            onClick={() => setTab(t.k)}
-            className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-bold transition sm:px-4 ${
-              tab === t.k ? 'bg-stone-900 text-amber-50 shadow-sm' : 'text-stone-600 hover:bg-stone-100'
-            }`}
-          >
-            <t.icon className="h-4 w-4" />
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <nav aria-label="أقسام لوحة الإدارة" className="flex gap-1.5 overflow-x-auto rounded-2xl border border-stone-200 bg-stone-50/80 p-1.5">
+        {tabs.map((t) => {
+          const active = tab === t.k;
+          return (
+            <button
+              key={t.k}
+              onClick={() => setTab(t.k)}
+              className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition sm:text-sm ${
+                active
+                  ? 'bg-stone-900 text-white shadow-xs'
+                  : 'text-stone-600 hover:bg-white hover:text-stone-900'
+              }`}
+            >
+              <t.icon className={`h-4 w-4 ${active ? 'text-stone-200' : 'text-stone-500'}`} />
+              {t.label}
+            </button>
+          );
+        })}
+      </nav>
 
-      {tab === 'overview' && (
-        <Overview
-          shopId={shopId}
-          customers={customers}
-          refreshTick={refreshTick}
-          onGoSubs={() => setTab('subscriptions')}
-          onGoRevenue={() => setTab('revenue')}
-        />
-      )}
-      {tab === 'customers' && (
-        <CustomersTab
-          customers={customers}
-          loading={loading}
-          search={search}
-          setSearch={setSearch}
-          onSelect={setSelected}
-          onAdd={() => setAddOpen(true)}
-        />
-      )}
-      {tab === 'visits' && (
-        <VisitsTab
-          shopId={shopId}
-          customers={customers}
-          regularHaircutPrice={regularHaircutPrice}
-          onSelectCustomer={setSelected}
-          onMutated={bumpData}
-        />
-      )}
-      {tab === 'subscriptions' && (
-        <SubscriptionsTab
-          shopId={shopId}
-          customers={customers}
-          refreshTick={refreshTick}
-          onSelectCustomer={setSelected}
-        />
-      )}
-      {tab === 'revenue' && (
-        <RevenueTab
-          shopId={shopId}
-          customers={customers}
-          refreshTick={refreshTick}
-        />
-      )}
-      {tab === 'settings' && (
-        <ShopSettingsTab
-          shopId={shopId}
-          onUpdated={(shop) => {
-            setShopInfo({ shop_name: shop.shop_name, owner_name: shop.owner_name, logo_url: shop.logo_url ?? null });
-            setRegularHaircutPrice(Number(shop.regular_haircut_price ?? REGULAR_HAIRCUT_PRICE));
-            bumpData();
-          }}
-        />
-      )}
+      <main className="min-w-0">
+        {tab === 'overview' && (
+          <Overview
+            shopId={shopId}
+            customers={customers}
+            refreshTick={refreshTick}
+            onGoSubs={() => setTab('subscriptions')}
+            onGoRevenue={() => setTab('revenue')}
+          />
+        )}
+        {tab === 'customers' && (
+          <CustomersTab
+            customers={customers}
+            loading={loading}
+            search={search}
+            setSearch={setSearch}
+            onSelect={setSelected}
+            onAdd={() => setAddOpen(true)}
+          />
+        )}
+        {tab === 'visits' && (
+          <VisitsTab
+            shopId={shopId}
+            customers={customers}
+            regularHaircutPrice={regularHaircutPrice}
+            onSelectCustomer={setSelected}
+            onMutated={bumpData}
+          />
+        )}
+        {tab === 'subscriptions' && (
+          <SubscriptionsTab
+            shopId={shopId}
+            customers={customers}
+            refreshTick={refreshTick}
+            onSelectCustomer={setSelected}
+          />
+        )}
+        {tab === 'revenue' && (
+          <RevenueTab
+            shopId={shopId}
+            customers={customers}
+            refreshTick={refreshTick}
+          />
+        )}
+        {tab === 'settings' && (
+          <ShopSettingsTab
+            shopId={shopId}
+            onUpdated={(shop) => {
+              setShopInfo({ shop_name: shop.shop_name, owner_name: shop.owner_name, logo_url: shop.logo_url ?? null });
+              setRegularHaircutPrice(Number(shop.regular_haircut_price ?? REGULAR_HAIRCUT_PRICE));
+              bumpData();
+            }}
+          />
+        )}
+      </main>
 
       <AddCustomerModal
         shopId={shopId}
@@ -478,10 +522,10 @@ function CompanyNoticeModal({
     return (
       <Modal open={open} onClose={onClose} title="عقد ترخيص استخدام النظام" maxWidth="max-w-3xl">
         <div className="space-y-4">
-          <div className="rounded-2xl border-2 border-stone-300 bg-stone-50 p-5">
-            <div className="flex items-center justify-between">
+          <div className="rounded-2xl border border-stone-200 bg-stone-50 p-5">
+            <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="grid h-12 w-12 place-items-center rounded-xl bg-stone-900 text-amber-400">
+                <div className="grid h-12 w-12 place-items-center rounded-xl bg-stone-900 text-white">
                   <FileText className="h-6 w-6" />
                 </div>
                 <div>
@@ -515,7 +559,7 @@ function CompanyNoticeModal({
               type="checkbox"
               checked={agreed}
               onChange={(e) => setAgreed(e.target.checked)}
-              className="mt-0.5 h-5 w-5 shrink-0 accent-amber-600"
+              className="mt-0.5 h-5 w-5 shrink-0 accent-stone-900"
             />
             <span className="text-sm font-bold text-stone-700">
               أوافق على جميع بنود هذا العقد الإلكتروني الموثّق بين محلي وشركة {COMPANY_NAME}.
@@ -537,8 +581,8 @@ function CompanyNoticeModal({
           </div>
 
           {signed && (
-            <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-700">
-              <ShieldCheck className="h-4 w-4" />
+            <div className="flex items-center gap-2 rounded-xl border border-stone-200 bg-stone-100 p-3 text-sm font-bold text-stone-800">
+              <ShieldCheck className="h-4 w-4 text-emerald-700" />
               تم توثيق العقد إلكترونياً برقم {contractId} — محفوظ في نظام {COMPANY_NAME}
             </div>
           )}
@@ -550,17 +594,17 @@ function CompanyNoticeModal({
   return (
     <Modal open={open} onClose={onClose} title={`إشعار من ${COMPANY_NAME}`} maxWidth="max-w-lg">
       <div className="space-y-4">
-        <div className="flex items-center gap-3 rounded-2xl bg-gradient-to-br from-stone-900 to-stone-800 p-4 text-amber-50">
-          <div className="grid h-12 w-12 place-items-center rounded-xl bg-amber-500/20">
-            <Building2 className="h-6 w-6 text-amber-400" />
+        <div className="flex items-center gap-3 rounded-2xl border border-stone-200 bg-stone-900 p-4 text-white">
+          <div className="grid h-12 w-12 place-items-center rounded-xl bg-white/10">
+            <Building2 className="h-6 w-6 text-stone-100" />
           </div>
           <div>
             <p className="font-display text-lg font-extrabold">{COMPANY_NAME}</p>
-            <p className="text-xs text-stone-400">إدارة أنظمة الحلاقة الذكية — {SYSTEM_NAME}</p>
+            <p className="text-xs text-stone-300">إدارة أنظمة الحلاقة الذكية — {SYSTEM_NAME}</p>
           </div>
         </div>
         <p className="text-sm leading-relaxed text-stone-700">
-          الحلاقة العادية المدفوعة تخضع لرسوم شركة ثابتة قدرها <span className="font-bold text-amber-700">{formatPrice(COMPANY_FEE_PER_VISIT)}</span>، وبيع الباقات يحتسب رسومها مرة واحدة عند البيع وفق قواعد النظام، بينما استخدام زيارة الباقة لا يضيف رسومًا جديدة والخدمات الإضافية أثناء زيارة الباقة تذهب بالكامل للمحل.
+          الحلاقة العادية المدفوعة تخضع لرسوم شركة ثابتة قدرها <span className="font-bold text-stone-900">{formatPrice(COMPANY_FEE_PER_VISIT)}</span>، وبيع الباقات يحتسب رسومها مرة واحدة عند البيع وفق قواعد النظام، بينما استخدام زيارة الباقة لا يضيف رسومًا جديدة والخدمات الإضافية أثناء زيارة الباقة تذهب بالكامل للمحل.
         </p>
         <div className="flex gap-3">
           <button onClick={() => setView('contract')} className="btn-primary flex-1">
@@ -665,10 +709,10 @@ function Overview({
   const extraServicesDisplay = snapshot ? snapshot.extraServicesRevenue : 0;
 
   const operationalCards = [
-    { label: 'إجمالي العملاء', value: stats.totalCustomers, icon: Users, tone: 'bg-stone-900 text-amber-400' },
-    { label: 'اشتراكات نشطة', value: stats.activeSubs, icon: CheckCircle2, tone: 'bg-emerald-600 text-emerald-50' },
-    { label: 'الزيارات الفعلية', value: actualVisitsDisplay, icon: Scissors, tone: 'bg-amber-500 text-stone-950' },
-    { label: 'الباقات والاشتراكات المباعة', value: soldPackagesDisplay, icon: Layers, tone: 'bg-stone-800 text-amber-300' },
+    { label: 'إجمالي العملاء', value: stats.totalCustomers, icon: Users },
+    { label: 'اشتراكات نشطة', value: stats.activeSubs, icon: CheckCircle2 },
+    { label: 'الزيارات الفعلية', value: actualVisitsDisplay, icon: Scissors },
+    { label: 'الباقات والاشتراكات المباعة', value: soldPackagesDisplay, icon: Layers },
   ];
 
   const primarySummaryCards = [
@@ -687,93 +731,104 @@ function Overview({
     {
       label: 'إجمالي رسوم الشركة المستحقة',
       value: stats.loading ? '—' : formatPrice(companyFeesDisplay),
-      detail: 'وفق القواعد المعتمدة دون تكرار على زيارات الباقة',
-      tone: 'text-amber-700',
+      detail: 'بدون تكرار على زيارات الباقة',
+      tone: 'text-stone-800',
     },
     {
       label: 'زيارات الباقات المستخدمة',
       value: stats.loading ? '—' : `${subVisitsUsedDisplay} زيارة`,
-      detail: `من أصل ${actualVisitsDisplay} زيارة فعلية · خدمات إضافية: ${formatPrice(extraServicesDisplay)}`,
+      detail: `من ${actualVisitsDisplay} زيارة فعلية · إضافية ${formatPrice(extraServicesDisplay)}`,
       tone: 'text-stone-800',
     },
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {operationalCards.map((c) => (
-          <div key={c.label} className="card p-5">
-            <div className={`grid h-11 w-11 place-items-center rounded-xl ${c.tone}`}>
+          <div key={c.label} className="card flex items-center justify-between p-4">
+            <div>
+              <p className="text-xs font-bold text-stone-500">{c.label}</p>
+              {stats.loading ? (
+                <div className="mt-2 h-7 w-16 animate-shimmer rounded" />
+              ) : (
+                <p className="mt-1.5 font-display text-2xl font-extrabold text-stone-900">{c.value}</p>
+              )}
+            </div>
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-stone-200 bg-stone-50 text-stone-700">
               <c.icon className="h-5 w-5" />
             </div>
-            {stats.loading ? (
-              <div className="mt-3 h-7 w-20 animate-shimmer rounded" />
-            ) : (
-              <p className="mt-3 font-display text-2xl font-extrabold text-stone-900">{c.value}</p>
-            )}
-            <p className="text-xs font-bold text-stone-500">{c.label}</p>
           </div>
         ))}
       </div>
 
       <section className="card overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 bg-stone-50/50 px-5 py-4">
           <div>
-            <h3 className="font-bold text-stone-900">الملخص المالي والتشغيلي الرئيسي</h3>
-            <p className="mt-1 text-xs text-stone-500">
-              نظرة مباشرة على المحصل، صافي المحل، رسوم الشركة، زيارات الباقات، ودخل الخدمات الإضافية ({formatPrice(extraServicesDisplay)}).
+            <h2 className="font-display text-base font-extrabold text-stone-900">الملخص المالي والتشغيلي</h2>
+            <p className="mt-0.5 text-xs text-stone-500">
+              مؤشرات التحصيل والصافي والرسوم والزيارات الحالية
             </p>
           </div>
-          <div className="flex gap-2">
-            <button onClick={onGoSubs} className="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-bold text-stone-700 hover:bg-stone-100">
-              <CalendarClock className="h-3.5 w-3.5" />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onGoSubs}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-bold text-stone-700 transition hover:bg-stone-50"
+            >
+              <CalendarClock className="h-3.5 w-3.5 text-stone-500" />
               الباقات
             </button>
-            <button onClick={onGoRevenue} className="inline-flex items-center gap-1.5 rounded-lg bg-stone-900 px-4 py-2 text-xs font-bold text-amber-50">
+            <button
+              onClick={onGoRevenue}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-stone-900 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-stone-800"
+            >
               <Wallet className="h-3.5 w-3.5" />
-              التفاصيل والتقارير
+              الإيرادات والتقارير
               <ArrowUpRight className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
+
         {financialError ? (
           <div className="p-5 text-sm text-red-700">
             تعذر تحميل الملخص المالي. راجع اتصال قاعدة البيانات وسجلات التحصيل.
           </div>
         ) : (
-          <div className="grid gap-px bg-stone-200 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid divide-y divide-stone-200 sm:grid-cols-2 sm:divide-x sm:divide-x-reverse sm:divide-y-0 xl:grid-cols-4">
             {primarySummaryCards.map((item) => (
-              <div key={item.label} className="bg-white p-4">
+              <div key={item.label} className="bg-white p-5">
                 <p className="text-xs font-bold text-stone-500">{item.label}</p>
                 {stats.loading ? (
-                  <div className="mt-3 h-7 w-28 animate-shimmer rounded" />
+                  <div className="mt-2.5 h-7 w-24 animate-shimmer rounded" />
                 ) : (
                   <p className={`mt-2 font-display text-2xl font-extrabold ${item.tone}`}>{item.value}</p>
                 )}
-                <p className="mt-1 text-[11px] leading-5 text-stone-500">{item.detail}</p>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-stone-500">{item.detail}</p>
               </div>
             ))}
           </div>
         )}
-        <div className="border-t border-stone-200 bg-stone-50 px-4 py-3 text-xs leading-6 text-stone-600">
-          حلاقة عادية مدفوعة: رسوم الشركة {formatPrice(COMPANY_FEE_PER_VISIT)} والصافي (السعر - 10) · بيع باقة 10 زيارات: 100 جنيه مرة واحدة · استخدام زيارة من الباقة: صفر رسوم ولا يُعدّ تحصيلًا جديدًا · خدمة إضافية أثناء زيارة باقة: صفر رسوم وتُضاف كاملًا للمحل.
+
+        <div className="border-t border-stone-200 bg-stone-50 px-5 py-3 text-[11px] leading-relaxed text-stone-600">
+          حلاقة عادية: رسوم الشركة {formatPrice(COMPANY_FEE_PER_VISIT)} والصافي (السعر − 10) · بيع باقة: تُحسب رسومها مرة واحدة عند البيع · استخدام زيارة من الباقة: صفر رسوم ولا يُعدّ تحصيلًا جديدًا · خدمة إضافية أثناء زيارة باقة: صفر رسوم وتُضاف كاملًا للمحل.
         </div>
       </section>
 
       {stats.expiringSoon > 0 && (
-        <div className="card border-orange-200 bg-orange-50/50 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-orange-600" />
-              <span className="font-bold text-stone-900">
-                {stats.expiringSoon} اشتراك قرب ينتهي خلال أسبوع
-              </span>
-            </div>
-            <button onClick={onGoSubs} className="inline-flex items-center gap-1.5 rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-bold text-white">
-              عرض التفاصيل
-              <ArrowUpRight className="h-3.5 w-3.5" />
-            </button>
+        <div className="card flex flex-wrap items-center justify-between gap-3 border-stone-300 bg-stone-50 p-4">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" />
+            <span className="text-sm font-bold text-stone-900">
+              {stats.expiringSoon} اشتراك يقترب من الانتهاء خلال 7 أيام
+            </span>
           </div>
+          <button
+            onClick={onGoSubs}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-stone-900 px-3.5 py-1.5 text-xs font-bold text-white transition hover:bg-stone-800"
+          >
+            عرض التفاصيل
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          </button>
         </div>
       )}
     </div>
@@ -797,14 +852,14 @@ function CustomersTab({
   onAdd: () => void;
 }) {
   return (
-    <div>
-      <div className="relative mb-4">
+    <div className="space-y-4">
+      <div className="relative">
         <Search className="absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-stone-400" />
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="ابحث باسم العميل..."
-          className="input pr-12"
+          className="input bg-white pr-12"
         />
       </div>
 
@@ -817,7 +872,7 @@ function CustomersTab({
       ) : customers.length === 0 ? (
         <div className="card p-10 text-center">
           <Users className="mx-auto h-10 w-10 text-stone-300" />
-          <p className="mt-3 font-bold text-stone-600">لا يوجد عملاء بعد</p>
+          <p className="mt-3 font-bold text-stone-700">لا يوجد عملاء بعد</p>
           <p className="text-sm text-stone-500">ابدأ بإضافة أول عميل</p>
           <button onClick={onAdd} className="btn-primary mt-4">
             <UserPlus className="h-4 w-4" />
@@ -856,11 +911,11 @@ function CustomerRow({ customer, onClick }: { customer: Customer; onClick: () =>
   return (
     <button
       onClick={onClick}
-      className={`card flex items-center gap-3 p-4 text-right transition hover:-translate-y-0.5 hover:shadow-soft ${
+      className={`card flex items-center gap-3.5 p-4 text-right transition hover:border-stone-300 hover:bg-stone-50/50 ${
         customer.is_blocked ? 'opacity-60' : ''
       }`}
     >
-      <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-stone-700 to-stone-900 font-display text-lg font-extrabold text-amber-400">
+      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-stone-900 font-display text-base font-extrabold text-white">
         {customer.name.charAt(0)}
       </div>
       <div className="min-w-0 flex-1">
@@ -879,12 +934,12 @@ function CustomerRow({ customer, onClick }: { customer: Customer; onClick: () =>
             {visitsCount} زيارة فعلية
           </span>
           {active ? (
-            <span className="badge bg-emerald-100 text-emerald-700">
+            <span className="badge bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
               <CheckCircle2 className="h-3 w-3" />
               مشترك — باقي {remaining}
             </span>
           ) : (
-            <span className="badge bg-stone-100 text-stone-500">غير مشترك</span>
+            <span className="badge bg-stone-100 text-stone-600">غير مشترك</span>
           )}
         </div>
       </div>
@@ -1012,43 +1067,40 @@ function VisitsTab({
   const todayCompanyFee = paidVisitCount * COMPANY_FEE_PER_VISIT;
 
   return (
-    <div>
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="card p-3 text-center">
-          <Users className="mx-auto h-5 w-5 text-stone-500" />
-          <p className="mt-1 font-display text-xl font-extrabold text-stone-900">{rows.length}</p>
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="card p-3.5 text-center">
           <p className="text-[11px] font-bold text-stone-500">إجمالي العملاء</p>
+          <p className="mt-1 font-display text-xl font-extrabold text-stone-900">{rows.length}</p>
         </div>
-        <div className="card p-3 text-center">
-          <CheckCircle2 className="mx-auto h-5 w-5 text-emerald-500" />
-          <p className="mt-1 font-display text-xl font-extrabold text-emerald-600">{visitedCount}</p>
+        <div className="card p-3.5 text-center">
           <p className="text-[11px] font-bold text-stone-500">زار اليوم</p>
+          <p className="mt-1 font-display text-xl font-extrabold text-emerald-700">{visitedCount}</p>
         </div>
-        <div className="card p-3 text-center">
-          <CalendarPlus className="mx-auto h-5 w-5 text-amber-500" />
-          <p className="mt-1 font-display text-xl font-extrabold text-amber-600">{subscribedCount}</p>
+        <div className="card p-3.5 text-center">
           <p className="text-[11px] font-bold text-stone-500">مشترك نشط</p>
+          <p className="mt-1 font-display text-xl font-extrabold text-stone-900">{subscribedCount}</p>
         </div>
-        <div className="card border-amber-200 bg-amber-50/50 p-3 text-center">
-          <Building2 className="mx-auto h-5 w-5 text-amber-600" />
-          <p className="mt-1 font-display text-xl font-extrabold text-amber-700">{formatPrice(todayCompanyFee)}</p>
-          <p className="text-[11px] font-bold text-stone-500">رسوم الحلاقات العادية المدفوعة اليوم</p>
+        <div className="card p-3.5 text-center">
+          <p className="text-[11px] font-bold text-stone-500">رسوم الحلاقات العادية اليوم</p>
+          <p className="mt-1 font-display text-xl font-extrabold text-stone-900">{formatPrice(todayCompanyFee)}</p>
         </div>
       </div>
 
-      <div className="relative mb-4">
-        <Search className="absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-stone-400" />
-        <input
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="ابحث عن عميل..."
-          className="input pr-12"
-        />
-      </div>
-
-      <div className="mb-3 flex items-center gap-2 text-sm font-bold text-stone-600">
-        <Clock className="h-4 w-4" />
-        زيارات اليوم — {formatDate(new Date())}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative flex-1">
+          <Search className="absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+          <input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="ابحث عن عميل..."
+            className="input bg-white pr-11"
+          />
+        </div>
+        <div className="inline-flex items-center gap-1.5 text-xs font-bold text-stone-500">
+          <Clock className="h-4 w-4" />
+          <span>زيارات اليوم — {formatDate(new Date())}</span>
+        </div>
       </div>
 
       {loading ? (
@@ -1063,7 +1115,7 @@ function VisitsTab({
           <p className="mt-3 font-bold">لا يوجد عملاء مطابقون</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           {filtered.map((row) => {
             const idx = rows.indexOf(row);
             const active = row.sub?.status === 'active';
@@ -1073,79 +1125,83 @@ function VisitsTab({
             return (
               <div
                 key={row.customer.id}
-                className={`card flex items-center gap-3 p-3.5 transition ${
-                  visited ? 'border-emerald-200 bg-emerald-50/40' : ''
-                } ${blocked ? 'opacity-50' : ''}`}
+                className={`card flex flex-wrap items-center justify-between gap-3 p-3.5 transition ${
+                  visited ? 'border-emerald-200 bg-emerald-50/30' : ''
+                } ${blocked ? 'opacity-55' : ''}`}
               >
-                <button
-                  onClick={() => onSelectCustomer(row.customer)}
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-stone-700 to-stone-900 font-display text-lg font-extrabold text-amber-400"
-                >
-                  {row.customer.name.charAt(0)}
-                </button>
-
-                <button onClick={() => onSelectCustomer(row.customer)} className="min-w-0 flex-1 text-right">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate font-bold text-stone-900">{row.customer.name}</p>
-                    {blocked && <span className="badge bg-red-100 text-red-700"><Ban className="h-3 w-3" />محظور</span>}
-                  </div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                    {active ? (
-                      <span className="badge bg-emerald-100 text-emerald-700">مشترك — باقي {remaining}</span>
-                    ) : (
-                      <span className="badge bg-stone-100 text-stone-500">غير مشترك</span>
-                    )}
-                    {visited && (
-                      <span className="badge bg-emerald-100 text-emerald-700">
-                        <CheckCircle2 className="h-3 w-3" />
-                        {row.visitToday?.payment_type === 'subscription'
-                          ? 'بالاشتراك'
-                          : formatPrice(Number(row.visitToday?.charge_amount ?? 0))}
-                      </span>
-                    )}
-                  </div>
-                </button>
-
-                {blocked ? (
-                  <span className="text-xs font-bold text-red-500">لا يمكن التسجيل</span>
-                ) : visited ? (
+                <div className="flex min-w-0 items-center gap-3">
                   <button
-                    onClick={() => unmarkVisited(idx)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-3 py-2 text-xs font-bold text-stone-600 transition hover:bg-stone-100"
+                    onClick={() => onSelectCustomer(row.customer)}
+                    className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-stone-900 font-display text-sm font-extrabold text-white"
                   >
-                    <XCircle className="h-4 w-4" />
-                    إلغاء
+                    {row.customer.name.charAt(0)}
                   </button>
-                ) : row.recording ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-stone-100 px-3 py-2 text-xs font-bold text-stone-500">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  </span>
-                ) : active && remaining > 0 ? (
-                  <div className="flex gap-1.5">
+
+                  <button onClick={() => onSelectCustomer(row.customer)} className="min-w-0 text-right">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate font-bold text-stone-900">{row.customer.name}</p>
+                      {blocked && <span className="badge bg-red-100 text-red-700"><Ban className="h-3 w-3" />محظور</span>}
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      {active ? (
+                        <span className="badge bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">مشترك — باقي {remaining}</span>
+                      ) : (
+                        <span className="badge bg-stone-100 text-stone-600">غير مشترك</span>
+                      )}
+                      {visited && (
+                        <span className="badge bg-emerald-100 text-emerald-800">
+                          <CheckCircle2 className="h-3 w-3" />
+                          {row.visitToday?.payment_type === 'subscription'
+                            ? 'بالاشتراك'
+                            : formatPrice(Number(row.visitToday?.charge_amount ?? 0))}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {blocked ? (
+                    <span className="text-xs font-bold text-red-600">لا يمكن التسجيل</span>
+                  ) : visited ? (
+                    <button
+                      onClick={() => unmarkVisited(idx)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-bold text-stone-700 transition hover:bg-stone-100"
+                    >
+                      <XCircle className="h-4 w-4 text-stone-500" />
+                      إلغاء
+                    </button>
+                  ) : row.recording ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-stone-500">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    </span>
+                  ) : active && remaining > 0 ? (
+                    <>
+                      <button
+                        onClick={() => { setVisitModalRow(row); setVisitModalForcePaid(false); }}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-800"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        اشتراك
+                      </button>
+                      <button
+                        onClick={() => { setVisitModalRow(row); setVisitModalForcePaid(true); }}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-bold text-stone-800 transition hover:bg-stone-50"
+                      >
+                        <Coins className="h-4 w-4 text-stone-600" />
+                        عادي
+                      </button>
+                    </>
+                  ) : (
                     <button
                       onClick={() => { setVisitModalRow(row); setVisitModalForcePaid(false); }}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-stone-900 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-stone-800"
                     >
-                      <CheckCircle2 className="h-4 w-4" />
-                      اشتراك
+                      <Scissors className="h-4 w-4" />
+                      زاره — {formatPrice(regularHaircutPrice)}
                     </button>
-                    <button
-                      onClick={() => { setVisitModalRow(row); setVisitModalForcePaid(true); }}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-stone-950 transition hover:bg-amber-600"
-                    >
-                      <Coins className="h-4 w-4" />
-                      عادي
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => { setVisitModalRow(row); setVisitModalForcePaid(false); }}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-xs font-bold text-stone-950 transition hover:bg-amber-600"
-                  >
-                    <Scissors className="h-4 w-4" />
-                    زاره — {formatPrice(regularHaircutPrice)}
-                  </button>
-                )}
+                  )}
+                </div>
               </div>
             );
           })}
@@ -1284,22 +1340,22 @@ function SubscriptionsTab({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="card p-4">
           <p className="text-xs font-bold text-stone-500">عدد الباقات / الاشتراكات</p>
-          <p className="mt-1 font-display text-2xl font-extrabold text-stone-900">{totalSoldPackages}</p>
+          <p className="mt-1.5 font-display text-2xl font-extrabold text-stone-900">{totalSoldPackages}</p>
           <p className="mt-1 text-[11px] text-stone-500">نشط حاليًا: {subscribers.length}</p>
         </div>
         <div className="card p-4">
           <p className="text-xs font-bold text-stone-500">قيمة مبيعات الباقات</p>
-          <p className="mt-1 font-display text-2xl font-extrabold text-emerald-700">{formatPrice(packageRevenue)}</p>
+          <p className="mt-1.5 font-display text-2xl font-extrabold text-emerald-700">{formatPrice(packageRevenue)}</p>
           <p className="mt-1 text-[11px] text-stone-500">من المعاملات والسجلات المتاحة</p>
         </div>
         <div className="card p-4">
           <p className="text-xs font-bold text-stone-500">الزيارات المستهلكة من الباقات</p>
-          <p className="mt-1 font-display text-2xl font-extrabold text-amber-700">{totalConsumedHaircuts}</p>
+          <p className="mt-1.5 font-display text-2xl font-extrabold text-stone-900">{totalConsumedHaircuts}</p>
           <p className="mt-1 text-[11px] text-stone-500">إجمالي ما تم خصمه من الباقات</p>
         </div>
         <div className="card p-4">
           <p className="text-xs font-bold text-stone-500">الزيارات المتبقية (النشطة)</p>
-          <p className="mt-1 font-display text-2xl font-extrabold text-stone-900">{totalRemainingHaircuts}</p>
+          <p className="mt-1.5 font-display text-2xl font-extrabold text-stone-900">{totalRemainingHaircuts}</p>
           <p className="mt-1 text-[11px] text-stone-500">منتهية: {expired.length} · قريبة الانتهاء: {expiringSoon.length}</p>
         </div>
       </div>
@@ -1315,7 +1371,7 @@ function SubscriptionsTab({
             key={item.id}
             onClick={() => setStatusFilter(item.id as typeof statusFilter)}
             className={`rounded-xl px-3.5 py-2 text-xs font-bold transition ${
-              statusFilter === item.id ? 'bg-stone-900 text-amber-50' : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-100'
+              statusFilter === item.id ? 'bg-stone-900 text-white' : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'
             }`}
           >
             {item.label}
@@ -1324,13 +1380,15 @@ function SubscriptionsTab({
       </div>
 
       {(statusFilter === 'all' || statusFilter === 'active') && (
-        <section>
-          <div className="mb-3 flex items-center justify-between gap-3">
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <h3 className="font-display text-lg font-extrabold text-stone-900">المشتركون حاليًا</h3>
-              <p className="text-xs text-stone-500">كل العملاء الذين لديهم اشتراك نشط وغير منتهٍ</p>
+              <h3 className="font-display text-base font-extrabold text-stone-900">المشتركون حاليًا</h3>
+              <p className="text-xs text-stone-500">العملاء ذوو الاشتراك النشط وغير المنتهي</p>
             </div>
-            <span className="rounded-xl bg-emerald-100 px-3 py-1.5 text-sm font-extrabold text-emerald-700">{subscribers.length} مشترك</span>
+            <span className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-extrabold text-emerald-700">
+              {subscribers.length} مشترك
+            </span>
           </div>
 
           {loading ? (
@@ -1343,24 +1401,26 @@ function SubscriptionsTab({
               <p className="mt-2 font-bold">لا يوجد مشتركون حاليًا</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {subscribers.map((row) => (
                 <button
                   key={row.subscription.id}
                   onClick={() => onSelectCustomer(row.customer)}
-                  className="card flex w-full items-center gap-3 p-4 text-right transition hover:-translate-y-0.5 hover:shadow-soft"
+                  className="card flex w-full items-center justify-between gap-3 p-4 text-right transition hover:border-stone-300 hover:bg-stone-50/50"
                 >
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-100 text-emerald-700">
-                    <CheckCircle2 className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-bold text-stone-900">{row.customer.name}</p>
-                    <p className="text-xs text-stone-500">
-                      باقة {row.subscription.plan?.name ?? '—'} · مستهلك {row.subscription.haircuts_used} · متبقي {row.haircutsRemaining}
-                    </p>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
+                      <CheckCircle2 className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate font-bold text-stone-900">{row.customer.name}</p>
+                      <p className="text-xs text-stone-500">
+                        باقة {row.subscription.plan?.name ?? '—'} · مستهلك {row.subscription.haircuts_used} · متبقي {row.haircutsRemaining}
+                      </p>
+                    </div>
                   </div>
                   <div className="text-left">
-                    <span className="badge bg-emerald-100 text-emerald-700">باقي {row.daysLeft} يوم</span>
+                    <span className="badge bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">باقي {row.daysLeft} يوم</span>
                     {row.customer.phone && <p className="mt-1 text-xs text-stone-500">{row.customer.phone}</p>}
                   </div>
                 </button>
@@ -1371,10 +1431,10 @@ function SubscriptionsTab({
       )}
 
       {(statusFilter === 'all' || statusFilter === 'expiring' || statusFilter === 'expired') && (
-        <section>
-          <div className="mb-3">
-            <h3 className="font-display text-lg font-extrabold text-stone-900">الاشتراكات القريبة من الانتهاء والمنتهية</h3>
-            <p className="text-xs text-stone-500">متابعة التجديد المبكر والباقات المنتهية</p>
+        <section className="space-y-3">
+          <div>
+            <h3 className="font-display text-base font-extrabold text-stone-900">الاشتراكات القريبة من الانتهاء والمنتهية</h3>
+            <p className="text-xs text-stone-500">متابعة التجديد والباقات المنتهية</p>
           </div>
           {loading ? (
             <div className="h-20 animate-shimmer rounded-2xl" />
@@ -1384,31 +1444,31 @@ function SubscriptionsTab({
               <p className="mt-2 font-bold">لا توجد اشتراكات في هذا التصنيف</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {(statusFilter === 'expired' ? expired : statusFilter === 'expiring' ? expiringSoon : alerts).map((alert) => (
                 <button
                   key={alert.subscription.id}
                   onClick={() => onSelectCustomer(alert.customer)}
-                  className={`card flex w-full items-center gap-3 p-4 text-right transition hover:-translate-y-0.5 hover:shadow-soft ${
-                    alert.isExpired ? 'border-red-200' : 'border-orange-200'
-                  }`}
+                  className="card flex w-full items-center justify-between gap-3 p-4 text-right transition hover:border-stone-300 hover:bg-stone-50/50"
                 >
-                  <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg ${
-                    alert.isExpired ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'
-                  }`}>
-                    {alert.isExpired ? <XCircle className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-bold text-stone-900">{alert.customer.name}</p>
-                    <p className="text-xs text-stone-500">
-                      باقة {alert.subscription.plan?.name} — مستهلك {alert.subscription.haircuts_used} · متبقي {alert.haircutsRemaining}
-                    </p>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
+                      alert.isExpired ? 'bg-red-50 text-red-600 ring-1 ring-red-200' : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
+                    }`}>
+                      {alert.isExpired ? <XCircle className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate font-bold text-stone-900">{alert.customer.name}</p>
+                      <p className="text-xs text-stone-500">
+                        باقة {alert.subscription.plan?.name} — مستهلك {alert.subscription.haircuts_used} · متبقي {alert.haircutsRemaining}
+                      </p>
+                    </div>
                   </div>
                   <div className="text-left">
                     {alert.isExpired ? (
-                      <span className="badge bg-red-100 text-red-700">انتهى منذ {alert.expiredDaysAgo} يوم</span>
+                      <span className="badge bg-red-50 text-red-700 ring-1 ring-red-200">انتهى منذ {alert.expiredDaysAgo} يوم</span>
                     ) : (
-                      <span className="badge bg-orange-100 text-orange-700">باقي {alert.daysLeft} يوم</span>
+                      <span className="badge bg-amber-50 text-amber-800 ring-1 ring-amber-200">باقي {alert.daysLeft} يوم</span>
                     )}
                   </div>
                 </button>
@@ -1569,128 +1629,129 @@ function RevenueTab({
   }
 
   return (
-    <div className="space-y-5">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="card border-amber-200 bg-amber-50/40 p-5">
-          <p className="text-xs font-bold text-amber-800">ملخص اليوم</p>
+    <div className="space-y-8">
+      <section className="grid gap-4 sm:grid-cols-2">
+        <div className="card p-5">
+          <p className="text-xs font-bold text-stone-500">ملخص اليوم</p>
           <p className="mt-2 font-display text-2xl font-extrabold text-stone-900">
             محصل: {formatPrice(snapshot?.todayCollected ?? 0)}
           </p>
-          <div className="mt-2 flex flex-wrap gap-3 text-xs font-bold">
-            <span className="text-amber-700">رسوم الشركة اليوم: {formatPrice(snapshot?.todayFees ?? 0)}</span>
+          <div className="mt-3 flex flex-wrap gap-4 text-xs font-bold">
+            <span className="text-stone-600">رسوم الشركة اليوم: {formatPrice(snapshot?.todayFees ?? 0)}</span>
             <span className="text-emerald-700">صافي المحل اليوم: {formatPrice(snapshot?.todayNet ?? 0)}</span>
           </div>
         </div>
-        <div className="card border-emerald-200 bg-emerald-50/40 p-5">
-          <p className="text-xs font-bold text-emerald-800">ملخص الشهر الحالي ومقارنته بالشهر السابق</p>
+
+        <div className="card p-5">
+          <p className="text-xs font-bold text-stone-500">ملخص الشهر الحالي ومقارنته بالشهر السابق</p>
           <p className="mt-2 font-display text-2xl font-extrabold text-stone-900">
             محصل الشهر: {formatPrice(snapshot?.thisMonthCollected ?? 0)}
           </p>
-          <div className="mt-2 flex flex-wrap gap-3 text-xs font-bold">
-            <span className="text-amber-700">رسوم الشركة: {formatPrice(snapshot?.thisMonthFees ?? 0)}</span>
+          <div className="mt-3 flex flex-wrap gap-4 text-xs font-bold">
+            <span className="text-stone-600">رسوم الشركة: {formatPrice(snapshot?.thisMonthFees ?? 0)}</span>
             <span className="text-emerald-700">صافي المحل: {formatPrice(snapshot?.thisMonthNet ?? 0)}</span>
-            <span className="text-stone-600">الشهر السابق: {formatPrice(snapshot?.lastMonthCollected ?? 0)}</span>
+            <span className="text-stone-500">الشهر السابق: {formatPrice(snapshot?.lastMonthCollected ?? 0)}</span>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <section className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="card p-5">
+            <p className="text-xs font-bold text-stone-500">من الحلاقات العادية</p>
+            <p className="mt-2 font-display text-2xl font-extrabold text-stone-900">
+              {formatPrice(snapshot?.regularPaidRevenue ?? stats.revenueFromPaid)}
+            </p>
+          </div>
+          <div className="card p-5">
+            <p className="text-xs font-bold text-stone-500">من الاشتراكات والباقات</p>
+            <p className="mt-2 font-display text-2xl font-extrabold text-stone-900">
+              {formatPrice(snapshot?.packageSalesRevenue ?? stats.revenueFromSubscriptions)}
+            </p>
+          </div>
+          <div className="card p-5">
+            <p className="text-xs font-bold text-stone-500">إجمالي التحصيلات</p>
+            <p className="mt-2 font-display text-2xl font-extrabold text-stone-900">
+              {formatPrice(snapshot?.totalCollected ?? stats.totalRevenue)}
+            </p>
+          </div>
+        </div>
+
         <div className="card p-5">
-          <div className="grid h-11 w-11 place-items-center rounded-xl bg-emerald-600 text-emerald-50">
-            <Coins className="h-5 w-5" />
+          <h3 className="mb-4 font-display text-base font-extrabold text-stone-900">تفصيل الزيارات والرسوم</h3>
+          <div className="grid grid-cols-3 divide-x divide-x-reverse divide-stone-200 text-center">
+            <div className="px-2">
+              <p className="font-display text-2xl font-extrabold text-stone-900">{stats.totalVisits}</p>
+              <p className="mt-1 text-xs font-bold text-stone-500">إجمالي الزيارات</p>
+            </div>
+            <div className="px-2">
+              <p className="font-display text-2xl font-extrabold text-emerald-700">{stats.subscriptionVisits}</p>
+              <p className="mt-1 text-xs font-bold text-stone-500">بالاشتراك (0 رسوم إضافية)</p>
+            </div>
+            <div className="px-2">
+              <p className="font-display text-2xl font-extrabold text-stone-900">{stats.paidVisits}</p>
+              <p className="mt-1 text-xs font-bold text-stone-500">حلاقة عادية</p>
+            </div>
           </div>
-          <p className="mt-3 font-display text-2xl font-extrabold text-stone-900">{formatPrice(snapshot?.regularPaidRevenue ?? stats.revenueFromPaid)}</p>
-          <p className="text-xs font-bold text-stone-500">من الحلاقات العادية</p>
         </div>
-        <div className="card p-5">
-          <div className="grid h-11 w-11 place-items-center rounded-xl bg-amber-500 text-stone-950">
-            <CalendarPlus className="h-5 w-5" />
-          </div>
-          <p className="mt-3 font-display text-2xl font-extrabold text-stone-900">{formatPrice(snapshot?.packageSalesRevenue ?? stats.revenueFromSubscriptions)}</p>
-          <p className="text-xs font-bold text-stone-500">من الاشتراكات والباقات</p>
-        </div>
-        <div className="card border-emerald-200 bg-emerald-50/40 p-5">
-          <div className="grid h-11 w-11 place-items-center rounded-xl bg-stone-900 text-amber-400">
-            <Wallet className="h-5 w-5" />
-          </div>
-          <p className="mt-3 font-display text-2xl font-extrabold text-stone-900">{formatPrice(snapshot?.totalCollected ?? stats.totalRevenue)}</p>
-          <p className="text-xs font-bold text-stone-500">إجمالي التحصيلات</p>
-        </div>
-      </div>
+      </section>
 
-      <div className="card p-5">
-        <h3 className="mb-4 font-display text-lg font-extrabold text-stone-900">تفصيل الزيارات والرسوم</h3>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="text-center">
-            <Scissors className="mx-auto h-6 w-6 text-stone-500" />
-            <p className="mt-2 font-display text-2xl font-extrabold text-stone-900">{stats.totalVisits}</p>
-            <p className="text-xs font-bold text-stone-500">إجمالي الزيارات</p>
-          </div>
-          <div className="text-center">
-            <CheckCircle2 className="mx-auto h-6 w-6 text-emerald-500" />
-            <p className="mt-2 font-display text-2xl font-extrabold text-emerald-600">{stats.subscriptionVisits}</p>
-            <p className="text-xs font-bold text-stone-500">بالاشتراك (0 رسوم إضافية)</p>
-          </div>
-          <div className="text-center">
-            <Coins className="mx-auto h-6 w-6 text-amber-600" />
-            <p className="mt-2 font-display text-2xl font-extrabold text-amber-600">{stats.paidVisits}</p>
-            <p className="text-xs font-bold text-stone-500">حلاقة عادية</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="card overflow-hidden border-amber-200">
-        <div className="bg-gradient-to-l from-amber-50 to-stone-50 p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <div className="grid h-9 w-9 place-items-center rounded-lg bg-stone-900 text-amber-400">
+      <section className="card overflow-hidden">
+        <div className="p-5">
+          <div className="mb-4 flex items-center gap-2.5">
+            <div className="grid h-9 w-9 place-items-center rounded-xl bg-stone-900 text-white">
               <Building2 className="h-4 w-4" />
             </div>
             <div>
-              <h3 className="font-bold text-stone-900">رسوم {COMPANY_NAME}</h3>
-              <p className="text-xs text-stone-600">حلاقة عادية: {formatPrice(COMPANY_FEE_PER_VISIT)} · باقة: تُحسب رسومها عند البيع حسب عدد زياراتها · خدمة إضافية أثناء الباقة: 0 رسوم</p>
+              <h3 className="font-display text-base font-extrabold text-stone-900">رسوم {COMPANY_NAME}</h3>
+              <p className="text-xs text-stone-500">
+                حلاقة عادية: {formatPrice(COMPANY_FEE_PER_VISIT)} · باقة: تُحسب رسومها عند البيع حسب عدد زياراتها · خدمة إضافية أثناء الباقة: 0 رسوم
+              </p>
             </div>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between rounded-xl bg-white/70 p-3">
-              <span className="text-sm text-stone-600">الرسوم المستحقة (كل الوقت)</span>
-              <span className="font-bold text-amber-700">{formatPrice(snapshot?.totalCompanyFees ?? stats.companyFee)}</span>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex items-center justify-between rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
+              <span className="text-xs font-bold text-stone-600">الرسوم المستحقة (كل الوقت)</span>
+              <span className="font-bold text-stone-900">{formatPrice(snapshot?.totalCompanyFees ?? stats.companyFee)}</span>
             </div>
-            <div className="flex items-center justify-between rounded-xl border border-amber-300 bg-amber-100/60 p-3">
-              <span className="text-sm font-bold text-stone-700">رسوم هذا الشهر</span>
-              <span className="font-bold text-amber-800">{formatPrice(snapshot?.thisMonthFees ?? stats.thisMonthCompanyFee)}</span>
+            <div className="flex items-center justify-between rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
+              <span className="text-xs font-bold text-stone-600">رسوم هذا الشهر</span>
+              <span className="font-bold text-stone-900">{formatPrice(snapshot?.thisMonthFees ?? stats.thisMonthCompanyFee)}</span>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center justify-between border-t border-stone-200 bg-white p-4">
+        <div className="flex items-center justify-between border-t border-stone-200 bg-stone-50/70 px-5 py-4">
           <div>
             <p className="font-bold text-stone-900">صافي دخل المحل</p>
-            <p className="text-xs text-stone-500">إجمالي التحصيلات - رسوم الشركة</p>
+            <p className="text-xs text-stone-500">إجمالي التحصيلات − رسوم الشركة</p>
           </div>
-          <p className="font-display text-2xl font-extrabold text-emerald-600">{formatPrice(snapshot?.netShopRevenue ?? stats.netRevenue)}</p>
+          <p className="font-display text-2xl font-extrabold text-emerald-700">
+            {formatPrice(snapshot?.netShopRevenue ?? stats.netRevenue)}
+          </p>
         </div>
-      </div>
+      </section>
 
-      <section className="card space-y-5 p-5">
-        <div className="flex items-center gap-2">
-          <BarChart3 className="h-5 w-5 text-stone-800" />
+      <section className="card space-y-6 p-5">
+        <div className="flex items-center gap-2.5">
+          <BarChart3 className="h-5 w-5 text-stone-700" />
           <div>
-            <h3 className="font-display text-lg font-extrabold text-stone-900">التقارير والرسوم البيانية ومقارنة الفترات</h3>
+            <h3 className="font-display text-base font-extrabold text-stone-900">التقارير والرسوم البيانية ومقارنة الفترات</h3>
             <p className="mt-0.5 text-xs text-stone-500">تعتمد على العمليات المسجلة وتستجيب لفلاتر سجل التحصيلات.</p>
           </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-stone-200 p-3">
+          <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-3.5">
             <p className="text-xs font-bold text-stone-500">مبيعات الباقات</p>
-            <p className="mt-1 text-xl font-extrabold text-stone-900">{formatPrice(packageSalesRevenue)}</p>
+            <p className="mt-1 text-lg font-extrabold text-stone-900">{formatPrice(packageSalesRevenue)}</p>
           </div>
-          <div className="rounded-xl border border-stone-200 p-3">
+          <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-3.5">
             <p className="text-xs font-bold text-stone-500">الخدمات الإضافية (0 رسوم شركة)</p>
-            <p className="mt-1 text-xl font-extrabold text-emerald-700">{formatPrice(additionalServicesRevenue)}</p>
+            <p className="mt-1 text-lg font-extrabold text-emerald-700">{formatPrice(additionalServicesRevenue)}</p>
           </div>
-          <div className="rounded-xl border border-stone-200 p-3">
+          <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-3.5">
             <p className="text-xs font-bold text-stone-500">مقارنة الشهر الحالي بالشهر السابق</p>
             <p className="mt-1 text-sm font-extrabold text-stone-900">
               {formatPrice(snapshot?.thisMonthCollected ?? 0)} مقابل {formatPrice(snapshot?.lastMonthCollected ?? 0)}
@@ -1699,46 +1760,56 @@ function RevenueTab({
         </div>
 
         <div className="grid gap-5 lg:grid-cols-2">
-          <div className="rounded-xl bg-stone-50 p-4">
-            <h4 className="mb-4 text-sm font-extrabold text-stone-800">التحصيلات وصافي المحل — آخر 6 أشهر</h4>
-            <div className="flex h-44 items-end gap-3 border-b border-stone-300 pb-2">
+          <div className="rounded-2xl border border-stone-200 bg-stone-50/50 p-4">
+            <h4 className="mb-4 text-xs font-extrabold text-stone-800">التحصيلات وصافي المحل — آخر 6 أشهر</h4>
+            <div className="flex h-44 items-end gap-3 border-b border-stone-200 pb-2">
               {monthlyReport.map((month, idx) => (
                 <div key={`${month.label}-${idx}`} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1">
                   <div className="flex h-full w-full items-end justify-center gap-1">
-                    <div title={`التحصيلات: ${formatPrice(month.collected)}`} className="w-1/2 max-w-5 rounded-t bg-stone-800" style={{ height: `${Math.max(2, (month.collected / monthlyMax) * 100)}%` }} />
-                    <div title={`صافي المحل: ${formatPrice(month.net)}`} className="w-1/2 max-w-5 rounded-t bg-emerald-500" style={{ height: `${Math.max(2, (month.net / monthlyMax) * 100)}%` }} />
+                    <div
+                      title={`التحصيلات: ${formatPrice(month.collected)}`}
+                      className="w-1/2 max-w-5 rounded-t bg-stone-800"
+                      style={{ height: `${Math.max(2, (month.collected / monthlyMax) * 100)}%` }}
+                    />
+                    <div
+                      title={`صافي المحل: ${formatPrice(month.net)}`}
+                      className="w-1/2 max-w-5 rounded-t bg-emerald-600"
+                      style={{ height: `${Math.max(2, (month.net / monthlyMax) * 100)}%` }}
+                    />
                   </div>
                   <span className="text-[10px] font-bold text-stone-500">{month.label}</span>
                 </div>
               ))}
             </div>
             <div className="mt-3 flex flex-wrap gap-4 text-[11px] text-stone-600">
-              <span className="inline-flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-sm bg-stone-800" /> إجمالي التحصيل</span>
-              <span className="inline-flex items-center gap-1"><i className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /> صافي المحل</span>
+              <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-sm bg-stone-800" /> إجمالي التحصيل</span>
+              <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-sm bg-emerald-600" /> صافي المحل</span>
             </div>
           </div>
 
-          <div className="rounded-xl bg-stone-50 p-4">
-            <h4 className="mb-4 text-sm font-extrabold text-stone-800">الإيرادات اليومية — آخر 7 أيام</h4>
-            <div className="flex h-44 items-end gap-2 border-b border-stone-300 pb-2">
+          <div className="rounded-2xl border border-stone-200 bg-stone-50/50 p-4">
+            <h4 className="mb-4 text-xs font-extrabold text-stone-800">الإيرادات اليومية — آخر 7 أيام</h4>
+            <div className="flex h-44 items-end gap-2 border-b border-stone-200 pb-2">
               {dailyReport.map((day, idx) => (
                 <div key={`${day.label}-${idx}`} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1">
                   <div
                     title={`${day.label}: ${formatPrice(day.collected)}`}
-                    className="w-full max-w-7 rounded-t bg-amber-500"
+                    className="w-full max-w-7 rounded-t bg-stone-700"
                     style={{ height: `${Math.max(3, (day.collected / dailyMax) * 100)}%` }}
                   />
                   <span className="truncate text-[9px] font-bold text-stone-500">{day.label.split(' ')[0]}</span>
                 </div>
               ))}
             </div>
-            <p className="mt-3 text-[11px] text-stone-500">إجمالي آخر 7 أيام: {formatPrice(dailyReport.reduce((s, d) => s + d.collected, 0))}</p>
+            <p className="mt-3 text-[11px] text-stone-500">
+              إجمالي آخر 7 أيام: {formatPrice(dailyReport.reduce((s, d) => s + d.collected, 0))}
+            </p>
           </div>
         </div>
 
         <div className="grid gap-5 lg:grid-cols-2">
-          <div className="rounded-xl bg-stone-50 p-4">
-            <h4 className="mb-4 text-sm font-extrabold text-stone-800">توزيع التحصيل حسب طريقة الدفع</h4>
+          <div className="rounded-2xl border border-stone-200 bg-stone-50/50 p-4">
+            <h4 className="mb-4 text-xs font-extrabold text-stone-800">توزيع التحصيل حسب طريقة الدفع</h4>
             <div className="space-y-3">
               {paymentMethodReport.map((method) => (
                 <div key={method.key}>
@@ -1747,23 +1818,23 @@ function RevenueTab({
                     <span className="text-stone-600">{formatPrice(method.amount)}</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-stone-200">
-                    <div className="h-full rounded-full bg-amber-500" style={{ width: `${(method.amount / paymentMethodMax) * 100}%` }} />
+                    <div className="h-full rounded-full bg-stone-800" style={{ width: `${(method.amount / paymentMethodMax) * 100}%` }} />
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="rounded-xl bg-stone-50 p-4">
-            <h4 className="mb-4 text-sm font-extrabold text-stone-800">مقارنة الزيارات العادية مقابل زيارات الباقات</h4>
+          <div className="rounded-2xl border border-stone-200 bg-stone-50/50 p-4">
+            <h4 className="mb-4 text-xs font-extrabold text-stone-800">مقارنة الزيارات العادية مقابل زيارات الباقات</h4>
             <div className="space-y-4">
               <div>
                 <div className="mb-1 flex justify-between text-xs font-bold">
-                  <span className="text-amber-800">زيارات عادية مدفوعة</span>
+                  <span className="text-stone-800">زيارات عادية مدفوعة</span>
                   <span>{regularVisitsCount} زيارة</span>
                 </div>
                 <div className="h-2.5 overflow-hidden rounded-full bg-stone-200">
-                  <div className="h-full rounded-full bg-amber-500" style={{ width: `${(regularVisitsCount / totalVisitsCompare) * 100}%` }} />
+                  <div className="h-full rounded-full bg-stone-800" style={{ width: `${(regularVisitsCount / totalVisitsCompare) * 100}%` }} />
                 </div>
               </div>
               <div>
@@ -1779,55 +1850,60 @@ function RevenueTab({
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-stone-200">
-          <table className="w-full min-w-[620px] text-right text-sm">
-            <thead className="bg-stone-100 text-xs text-stone-600">
+        <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white">
+          <div className="border-b border-stone-200 bg-stone-50 px-3.5 py-2 text-xs font-extrabold text-stone-800">
+            التقرير الشهري — آخر 6 أشهر
+          </div>
+          <table className="w-full min-w-[540px] border-collapse text-right text-xs tabular-nums">
+            <thead className="bg-stone-50/80 text-[11px] font-bold text-stone-600">
               <tr>
-                <th className="p-3">الشهر</th>
-                <th className="p-3">التحصيل</th>
-                <th className="p-3">رسوم الشركة</th>
-                <th className="p-3">صافي المحل</th>
-                <th className="p-3">الباقات</th>
-                <th className="p-3">الحلاقات العادية</th>
-                <th className="p-3">الخدمات الإضافية</th>
+                <th className="px-2.5 py-2">الشهر</th>
+                <th className="px-2.5 py-2">التحصيل</th>
+                <th className="px-2.5 py-2">رسوم الشركة</th>
+                <th className="px-2.5 py-2">صافي المحل</th>
+                <th className="px-2.5 py-2">الباقات</th>
+                <th className="px-2.5 py-2">الحلاقات العادية</th>
+                <th className="px-2.5 py-2">الخدمات الإضافية</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-stone-100">
               {monthlyReport.map((month, index) => (
-                <tr key={`${month.label}-${index}`} className="border-t border-stone-100">
-                  <td className="p-3 font-bold">{month.label}</td>
-                  <td className="p-3">{formatPrice(month.collected)}</td>
-                  <td className="p-3 text-amber-700">{formatPrice(month.fees)}</td>
-                  <td className="p-3 font-bold text-emerald-700">{formatPrice(month.net)}</td>
-                  <td className="p-3">{formatPrice(month.packages)}</td>
-                  <td className="p-3">{formatPrice(month.regular)}</td>
-                  <td className="p-3">{formatPrice(month.extras)}</td>
+                <tr key={`${month.label}-${index}`} className="transition hover:bg-stone-50/70">
+                  <td className="whitespace-nowrap px-2.5 py-2 font-bold text-stone-800">{month.label}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 font-semibold text-stone-900">{formatPrice(month.collected)}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 text-stone-600">{formatPrice(month.fees)}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 font-bold text-emerald-700">{formatPrice(month.net)}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 text-stone-700">{formatPrice(month.packages)}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 text-stone-700">{formatPrice(month.regular)}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 text-stone-700">{formatPrice(month.extras)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-stone-200">
-          <div className="border-b border-stone-200 bg-stone-50 px-3 py-2 text-sm font-extrabold text-stone-800">التقرير اليومي — آخر 7 أيام</div>
-          <table className="w-full min-w-[520px] text-right text-sm">
-            <thead className="bg-stone-100 text-xs text-stone-600">
+        <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white">
+          <div className="border-b border-stone-200 bg-stone-50 px-3.5 py-2 text-xs font-extrabold text-stone-800">
+            التقرير اليومي — آخر 7 أيام
+          </div>
+          <table className="w-full min-w-[420px] border-collapse text-right text-xs tabular-nums">
+            <thead className="bg-stone-50/80 text-[11px] font-bold text-stone-600">
               <tr>
-                <th className="p-3">اليوم</th>
-                <th className="p-3">عدد العمليات</th>
-                <th className="p-3">التحصيل</th>
-                <th className="p-3">رسوم الشركة</th>
-                <th className="p-3">صافي المحل</th>
+                <th className="px-2.5 py-2">اليوم</th>
+                <th className="px-2.5 py-2">عدد العمليات</th>
+                <th className="px-2.5 py-2">التحصيل</th>
+                <th className="px-2.5 py-2">رسوم الشركة</th>
+                <th className="px-2.5 py-2">صافي المحل</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-stone-100">
               {dailyReport.map((day, index) => (
-                <tr key={`${day.label}-${index}`} className="border-t border-stone-100">
-                  <td className="p-3 font-bold">{day.label}</td>
-                  <td className="p-3">{day.count}</td>
-                  <td className="p-3">{formatPrice(day.collected)}</td>
-                  <td className="p-3 text-amber-700">{formatPrice(day.fees)}</td>
-                  <td className="p-3 font-bold text-emerald-700">{formatPrice(day.net)}</td>
+                <tr key={`${day.label}-${index}`} className="transition hover:bg-stone-50/70">
+                  <td className="whitespace-nowrap px-2.5 py-2 font-bold text-stone-800">{day.label}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 text-stone-700">{day.count}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 font-semibold text-stone-900">{formatPrice(day.collected)}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 text-stone-600">{formatPrice(day.fees)}</td>
+                  <td className="whitespace-nowrap px-2.5 py-2 font-bold text-emerald-700">{formatPrice(day.net)}</td>
                 </tr>
               ))}
             </tbody>
@@ -1835,39 +1911,41 @@ function RevenueTab({
         </div>
       </section>
 
-      <section className="card space-y-4 p-5">
+      <section className="card space-y-5 p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="font-display text-lg font-extrabold text-stone-900">سجل العمليات والتحصيلات</h3>
-            <p className="mt-1 text-xs text-stone-500">كل عملية مالية مع الفلاتر الكاملة. استخدام زيارة الباقة وحده لا يُسجّل كتحصيل جديد.</p>
+            <h3 className="font-display text-base font-extrabold text-stone-900">سجل العمليات والتحصيلات</h3>
+            <p className="mt-0.5 text-xs text-stone-500">كل عملية مالية مع الفلاتر الكاملة. استخدام زيارة الباقة وحده لا يُسجّل كتحصيل جديد.</p>
           </div>
-          <span className="rounded-lg bg-stone-100 px-3 py-1.5 text-xs font-bold text-stone-600">{filteredTransactions.length} عملية</span>
+          <span className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-xs font-bold text-stone-700">
+            {filteredTransactions.length} عملية
+          </span>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl bg-stone-50 p-3">
+          <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3.5">
             <p className="text-xs font-bold text-stone-500">إجمالي التحصيلات المسجلة حسب الفلاتر</p>
-            <p className="mt-1 text-xl font-extrabold text-stone-900">{formatPrice(filteredCollected)}</p>
+            <p className="mt-1 text-lg font-extrabold text-stone-900">{formatPrice(filteredCollected)}</p>
           </div>
-          <div className="rounded-xl bg-amber-50 p-3">
-            <p className="text-xs font-bold text-amber-700">رسوم الشركة</p>
-            <p className="mt-1 text-xl font-extrabold text-amber-800">{formatPrice(filteredFees)}</p>
+          <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3.5">
+            <p className="text-xs font-bold text-stone-500">رسوم الشركة</p>
+            <p className="mt-1 text-lg font-extrabold text-stone-900">{formatPrice(filteredFees)}</p>
           </div>
-          <div className="rounded-xl bg-emerald-50 p-3">
-            <p className="text-xs font-bold text-emerald-700">صافي المحل بعد الرسوم</p>
-            <p className="mt-1 text-xl font-extrabold text-emerald-800">{formatPrice(filteredNet)}</p>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-3.5">
+            <p className="text-xs font-bold text-emerald-800">صافي المحل بعد الرسوم</p>
+            <p className="mt-1 text-lg font-extrabold text-emerald-700">{formatPrice(filteredNet)}</p>
           </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <input value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)} className="input" placeholder="بحث باسم العميل" />
-          <select value={operationFilter} onChange={(e) => setOperationFilter(e.target.value)} className="input">
+          <input value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)} className="input bg-white" placeholder="بحث باسم العميل" />
+          <select value={operationFilter} onChange={(e) => setOperationFilter(e.target.value)} className="input bg-white">
             <option value="all">كل أنواع العمليات</option>
             <option value="regular">حلاقة عادية مدفوعة</option>
             <option value="subscription">بيع باقة / اشتراك</option>
             <option value="extra">خدمة إضافية (0 رسوم شركة)</option>
           </select>
-          <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)} className="input">
+          <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)} className="input bg-white">
             <option value="all">كل طرق الدفع</option>
             <option value="cash">كاش</option>
             <option value="instapay">InstaPay</option>
@@ -1877,13 +1955,13 @@ function RevenueTab({
           </select>
           <label className="text-xs font-bold text-stone-600">
             من تاريخ
-            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="input mt-1" />
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="input mt-1 bg-white" />
           </label>
           <label className="text-xs font-bold text-stone-600">
             إلى تاريخ
-            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="input mt-1" />
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="input mt-1 bg-white" />
           </label>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="input">
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="input bg-white">
             <option value="all">كل الحالات</option>
             <option value="recorded">مسجل</option>
             <option value="refunded">مسترد</option>
@@ -1900,7 +1978,7 @@ function RevenueTab({
         ) : (
           <div className="overflow-x-auto rounded-xl border border-stone-200">
             <table className="w-full min-w-[850px] text-right text-sm">
-              <thead className="bg-stone-100 text-xs text-stone-600">
+              <thead className="bg-stone-50 text-xs text-stone-600">
                 <tr>
                   <th className="p-3">التاريخ والوقت</th>
                   <th className="p-3">اسم العميل</th>
@@ -1933,15 +2011,15 @@ function RevenueTab({
                       <td className="whitespace-nowrap p-3 text-xs text-stone-600">{formatDateTime(transaction.payment_date)}</td>
                       <td className="p-3 font-bold text-stone-800">{customerName}</td>
                       <td className="p-3">
-                        <span className="rounded-lg bg-stone-100 px-2 py-1 text-xs font-bold">{operationLabel}</span>
+                        <span className="rounded-lg bg-stone-100 px-2 py-1 text-xs font-bold text-stone-800">{operationLabel}</span>
                         {transaction.service_name && <p className="mt-1 text-xs text-stone-500">{transaction.service_name}</p>}
                       </td>
                       <td className="whitespace-nowrap p-3 font-bold">{formatPrice(amount)}</td>
-                      <td className="whitespace-nowrap p-3 text-amber-700">{formatPrice(fee)}</td>
+                      <td className="whitespace-nowrap p-3 text-stone-600">{formatPrice(fee)}</td>
                       <td className="whitespace-nowrap p-3 font-bold text-emerald-700">{formatPrice(active ? amount - fee : 0)}</td>
                       <td className="whitespace-nowrap p-3 text-xs">{methodLabel[transaction.payment_method] ?? transaction.payment_method}</td>
                       <td className="p-3">
-                        <span className={`rounded-lg px-2 py-1 text-xs font-bold ${active ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-stone-600'}`}>
+                        <span className={`rounded-lg px-2 py-1 text-xs font-bold ${active ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-stone-100 text-stone-600'}`}>
                           {statusLabel[transaction.payment_status] ?? transaction.payment_status}
                         </span>
                       </td>
@@ -1954,9 +2032,9 @@ function RevenueTab({
         )}
       </section>
 
-      <div className="card p-5">
-        <h3 className="mb-3 font-bold text-stone-900">ماذا تستفيد من النظام؟</h3>
-        <div className="grid gap-3 sm:grid-cols-2">
+      <section className="card p-5">
+        <h3 className="mb-3.5 font-display text-base font-extrabold text-stone-900">ماذا تستفيد من النظام؟</h3>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {[
             { icon: Zap, title: 'تتبع فوري للزيارات', desc: 'سجل دقيق لكل عميل وزيارة دون دفاتر ورقية' },
             { icon: CalendarClock, title: 'تنبيهات الاشتراكات', desc: 'متابعة الاشتراكات القريبة من الانتهاء والمنتهية' },
@@ -1965,18 +2043,18 @@ function RevenueTab({
             { icon: Sparkles, title: 'خدمات إضافية مرنة', desc: 'تسجيل خدمة إضافية أثناء زيارة الباقة لصالح المحل بالكامل' },
             { icon: Building2, title: 'دعم ومزامنة', desc: 'حفظ آمن للبيانات ومتابعة تشغيلية مستمرة' },
           ].map((f) => (
-            <div key={f.title} className="flex gap-2.5 rounded-xl border border-stone-200 bg-stone-50 p-3">
-              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-stone-900 text-amber-400">
+            <div key={f.title} className="flex items-start gap-3 rounded-xl border border-stone-200 bg-stone-50/60 p-3.5">
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-stone-900 text-white">
                 <f.icon className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-sm font-bold text-stone-800">{f.title}</p>
-                <p className="text-xs text-stone-500">{f.desc}</p>
+                <p className="text-xs font-extrabold text-stone-900">{f.title}</p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">{f.desc}</p>
               </div>
             </div>
           ))}
         </div>
-      </div>
+      </section>
     </div>
   );
 }
@@ -2144,19 +2222,19 @@ function CustomerDrawer({
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-3 text-sm">
+        <div className="flex flex-wrap items-center gap-2.5 text-xs">
           {customer.phone && (
-            <span className="inline-flex items-center gap-1.5 rounded-lg bg-stone-100 px-3 py-1.5 text-stone-700">
-              <Phone className="h-4 w-4" />
+            <span className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 font-bold text-stone-700">
+              <Phone className="h-3.5 w-3.5" />
               <span dir="ltr">{customer.phone}</span>
             </span>
           )}
-          <span className="inline-flex items-center gap-1.5 rounded-lg bg-stone-100 px-3 py-1.5 text-stone-700">
-            <Clock className="h-4 w-4" />
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-stone-600">
+            <Clock className="h-3.5 w-3.5" />
             عميل منذ {formatDate(customer.created_at)}
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800">
-            <Award className="h-4 w-4" />
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 font-bold text-stone-800">
+            <Award className="h-3.5 w-3.5" />
             رصيد الولاء: {pointsBalance} نقطة
           </span>
         </div>
@@ -2166,39 +2244,36 @@ function CustomerDrawer({
 
         <div className="grid grid-cols-3 gap-3">
           <div className="card p-3 text-center">
-            <Scissors className="mx-auto h-5 w-5 text-stone-500" />
-            <p className="mt-1 font-display text-xl font-extrabold text-stone-900">{visits.length}</p>
-            <p className="text-[11px] font-bold text-stone-500">إجمالي الزيارات الفعلية</p>
+            <p className="font-display text-xl font-extrabold text-stone-900">{visits.length}</p>
+            <p className="mt-0.5 text-[11px] font-bold text-stone-500">إجمالي الزيارات الفعلية</p>
           </div>
           <div className="card p-3 text-center">
-            <Award className="mx-auto h-5 w-5 text-amber-500" />
-            <p className="mt-1 font-display text-xl font-extrabold text-stone-900">
+            <p className="font-display text-xl font-extrabold text-stone-900">
               {visits.length >= 20 ? 'ذهبي' : visits.length >= 10 ? 'فضي' : visits.length >= 5 ? 'برونزي' : 'جديد'}
             </p>
-            <p className="text-[11px] font-bold text-stone-500">مستوى الولاء</p>
+            <p className="mt-0.5 text-[11px] font-bold text-stone-500">مستوى الولاء</p>
           </div>
           <div className="card p-3 text-center">
-            <Coins className="mx-auto h-5 w-5 text-amber-600" />
-            <p className="mt-1 font-display text-xl font-extrabold text-stone-900">{formatPrice(totalPaid)}</p>
-            <p className="text-[11px] font-bold text-stone-500">مدفوع زيارات عادية</p>
+            <p className="font-display text-xl font-extrabold text-stone-900">{formatPrice(totalPaid)}</p>
+            <p className="mt-0.5 text-[11px] font-bold text-stone-500">مدفوع زيارات عادية</p>
           </div>
         </div>
 
-        <div className={`rounded-2xl border p-4 ${active ? 'border-emerald-300 bg-emerald-50' : 'border-stone-200 bg-stone-50'}`}>
-          <div className="flex items-center justify-between">
+        <div className={`rounded-2xl border p-4 ${active ? 'border-emerald-200 bg-emerald-50/40' : 'border-stone-200 bg-stone-50/60'}`}>
+          <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               {active ? (
-                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                <CheckCircle2 className="h-5 w-5 text-emerald-700" />
               ) : (
                 <XCircle className="h-5 w-5 text-stone-400" />
               )}
-              <span className="font-bold text-stone-900">
+              <span className="text-sm font-bold text-stone-900">
                 {active ? 'مشترك — اشتراك نشط' : 'غير مشترك حالياً'}
               </span>
             </div>
             <button
               onClick={() => setSubOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-stone-900 px-3 py-1.5 text-xs font-bold text-amber-50"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-stone-900 px-3 py-1.5 text-xs font-bold text-white"
             >
               <CalendarPlus className="h-3.5 w-3.5" />
               {active ? 'تجديد / باقة جديدة' : 'إضافة اشتراك'}
@@ -2220,7 +2295,7 @@ function CustomerDrawer({
               </div>
               <div>
                 <p className="text-xs text-stone-500">المدة المتبقية</p>
-                <p className={`font-bold ${daysLeft <= 3 ? 'text-red-600' : daysLeft <= 7 ? 'text-orange-600' : 'text-emerald-700'}`}>
+                <p className={`font-bold ${daysLeft <= 3 ? 'text-red-600' : daysLeft <= 7 ? 'text-amber-700' : 'text-emerald-700'}`}>
                   {daysLeft > 0 ? `${daysLeft} يوم` : 'انتهى'}
                 </p>
               </div>
@@ -2228,13 +2303,13 @@ function CustomerDrawer({
           )}
         </div>
 
-        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
-          <div className="flex items-center justify-between">
+        <div className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4">
+          <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <Scissors className="h-5 w-5 text-amber-600" />
-              <span className="font-bold text-stone-900">تسجيل زيارة / حلاقة عادية / خدمة إضافية</span>
+              <Scissors className="h-5 w-5 text-stone-700" />
+              <span className="text-sm font-bold text-stone-900">تسجيل زيارة / حلاقة عادية / خدمة إضافية</span>
             </div>
-            <button onClick={() => setVisitOpen(true)} disabled={customer.is_blocked} className="btn-gold px-4 py-2 text-xs disabled:opacity-50">
+            <button onClick={() => setVisitOpen(true)} disabled={customer.is_blocked} className="btn-primary px-4 py-2 text-xs disabled:opacity-50">
               تسجيل زيارة
             </button>
           </div>
@@ -2244,20 +2319,20 @@ function CustomerDrawer({
               العميل محظور — لا يمكن تسجيل زيارات
             </p>
           ) : active && remaining > 0 ? (
-            <p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-700">
-              <Info className="h-3.5 w-3.5" />
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-stone-600">
+              <Info className="h-3.5 w-3.5 shrink-0" />
               يمكن خصم زيارة من الباقة ({remaining} متبقية) بدون رسوم إضافية أو إضافة خدمة إضافية بالكامل للمحل، أو تسجيل حلاقة عادية برسوم {formatPrice(COMPANY_FEE_PER_VISIT)}
             </p>
           ) : (
-            <p className="mt-2 flex items-center gap-1.5 text-xs text-amber-700">
-              <Info className="h-3.5 w-3.5" />
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-stone-600">
+              <Info className="h-3.5 w-3.5 shrink-0" />
               حلاقة عادية للعميل غير المشترك بقيمة {formatPrice(regularHaircutPrice)} — رسوم الشركة {formatPrice(COMPANY_FEE_PER_VISIT)} وتُحسب في الولاء
             </p>
           )}
         </div>
 
         <div>
-          <h4 className="mb-2 font-bold text-stone-900">سجل الزيارات</h4>
+          <h4 className="mb-2 text-sm font-bold text-stone-900">سجل الزيارات</h4>
           {loading ? (
             <div className="h-32 animate-shimmer rounded-xl" />
           ) : visits.length === 0 ? (
@@ -2268,7 +2343,7 @@ function CustomerDrawer({
                 <div key={v.id} className="card flex items-center gap-3 p-3">
                   <div
                     className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${
-                      v.payment_type === 'subscription' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-700'
+                      v.payment_type === 'subscription' ? 'bg-emerald-50 text-emerald-700' : 'bg-stone-100 text-stone-800'
                     }`}
                   >
                     {v.payment_type === 'subscription' ? <CheckCircle2 className="h-4 w-4" /> : <Coins className="h-4 w-4" />}
@@ -2278,9 +2353,9 @@ function CustomerDrawer({
                     <p className="text-xs text-stone-500">{formatDateTime(v.visit_date)}</p>
                   </div>
                   {v.payment_type === 'subscription' ? (
-                    <span className="badge bg-emerald-100 text-emerald-700">اشتراك</span>
+                    <span className="badge bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">اشتراك</span>
                   ) : (
-                    <span className="font-bold text-amber-700">{formatPrice(Number(v.charge_amount))}</span>
+                    <span className="font-bold text-stone-900">{formatPrice(Number(v.charge_amount))}</span>
                   )}
                 </div>
               ))}
@@ -2288,8 +2363,8 @@ function CustomerDrawer({
           )}
         </div>
 
-        <div className="rounded-2xl border border-red-200 bg-red-50/30 p-4">
-          <h4 className="mb-2 flex items-center gap-1.5 font-bold text-red-700">
+        <div className="rounded-2xl border border-red-200/80 bg-red-50/30 p-4">
+          <h4 className="mb-2 flex items-center gap-1.5 text-xs font-extrabold text-red-700">
             <ShieldAlert className="h-4 w-4" />
             إجراءات إدارية
           </h4>
@@ -2297,9 +2372,9 @@ function CustomerDrawer({
             <button
               onClick={handleBlockToggle}
               disabled={actionLoading}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition ${
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition ${
                 customer.is_blocked
-                  ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  ? 'bg-emerald-700 text-white hover:bg-emerald-800'
                   : 'bg-red-100 text-red-700 hover:bg-red-200'
               }`}
             >
@@ -2309,23 +2384,23 @@ function CustomerDrawer({
             {!confirmDelete ? (
               <button
                 onClick={() => setConfirmDelete(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-stone-100 px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-100"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 حذف العميل
               </button>
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-bold text-red-600">متأكد؟ كل البيانات هتتمسح</span>
                 <button
                   onClick={handleDelete}
                   disabled={actionLoading}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-700"
                 >
                   {actionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                   نعم احذف
                 </button>
-                <button onClick={() => setConfirmDelete(false)} className="rounded-lg bg-stone-100 px-3 py-2 text-xs font-bold text-stone-600">
+                <button onClick={() => setConfirmDelete(false)} className="rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-stone-600">
                   إلغاء
                 </button>
               </div>
@@ -2398,13 +2473,13 @@ function SubscribeModal({
           <button
             key={p.id}
             onClick={() => setPlanId(p.id)}
-            className={`flex w-full items-center gap-3 rounded-xl border-2 p-3 text-right transition ${
-              planId === p.id ? 'border-amber-500 bg-amber-50' : 'border-stone-200 bg-white hover:border-stone-300'
+            className={`flex w-full items-center gap-3 rounded-xl border p-3.5 text-right transition ${
+              planId === p.id ? 'border-stone-900 bg-stone-50' : 'border-stone-200 bg-white hover:border-stone-300'
             }`}
           >
             <div
-              className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border-2 ${
-                planId === p.id ? 'border-amber-500 bg-amber-500' : 'border-stone-300'
+              className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border ${
+                planId === p.id ? 'border-stone-900 bg-stone-900' : 'border-stone-300'
               }`}
             >
               {planId === p.id && <CheckCircle2 className="h-3 w-3 text-white" />}
@@ -2414,23 +2489,23 @@ function SubscribeModal({
               <p className="text-xs text-stone-500">{p.description ?? ''}</p>
             </div>
             <div className="text-left">
-              <p className="font-bold text-amber-600">{formatPrice(p.price)}</p>
+              <p className="font-bold text-stone-900">{formatPrice(p.price)}</p>
               <p className="text-[11px] text-stone-500">{p.haircut_count} حلاقة / {p.duration_days} يوم</p>
             </div>
           </button>
         ))}
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+        <div className="rounded-xl border border-stone-200 bg-stone-50 p-3.5">
           <label className="label">طريقة دفع الاشتراك بالكامل *</label>
-          <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)} className="input">
+          <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)} className="input bg-white">
             <option value="cash">كاش</option>
             <option value="instapay">InstaPay</option>
             <option value="vodafone_cash">Vodafone Cash</option>
             <option value="card">بطاقة بنكية</option>
           </select>
-          <p className="mt-1 text-xs text-stone-600">يتم تسجيل قيمة الباقة كاملة عند التفعيل، ورسوم الشركة للباقة تُحسب مرة واحدة عند البيع.</p>
+          <p className="mt-1.5 text-xs text-stone-500">يتم تسجيل قيمة الباقة كاملة عند التفعيل، ورسوم الشركة للباقة تُحسب مرة واحدة عند البيع.</p>
         </div>
         <div className="flex gap-3 pt-2">
-          <button onClick={submit} disabled={saving || !planId} className="btn-gold flex-1">
+          <button onClick={submit} disabled={saving || !planId} className="btn-primary flex-1">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarPlus className="h-4 w-4" />}
             {saving ? 'جاري...' : 'تفعيل الاشتراك'}
           </button>
@@ -2504,22 +2579,22 @@ function RecordVisitModal({
                 type="checkbox"
                 checked={forcePaid}
                 onChange={(e) => { setForcePaid(e.target.checked); setCustomCharge(e.target.checked ? regularHaircutPrice : 0); }}
-                className="h-4 w-4 accent-amber-600"
+                className="h-4 w-4 accent-stone-900"
               />
               <span className="text-sm font-bold text-stone-700">احتسابها كحلاقة عادية (لا تخصم من الاشتراك)</span>
             </label>
           </div>
         )}
 
-        <div className={`rounded-lg p-3 text-sm ${canUseSub ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+        <div className={`rounded-xl border p-3 text-xs font-bold leading-relaxed ${canUseSub ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800' : 'border-stone-200 bg-stone-50 text-stone-800'}`}>
           {canUseSub ? (
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="h-4 w-4" />
+            <span className="flex items-start gap-1.5">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
               زيارة من الباقة ({remaining} متبقية): صفر رسوم إضافية، وأي خدمة إضافية تذهب بالكامل للمحل
             </span>
           ) : (
-            <span className="flex items-center gap-1.5">
-              <Coins className="h-4 w-4" />
+            <span className="flex items-start gap-1.5">
+              <Coins className="mt-0.5 h-4 w-4 shrink-0 text-stone-700" />
               حلاقة عادية مدفوعة — رسوم الشركة {formatPrice(COMPANY_FEE_PER_VISIT)} والصافي ({formatPrice(Math.max(0, Number(customCharge) - COMPANY_FEE_PER_VISIT))})
             </span>
           )}
