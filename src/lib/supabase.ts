@@ -38,9 +38,11 @@ export const supabase = createClient(supabaseUrl, supabaseApiKey, {
   },
 });
 
+export type PlanItemType = 'package' | 'service';
+
 /**
- * Subscription plan belonging to a shop.
- * New plans should always have the current shop_id.
+- Subscription plan or shop service belonging to a shop.
+- New plans should always have the current shop_id.
  */
 export type Plan = {
   id: string;
@@ -49,6 +51,7 @@ export type Plan = {
   haircut_count: number;
   price: number;
   duration_days: number;
+  item_type?: PlanItemType;
   is_active: boolean;
   shop_id?: string | null;
   created_at: string;
@@ -86,7 +89,7 @@ export type Subscription = {
 export type PaymentType = 'subscription' | 'paid';
 
 /**
- * Payment methods supported by payment_transactions.
+- Payment methods supported by payment_transactions.
  */
 export type PaymentMethod =
   | 'cash'
@@ -95,7 +98,7 @@ export type PaymentMethod =
   | 'card';
 
 /**
- * Payment transaction stored in Supabase.
+- Payment transaction stored in Supabase.
  */
 export type PaymentTransaction = {
   id: string;

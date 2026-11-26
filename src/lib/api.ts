@@ -4,6 +4,7 @@ import {
   type Subscription,
   type Visit,
   type Plan,
+  type PlanItemType,
   type PaymentType,
   REGULAR_HAIRCUT_PRICE,
   COMPANY_FEE_PER_VISIT,
@@ -14,6 +15,7 @@ export type {
   Subscription,
   Visit,
   Plan,
+  PlanItemType,
   PaymentType,
 };
 
@@ -43,7 +45,10 @@ export type PaymentTransaction = {
   created_at: string;
 };
 
-export async function getPlans(shopId?: string): Promise<Plan[]> {
+export async function getPlans(
+  shopId?: string,
+  itemType?: PlanItemType
+): Promise<Plan[]> {
   let query = supabase
     .from('plans')
     .select('*')
@@ -53,6 +58,10 @@ export async function getPlans(shopId?: string): Promise<Plan[]> {
     query = query.eq('shop_id', shopId);
   } else {
     query = query.is('shop_id', null);
+  }
+
+  if (itemType) {
+    query = query.eq('item_type', itemType);
   }
 
   const { data, error } = await query.order('price', {
