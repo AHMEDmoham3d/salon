@@ -71,6 +71,7 @@ import { getShopById } from '@/lib/shopApi';
 import ShopSettingsTab from '@/components/ShopSettingsTab';
 
 const BRAND_NAME = 'ulmi';
+const CONTRACT_VERSION = 'v2.0-ulmi';
 
 type Tab = 'overview' | 'customers' | 'visits' | 'subscriptions' | 'revenue' | 'settings';
 
@@ -125,63 +126,80 @@ type ContractSignatureRecord = {
   contractVersion: string;
 };
 
-const CONTRACT_VERSION = 'v2.0-ulmi';
-
-function getContractStorageKey(shopId: string) {
-  return `ulmi_smart_contract_sig_${shopId}`;
+function normalizeShopId(shopId: string): string {
+  return String(shopId || '').trim();
 }
 
-function generateDeterministicContractId(shopId: string, shopName?: string) {
-  const prefix = (shopName || 'UL')
-    .replace(/[^a-zA-Z\u0600-\u06FF]/g, '')
-    .slice(0, 2)
-    .toUpperCase() || 'UL';
+function getContractStorageKey(shopId: string): string {
+  return `ulmi_smart_contract_sig_${normalizeShopId(shopId)}`;
+}
+
+function generateDeterministicContractId(shopId: string, shopName?: string): string {
+  const cleanId = normalizeShopId(shopId);
+  const prefix =
+    (shopName || 'UL')
+      .replace(/[^a-zA-Z\u0600-\u06FF]/g, '')
+      .slice(0, 2)
+      .toUpperCase() || 'UL';
   let hash = 0;
-  for (let i = 0; i < shopId.length; i++) {
-    hash = (hash * 31 + shopId.charCodeAt(i)) % 9000;
+  for (let i = 0; i < cleanId.length; i++) {
+    hash = (hash * 31 + cleanId.charCodeAt(i)) % 9000;
   }
   const code = String(1000 + Math.abs(hash));
   return `${BRAND_NAME.toUpperCase()}-${prefix}-2026-${code}`;
 }
 
 function readLocalContractSignature(shopId: string): ContractSignatureRecord | null {
+  const cleanId = normalizeShopId(shopId);
+  if (!cleanId) return null;
   try {
-    const raw = localStorage.getItem(getContractStorageKey(shopId));
+    const raw = localStorage.getItem(getContractStorageKey(cleanId));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as ContractSignatureRecord;
-    if (!parsed?.signedAt || parsed.shopId !== shopId) return null;
-    return parsed;
+    if (!parsed?.signedAt) return null;
+    return {
+      ...parsed,
+      shopId: cleanId,
+      contractNumber: parsed.contractNumber || generateDeterministicContractId(cleanId, parsed.shopName),
+      contractVersion: parsed.contractVersion || CONTRACT_VERSION,
+    };
   } catch {
     return null;
   }
 }
 
-function writeLocalContractSignature(record: ContractSignatureRecord) {
+function writeLocalContractSignature(record: ContractSignatureRecord): void {
+  const cleanId = normalizeShopId(record.shopId);
+  if (!cleanId) return;
   try {
-    localStorage.setItem(getContractStorageKey(record.shopId), JSON.stringify(record));
+    const normalized: ContractSignatureRecord = { ...record, shopId: cleanId };
+    localStorage.setItem(getContractStorageKey(cleanId), JSON.stringify(normalized));
   } catch {
     // تجاهل أخطاء التخزين المحلي
   }
 }
 
 async function fetchContractSignature(shopId: string): Promise<ContractSignatureRecord | null> {
-  const localSig = readLocalContractSignature(shopId);
+  const cleanId = normalizeShopId(shopId);
+  if (!cleanId) return null;
+  const localSig = readLocalContractSignature(cleanId);
+
   try {
     const { data, error } = await supabase
       .from('shop_contracts')
       .select('shop_id, contract_number, signed_at, signer_name, shop_name, contract_version')
-      .eq('shop_id', shopId)
+      .eq('shop_id', cleanId)
       .order('signed_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (!error && data?.signed_at) {
       const dbRecord: ContractSignatureRecord = {
-        shopId: data.shop_id,
-        contractNumber: data.contract_number || generateDeterministicContractId(shopId, data.shop_name),
+        shopId: cleanId,
+        contractNumber: data.contract_number || generateDeterministicContractId(cleanId, data.shop_name),
         signedAt: data.signed_at,
-        signerName: data.signer_name || '',
-        shopName: data.shop_name || '',
+        signerName: data.signer_name || localSig?.signerName || '',
+        shopName: data.shop_name || localSig?.shopName || '',
         contractVersion: data.contract_version || CONTRACT_VERSION,
       };
       writeLocalContractSignature(dbRecord);
@@ -190,20 +208,23 @@ async function fetchContractSignature(shopId: string): Promise<ContractSignature
   } catch {
     // في حال عدم وجود جدول shop_contracts نعتمد على المحلي
   }
+
   return localSig;
 }
 
 async function persistContractSignature(record: ContractSignatureRecord): Promise<void> {
-  writeLocalContractSignature(record);
+  const cleanId = normalizeShopId(record.shopId);
+  const normalized: ContractSignatureRecord = { ...record, shopId: cleanId };
+  writeLocalContractSignature(normalized);
   try {
     await supabase.from('shop_contracts').upsert(
       {
-        shop_id: record.shopId,
-        contract_number: record.contractNumber,
-        signed_at: record.signedAt,
-        signer_name: record.signerName,
-        shop_name: record.shopName,
-        contract_version: record.contractVersion,
+        shop_id: cleanId,
+        contract_number: normalized.contractNumber,
+        signed_at: normalized.signedAt,
+        signer_name: normalized.signerName,
+        shop_name: normalized.shopName,
+        contract_version: normalized.contractVersion,
       },
       { onConflict: 'shop_id' }
     );
@@ -238,7 +259,6 @@ function UlmiWordmark({
       aria-label={BRAND_NAME}
       className="inline-block shrink-0 select-none"
     >
-      {/* u */}
       <path
         d="M14 38V56C14 68.7025 24.2975 79 37 79C49.7025 79 60 68.7025 60 56V38"
         stroke={fill}
@@ -246,20 +266,8 @@ function UlmiWordmark({
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <path
-        d="M60 38V68"
-        stroke={fill}
-        strokeWidth="22"
-        strokeLinecap="round"
-      />
-      {/* l */}
-      <path
-        d="M84 15V68"
-        stroke={fill}
-        strokeWidth="22"
-        strokeLinecap="round"
-      />
-      {/* m */}
+      <path d="M60 38V68" stroke={fill} strokeWidth="22" strokeLinecap="round" />
+      <path d="M84 15V68" stroke={fill} strokeWidth="22" strokeLinecap="round" />
       <path
         d="M108 68V52C108 43.1634 115.163 36 124 36C132.837 36 140 43.1634 140 52V68"
         stroke={fill}
@@ -274,13 +282,7 @@ function UlmiWordmark({
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      {/* i */}
-      <path
-        d="M214 38V68"
-        stroke={fill}
-        strokeWidth="22"
-        strokeLinecap="round"
-      />
+      <path d="M214 38V68" stroke={fill} strokeWidth="22" strokeLinecap="round" />
       <circle cx="214" cy="15" r="11" fill={fill} />
     </svg>
   );
@@ -441,6 +443,7 @@ async function fetchShopFinancialSnapshot(
 }
 
 export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout: () => void }) {
+  const cleanShopId = useMemo(() => normalizeShopId(shopId), [shopId]);
   const [tab, setTab] = useState<Tab>('overview');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -450,8 +453,10 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [noticeInitialView, setNoticeInitialView] = useState<'notice' | 'contract'>('notice');
   const [mandatoryContract, setMandatoryContract] = useState(false);
-  const [contractSignature, setContractSignature] = useState<ContractSignatureRecord | null>(null);
-  const [contractChecked, setContractChecked] = useState(false);
+  const [contractSignature, setContractSignature] = useState<ContractSignatureRecord | null>(() =>
+    readLocalContractSignature(shopId)
+  );
+  const [contractChecked, setContractChecked] = useState<boolean>(() => !!readLocalContractSignature(shopId));
   const [shopInfo, setShopInfo] = useState<{ shop_name: string; owner_name: string; logo_url?: string | null } | null>(null);
   const [regularHaircutPrice, setRegularHaircutPrice] = useState(REGULAR_HAIRCUT_PRICE);
   const [refreshTick, setRefreshTick] = useState(0);
@@ -462,10 +467,16 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
 
   useEffect(() => {
     let active = true;
+    const cached = readLocalContractSignature(cleanShopId);
+    if (cached) {
+      setContractSignature(cached);
+      setContractChecked(true);
+    }
+
     Promise.all([
-      getShopById(shopId),
-      getShopRegularHaircutPrice(shopId),
-      fetchContractSignature(shopId),
+      getShopById(cleanShopId),
+      getShopRegularHaircutPrice(cleanShopId),
+      fetchContractSignature(cleanShopId),
     ])
       .then(([shop, price, sig]) => {
         if (!active) return;
@@ -473,43 +484,63 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
           setShopInfo({ shop_name: shop.shop_name, owner_name: shop.owner_name, logo_url: shop.logo_url ?? null });
         }
         setRegularHaircutPrice(price);
-        setContractSignature(sig);
+        const resolvedSig = sig || cached || null;
+        setContractSignature(resolvedSig);
         setContractChecked(true);
-        if (!sig) {
+
+        if (!resolvedSig) {
+          setNoticeInitialView('contract');
+          setMandatoryContract(true);
+          setNoticeOpen(true);
+        } else {
+          setMandatoryContract(false);
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        setContractChecked(true);
+        if (!cached) {
           setNoticeInitialView('contract');
           setMandatoryContract(true);
           setNoticeOpen(true);
         }
-      })
-      .catch(() => {
-        if (active) setContractChecked(true);
       });
-    return () => { active = false; };
-  }, [shopId]);
 
-  const openContractModal = useCallback((forceMandatory: boolean) => {
-    setNoticeInitialView('contract');
-    setMandatoryContract(forceMandatory);
-    setNoticeOpen(true);
-  }, []);
+    return () => {
+      active = false;
+    };
+  }, [cleanShopId]);
+
+  const isContractSigned = !!contractSignature?.signedAt;
+
+  const openContractModal = useCallback(
+    (forceMandatory: boolean) => {
+      setNoticeInitialView('contract');
+      setMandatoryContract(forceMandatory && !isContractSigned);
+      setNoticeOpen(true);
+    },
+    [isContractSigned]
+  );
 
   const openNoticeModal = useCallback(() => {
     setNoticeInitialView('notice');
-    setMandatoryContract(!contractSignature);
+    setMandatoryContract(!isContractSigned);
     setNoticeOpen(true);
-  }, [contractSignature]);
+  }, [isContractSigned]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const list = search.trim() ? await searchShopCustomersByName(shopId, search.trim()) : await getShopCustomers(shopId);
+      const list = search.trim()
+        ? await searchShopCustomersByName(cleanShopId, search.trim())
+        : await getShopCustomers(cleanShopId);
       setCustomers(list);
     } catch {
       setCustomers([]);
     } finally {
       setLoading(false);
     }
-  }, [search, shopId]);
+  }, [search, cleanShopId]);
 
   useEffect(() => {
     load();
@@ -523,8 +554,6 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
     { k: 'revenue', label: 'الإيرادات والتقارير', icon: Wallet },
     { k: 'settings', label: 'إعدادات المحل', icon: Settings },
   ];
-
-  const isContractSigned = !!contractSignature;
 
   return (
     <div className="animate-fade-in mx-auto max-w-6xl space-y-6 px-4 py-7 sm:px-6">
@@ -559,7 +588,6 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
 
       <header className="card border-stone-200/90 bg-white p-5 sm:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-          {/* Brand + Shop Identity */}
           <div className="flex min-w-0 items-center gap-4">
             {shopInfo?.logo_url ? (
               <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl border border-stone-200 bg-stone-50 p-1.5 shadow-2xs">
@@ -585,7 +613,7 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
                     {shopInfo.owner_name}
                   </span>
                 )}
-                {isContractSigned ? (
+                {isContractSigned && contractSignature ? (
                   <button
                     type="button"
                     onClick={() => openContractModal(false)}
@@ -621,7 +649,6 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
             </div>
           </div>
 
-          {/* Header Actions */}
           <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-stone-100 pt-4 lg:justify-end lg:border-t-0 lg:pt-0">
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -688,7 +715,7 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
       <main className="min-w-0">
         {tab === 'overview' && (
           <Overview
-            shopId={shopId}
+            shopId={cleanShopId}
             customers={customers}
             refreshTick={refreshTick}
             onGoSubs={() => setTab('subscriptions')}
@@ -719,7 +746,7 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
         )}
         {tab === 'visits' && (
           <VisitsTab
-            shopId={shopId}
+            shopId={cleanShopId}
             customers={customers}
             regularHaircutPrice={regularHaircutPrice}
             isContractSigned={isContractSigned}
@@ -736,7 +763,7 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
         )}
         {tab === 'subscriptions' && (
           <SubscriptionsTab
-            shopId={shopId}
+            shopId={cleanShopId}
             customers={customers}
             refreshTick={refreshTick}
             onSelectCustomer={(c) => {
@@ -750,14 +777,14 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
         )}
         {tab === 'revenue' && (
           <RevenueTab
-            shopId={shopId}
+            shopId={cleanShopId}
             customers={customers}
             refreshTick={refreshTick}
           />
         )}
         {tab === 'settings' && (
           <ShopSettingsTab
-            shopId={shopId}
+            shopId={cleanShopId}
             onUpdated={(shop) => {
               setShopInfo({ shop_name: shop.shop_name, owner_name: shop.owner_name, logo_url: shop.logo_url ?? null });
               setRegularHaircutPrice(Number(shop.regular_haircut_price ?? REGULAR_HAIRCUT_PRICE));
@@ -768,7 +795,7 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
       </main>
 
       <AddCustomerModal
-        shopId={shopId}
+        shopId={cleanShopId}
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onCreated={() => {
@@ -778,7 +805,7 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
         }}
       />
       <CustomerDrawer
-        shopId={shopId}
+        shopId={cleanShopId}
         regularHaircutPrice={regularHaircutPrice}
         customer={selected}
         onClose={() => setSelected(null)}
@@ -790,17 +817,18 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
       <CompanyNoticeModal
         open={noticeOpen}
         onClose={() => {
-          if (mandatoryContract && !contractSignature) return;
+          if (mandatoryContract && !contractSignature?.signedAt) return;
           setNoticeOpen(false);
         }}
-        shopId={shopId}
+        shopId={cleanShopId}
         shopInfo={shopInfo}
         initialView={noticeInitialView}
-        mandatory={mandatoryContract && !contractSignature}
+        mandatory={mandatoryContract && !contractSignature?.signedAt}
         existingSignature={contractSignature}
         onContractSigned={(sig) => {
           setContractSignature(sig);
           setMandatoryContract(false);
+          setNoticeOpen(false);
           bumpData();
         }}
       />
@@ -808,7 +836,6 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
   );
 }
 
-/* ---------- Smart Mandatory Company Notice & Electronic Contract Modal ---------- */
 function CompanyNoticeModal({
   open,
   onClose,
@@ -828,13 +855,15 @@ function CompanyNoticeModal({
   existingSignature: ContractSignatureRecord | null;
   onContractSigned: (sig: ContractSignatureRecord) => void;
 }) {
+  const alreadySigned = !!existingSignature?.signedAt;
+  const effectiveMandatory = mandatory && !alreadySigned;
+
   const [view, setView] = useState<'notice' | 'contract'>(initialView);
   const [signerName, setSignerName] = useState('');
   const [confirmShopData, setConfirmShopData] = useState(false);
   const [confirmFinancialTerms, setConfirmFinancialTerms] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [signedRecord, setSignedRecord] = useState<ContractSignatureRecord | null>(existingSignature);
   const [err, setErr] = useState('');
 
   const today = new Date().toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -844,23 +873,16 @@ function CompanyNoticeModal({
   );
 
   useEffect(() => {
-    if (open) {
-      setView(mandatory ? 'contract' : initialView);
-      setSignedRecord(existingSignature);
-      setSignerName(existingSignature?.signerName || shopInfo?.owner_name || '');
-      setConfirmShopData(!!existingSignature);
-      setConfirmFinancialTerms(!!existingSignature);
-      setAgreed(!!existingSignature);
-      setErr('');
-    }
-  }, [open, initialView, mandatory, existingSignature, shopInfo?.owner_name]);
+    if (!open) return;
+    setView(effectiveMandatory ? 'contract' : initialView);
+    setSignerName(existingSignature?.signerName || shopInfo?.owner_name || '');
+    setConfirmShopData(alreadySigned);
+    setConfirmFinancialTerms(alreadySigned);
+    setAgreed(alreadySigned);
+    setErr('');
+  }, [open, effectiveMandatory, initialView, existingSignature, shopInfo?.owner_name, alreadySigned]);
 
-  const canSign =
-    !!signerName.trim() &&
-    confirmShopData &&
-    confirmFinancialTerms &&
-    agreed &&
-    !saving;
+  const canSign = !!signerName.trim() && confirmShopData && confirmFinancialTerms && agreed && !saving;
 
   const handleSignContract = async () => {
     if (!signerName.trim()) {
@@ -875,7 +897,7 @@ function CompanyNoticeModal({
     setErr('');
     try {
       const record: ContractSignatureRecord = {
-        shopId,
+        shopId: normalizeShopId(shopId),
         contractNumber: contractId,
         signedAt: new Date().toISOString(),
         signerName: signerName.trim(),
@@ -883,7 +905,6 @@ function CompanyNoticeModal({
         contractVersion: CONTRACT_VERSION,
       };
       await persistContractSignature(record);
-      setSignedRecord(record);
       onContractSigned(record);
     } catch {
       setErr('تعذر حفظ توثيق العقد حاليًا، يرجى المحاولة مرة أخرى');
@@ -893,19 +914,17 @@ function CompanyNoticeModal({
   };
 
   if (view === 'contract') {
-    const isAlreadySigned = !!signedRecord;
     return (
       <Modal
         open={open}
         onClose={() => {
-          if (mandatory && !signedRecord) return;
+          if (effectiveMandatory) return;
           onClose();
         }}
         title="عقد ترخيص استخدام النظام الإلكتروني"
         maxWidth="max-w-3xl"
       >
         <div className="space-y-4">
-          {/* Header with ulmi Wordmark & Smart Status */}
           <div className="rounded-2xl border border-stone-200 bg-stone-900 p-5 text-white">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3.5">
@@ -924,20 +943,19 @@ function CompanyNoticeModal({
               <div className="text-left text-xs">
                 <span
                   className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-extrabold ${
-                    isAlreadySigned
+                    alreadySigned
                       ? 'bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-400/40'
                       : 'bg-amber-400/20 text-amber-200 ring-1 ring-amber-300/40'
                   }`}
                 >
-                  {isAlreadySigned ? <ShieldCheck className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
-                  {isAlreadySigned ? 'موقّع وموثّق' : 'توقيع إلزامي'}
+                  {alreadySigned ? <ShieldCheck className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+                  {alreadySigned ? 'موقّع وموثّق' : 'توقيع إلزامي'}
                 </span>
                 <p className="mt-1 text-[11px] text-stone-400">{today}</p>
               </div>
             </div>
           </div>
 
-          {/* Smart Parties Summary */}
           <div className="grid gap-2.5 rounded-2xl border border-stone-200 bg-stone-50 p-4 text-xs sm:grid-cols-3">
             <div>
               <p className="font-bold text-stone-500">الطرف الأول (الشركة المالكة)</p>
@@ -956,7 +974,6 @@ function CompanyNoticeModal({
             </div>
           </div>
 
-          {/* Structured Contract Clauses */}
           <div className="max-h-[42vh] space-y-3.5 overflow-y-auto rounded-2xl border border-stone-200 bg-white p-5 text-sm leading-relaxed text-stone-700">
             <div>
               <p className="mb-1 font-extrabold text-stone-900">1. التمهيد وحجية العقد الذكي</p>
@@ -992,7 +1009,7 @@ function CompanyNoticeModal({
             </div>
           </div>
 
-          {!isAlreadySigned ? (
+          {!alreadySigned ? (
             <div className="space-y-3 rounded-2xl border border-stone-200 bg-stone-50/80 p-4">
               <div>
                 <label className="label">الاسم الكامل للموقّع (إلزامي للتوثيق) *</label>
@@ -1052,27 +1069,25 @@ function CompanyNoticeModal({
                 </span>
               </label>
 
-              {err && (
-                <p className="text-xs font-extrabold text-red-600">{err}</p>
-              )}
+              {err && <p className="text-xs font-extrabold text-red-600">{err}</p>}
             </div>
           ) : (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 text-xs font-bold text-emerald-900">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-700" />
                 <span>
-                  تم توثيق العقد برقم <span className="font-extrabold">{signedRecord.contractNumber}</span> بواسطة{' '}
-                  <span className="font-extrabold">{signedRecord.signerName || shopInfo?.owner_name || 'المسؤول'}</span>
+                  تم توثيق العقد برقم <span className="font-extrabold">{existingSignature.contractNumber}</span> بواسطة{' '}
+                  <span className="font-extrabold">{existingSignature.signerName || shopInfo?.owner_name || 'المسؤول'}</span>
                 </span>
               </div>
               <span className="text-[11px] text-emerald-800">
-                بتاريخ: {formatDateTime(signedRecord.signedAt)}
+                بتاريخ: {formatDateTime(existingSignature.signedAt)}
               </span>
             </div>
           )}
 
           <div className="flex flex-wrap gap-3">
-            {!isAlreadySigned ? (
+            {!alreadySigned ? (
               <button
                 type="button"
                 onClick={handleSignContract}
@@ -1083,17 +1098,13 @@ function CompanyNoticeModal({
                 {saving ? 'جاري التوثيق والحفظ...' : 'توقيع وموافقة إلزامية على العقد'}
               </button>
             ) : (
-              <button
-                type="button"
-                onClick={onClose}
-                className="btn-primary flex-1"
-              >
+              <button type="button" onClick={onClose} className="btn-primary flex-1">
                 <CheckCircle2 className="h-4 w-4" />
-                <span>تم التوثيق — متابعة</span>
+                <span>العقد موثّق — إغلاق</span>
               </button>
             )}
 
-            {!mandatory && (
+            {!effectiveMandatory && (
               <button type="button" onClick={() => setView('notice')} className="btn-ghost">
                 عرض الإشعار
               </button>
@@ -1115,7 +1126,7 @@ function CompanyNoticeModal({
             <div>
               <p className="text-xs text-stone-300">إدارة أنظمة الحلاقة الذكية — {SYSTEM_NAME}</p>
               <p className="mt-0.5 text-[11px] text-stone-400">
-                حالة العقد: {existingSignature ? `موثّق (${existingSignature.contractNumber})` : 'مطلوب التوقيع'}
+                حالة العقد: {alreadySigned ? `موثّق (${existingSignature.contractNumber})` : 'مطلوب التوقيع'}
               </p>
             </div>
           </div>
@@ -1130,7 +1141,7 @@ function CompanyNoticeModal({
         <div className="flex gap-3">
           <button type="button" onClick={() => setView('contract')} className="btn-primary flex-1">
             <FileText className="h-4 w-4" />
-            {existingSignature ? 'عرض العقد الموثّق' : 'عرض وتوقيع العقد'}
+            {alreadySigned ? 'عرض العقد الموثّق' : 'عرض وتوقيع العقد'}
           </button>
           <button type="button" onClick={onClose} className="btn-ghost">
             إغلاق
@@ -1218,7 +1229,9 @@ function Overview({
     };
 
     loadStats();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [customers, shopId, refreshTick]);
 
   const totalCollectedDisplay = snapshot ? snapshot.totalCollected : financial?.totalRevenue ?? 0;
@@ -1287,9 +1300,7 @@ function Overview({
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 bg-stone-50/50 px-5 py-4">
           <div>
             <h2 className="font-display text-base font-extrabold text-stone-900">الملخص المالي والتشغيلي</h2>
-            <p className="mt-0.5 text-xs text-stone-500">
-              مؤشرات التحصيل والصافي والرسوم والزيارات الحالية
-            </p>
+            <p className="mt-0.5 text-xs text-stone-500">مؤشرات التحصيل والصافي والرسوم والزيارات الحالية</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -1423,7 +1434,9 @@ function CustomerRow({ customer, onClick }: { customer: Customer; onClick: () =>
       setSub(s);
       setVisitsCount(v.length);
     })();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [customer.id]);
 
   const active = sub?.status === 'active';
@@ -1859,7 +1872,9 @@ function SubscriptionsTab({
     };
 
     loadSubscriptions();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [customers, shopId, refreshTick]);
 
   const totalSoldPackages = allSubscriptions.filter((s) => s.status !== 'cancelled').length;
@@ -1927,7 +1942,9 @@ function SubscriptionsTab({
 
           {loading ? (
             <div className="space-y-3">
-              {[...Array(4)].map((_, index) => <div key={index} className="h-20 animate-shimmer rounded-2xl" />)}
+              {[...Array(4)].map((_, index) => (
+                <div key={index} className="h-20 animate-shimmer rounded-2xl" />
+              ))}
             </div>
           ) : subscribers.length === 0 ? (
             <div className="card p-6 text-center text-stone-500">
@@ -1986,9 +2003,11 @@ function SubscriptionsTab({
                   className="card flex w-full items-center justify-between gap-3 p-4 text-right transition hover:border-stone-300 hover:bg-stone-50/50"
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
-                      alert.isExpired ? 'bg-red-50 text-red-600 ring-1 ring-red-200' : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
-                    }`}>
+                    <div
+                      className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
+                        alert.isExpired ? 'bg-red-50 text-red-600 ring-1 ring-red-200' : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
+                      }`}
+                    >
                       {alert.isExpired ? <XCircle className="h-5 w-5" /> : <CalendarClock className="h-5 w-5" />}
                     </div>
                     <div className="min-w-0">
@@ -2090,7 +2109,9 @@ function RevenueTab({
         }
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [customers, shopId, refreshTick]);
 
   const transactions = snapshot?.transactions ?? [];
@@ -2554,7 +2575,6 @@ function RevenueTab({
           </div>
         </div>
 
-        {/* Distinct Style A: Compact Monthly Tiles Grid (6 Months) */}
         <div className="space-y-3 rounded-2xl border border-stone-200 bg-stone-50/60 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -2610,7 +2630,7 @@ function RevenueTab({
           </div>
 
           {activeMonthObj && (
-            <div className="rounded-xl border border-stone-200 bg-white p-3.5 space-y-2.5">
+            <div className="space-y-2.5 rounded-xl border border-stone-200 bg-white p-3.5">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 pb-2">
                 <p className="text-xs font-extrabold text-stone-900">تفاصيل شهر {activeMonthObj.label}</p>
                 <div className="flex flex-wrap gap-2 text-[11px] font-bold text-stone-600">
@@ -2629,7 +2649,7 @@ function RevenueTab({
               ) : (
                 <div className="space-y-2">
                   {activeMonthObj.details.map((item) => (
-                    <div key={item.id} className="rounded-lg border border-stone-200/90 bg-stone-50/70 p-2.5 text-xs space-y-1">
+                    <div key={item.id} className="space-y-1 rounded-lg border border-stone-200/90 bg-stone-50/70 p-2.5 text-xs">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="font-extrabold text-stone-900">
                           {item.customerName} — {item.actionSummary}
@@ -2664,7 +2684,6 @@ function RevenueTab({
           )}
         </div>
 
-        {/* Distinct Style B: Compact Daily Timeline Strip (Last 7 Days) */}
         <div className="space-y-3 rounded-2xl border border-stone-200 bg-white p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -2702,12 +2721,12 @@ function RevenueTab({
                   </button>
 
                   {isOpen && (
-                    <div className="border-t border-stone-200/80 bg-white p-3 space-y-2">
+                    <div className="space-y-2 border-t border-stone-200/80 bg-white p-3">
                       {day.details.length === 0 ? (
                         <p className="text-xs text-stone-500">لا توجد زيارات أو عمليات في هذا اليوم.</p>
                       ) : (
                         day.details.map((item) => (
-                          <div key={item.id} className="rounded-lg border border-stone-200 bg-stone-50/60 p-2.5 text-xs space-y-1">
+                          <div key={item.id} className="space-y-1 rounded-lg border border-stone-200 bg-stone-50/60 p-2.5 text-xs">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <span className="font-extrabold text-stone-900">
                                 {item.customerName} — {item.actionSummary}
@@ -3415,7 +3434,10 @@ function RecordVisitModal({
               <input
                 type="checkbox"
                 checked={forcePaid}
-                onChange={(e) => { setForcePaid(e.target.checked); setCustomCharge(e.target.checked ? regularHaircutPrice : 0); }}
+                onChange={(e) => {
+                  setForcePaid(e.target.checked);
+                  setCustomCharge(e.target.checked ? regularHaircutPrice : 0);
+                }}
                 className="h-4 w-4 accent-stone-900"
               />
               <span className="text-sm font-bold text-stone-700">احتسابها كحلاقة عادية (لا تخصم من الاشتراك)</span>
