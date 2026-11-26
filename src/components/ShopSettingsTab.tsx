@@ -8,8 +8,14 @@ import {
   X,
   Power,
   Package,
+  Scissors,
 } from 'lucide-react';
-import { supabase, type Plan, type Shop } from '@/lib/supabase';
+import {
+  supabase,
+  type Plan,
+  type PlanItemType,
+  type Shop,
+} from '@/lib/supabase';
 import {
   getShopById,
   updateShopSettings,
@@ -22,7 +28,17 @@ type Props = {
   onUpdated: (shop: Shop) => void;
 };
 
-const emptyPlan = {
+type PlanFormState = {
+  item_type: PlanItemType;
+  name: string;
+  description: string;
+  haircut_count: string;
+  price: string;
+  duration_days: string;
+};
+
+const emptyPlan: PlanFormState = {
+  item_type: 'package',
   name: '',
   description: '',
   haircut_count: '1',
@@ -36,7 +52,7 @@ export default function ShopSettingsTab({ shopId, onUpdated }: Props) {
   const [shop, setShop] = useState<Shop | null>(null);
   const [price, setPrice] = useState('50');
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [planForm, setPlanForm] = useState(emptyPlan);
+  const [planForm, setPlanForm] = useState<PlanFormState>(emptyPlan);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -63,7 +79,7 @@ export default function ShopSettingsTab({ shopId, onUpdated }: Props) {
 
       setShop(shopData);
       setPrice(String(shopData?.regular_haircut_price ?? 50));
-      setPlans(plansResult.data ?? []);
+      setPlans((plansResult.data ?? []) as Plan[]);
     } catch (e) {
       setError(
         e instanceof Error
@@ -134,10 +150,20 @@ export default function ShopSettingsTab({ shopId, onUpdated }: Props) {
     }
   };
 
+  const handleTypeChange = (nextType: PlanItemType) => {
+    setPlanForm((prev) => ({
+      ...prev,
+      item_type: nextType,
+      haircut_count: nextType === 'service' ? '1' : prev.haircut_count || '4',
+      duration_days: nextType === 'service' ? '1' : prev.duration_days || '30',
+    }));
+  };
+
   const savePlan = async () => {
-    const haircut_count = Number(planForm.haircut_count);
+    const isService = planForm.item_type === 'service';
+    const haircut_count = isService ? 1 : Number(planForm.haircut_count);
     const priceValue = Number(planForm.price);
-    const duration_days = Number(planForm.duration_days);
+    const duration_days = isService ? 1 : Number(planForm.duration_days);
 
     if (
       !planForm.name.trim() ||
@@ -148,7 +174,11 @@ export default function ShopSettingsTab({ shopId, onUpdated }: Props) {
       !Number.isInteger(duration_days) ||
       duration_days < 1
     ) {
-      setError('راجع اسم الباقة وعدد الحلاقات والسعر والمدة.');
+      setError(
+        isService
+          ? 'راجع اسم الخدمة والسعر.'
+          : 'راجع اسم الباقة وعدد الحلاقات والسعر والمدة.'
+      );
       return;
     }
 
@@ -157,6 +187,7 @@ export default function ShopSettingsTab({ shopId, onUpdated }: Props) {
     setMessage('');
 
     const payload = {
+      item_type: planForm.item_type,
       name: planForm.name.trim(),
       description: planForm.description.trim() || null,
       haircut_count,
@@ -185,11 +216,17 @@ export default function ShopSettingsTab({ shopId, onUpdated }: Props) {
       await load();
 
       setMessage(
-        editingId ? 'تم تعديل الباقة.' : 'تمت إضافة الباقة.'
+        editingId
+          ? isService
+            ? 'تم تعديل الخدمة.'
+            : 'تم تعديل الباقة.'
+          : isService
+          ? 'تمت إضافة الخدمة.'
+          : 'تمت إضافة الباقة.'
       );
     } catch (e) {
       setError(
-        e instanceof Error ? e.message : 'تعذر حفظ الباقة.'
+        e instanceof Error ? e.message : 'تعذر الحفظ.'
       );
     } finally {
       setPlanSaving(false);
@@ -197,9 +234,13 @@ export default function ShopSettingsTab({ shopId, onUpdated }: Props) {
   };
 
   const editPlan = (plan: Plan) => {
+    const resolvedType: PlanItemType =
+      plan.item_type === 'service' ? 'service' : 'package';
+
     setEditingId(plan.id);
 
     setPlanForm({
+      item_type: resolvedType,
       name: plan.name,
       description: plan.description ?? '',
       haircut_count: String(plan.haircut_count),
@@ -219,6 +260,7 @@ export default function ShopSettingsTab({ shopId, onUpdated }: Props) {
   const togglePlan = async (plan: Plan) => {
     setError('');
     setMessage('');
+    const isService = plan.item_type === 'service';
 
     const { error: updateError } = await supabase
       .from('plans')
@@ -232,7 +274,13 @@ export default function ShopSettingsTab({ shopId, onUpdated }: Props) {
     }
 
     setMessage(
-      plan.is_active ? 'تم إيقاف الباقة.' : 'تم تفعيل الباقة.'
+      plan.is_active
+        ? isService
+          ? 'تم إيقاف الخدمة.'
+          : 'تم إيقاف الباقة.'
+        : isService
+        ? 'تم تفعيل الخدمة.'
+        : 'تم تفعيل الباقة.'
     );
 
     await load();
@@ -247,6 +295,79 @@ export default function ShopSettingsTab({ shopId, onUpdated }: Props) {
     );
   }
 
+  const isEditingService = planForm.item_type === 'service';
+  const packagesList = plans.filter((p) => p.item_type !== 'service');
+  const servicesList = plans.filter((p) => p.item_type === 'service');
+
+  const renderPlanCard = (item: Plan) => {
+    const isService = item.item_type === 'service';
+
+    return (
+      <div
+        key={item.id}
+        className="flex flex-col justify-between gap-3 rounded-xl border border-stone-200 p-4 sm:flex-row sm:items-center"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h4 className="font-extrabold text-stone-900">
+              {item.name}
+            </h4>
+
+            <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-800 ring-1 ring-amber-200">
+              {isService ? 'خدمة عادية' : 'باقة'}
+            </span>
+
+            <span
+              className={`rounded-full px-2 py-1 text-xs font-bold ${
+                item.is_active
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-stone-100 text-stone-500'
+              }`}
+            >
+              {item.is_active ? 'نشطة' : 'متوقفة'}
+            </span>
+          </div>
+
+          {item.description && (
+            <p className="mt-1.5 whitespace-pre-line text-sm leading-relaxed text-stone-600">
+              {item.description}
+            </p>
+          )}
+
+          <div className="mt-2 flex flex-wrap gap-3 text-sm font-bold text-stone-600">
+            <span>{formatPrice(Number(item.price))}</span>
+            {!isService && (
+              <>
+                <span>{item.haircut_count} حلاقة</span>
+                <span>{item.duration_days} يوم</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={() => editPlan(item)}
+            className="inline-flex items-center gap-1 rounded-lg border border-stone-200 px-3 py-2 text-sm font-bold text-stone-700 hover:bg-stone-50"
+          >
+            <Pencil className="h-4 w-4" />
+            تعديل
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void togglePlan(item)}
+            className="inline-flex items-center gap-1 rounded-lg border border-stone-200 px-3 py-2 text-sm font-bold text-stone-700 hover:bg-stone-50"
+          >
+            <Power className="h-4 w-4" />
+            {item.is_active ? 'إيقاف' : 'تفعيل'}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6" dir="rtl">
       <div>
@@ -254,7 +375,7 @@ export default function ShopSettingsTab({ shopId, onUpdated }: Props) {
           إعدادات المحل
         </h2>
         <p className="mt-1 text-sm text-stone-500">
-          إدارة هوية المحل والأسعار والباقات الخاصة به.
+          إدارة هوية المحل والأسعار والباقات والخدمات الخاصة به.
         </p>
       </div>
 
@@ -372,14 +493,46 @@ export default function ShopSettingsTab({ shopId, onUpdated }: Props) {
         <div className="mb-5 flex items-center gap-2">
           <Package className="h-5 w-5 text-amber-600" />
           <h3 className="font-extrabold text-stone-900">
-            باقات المحل
+            الباقات والخدمات العادية للمحل
           </h3>
         </div>
 
         <div className="mb-6 rounded-xl bg-stone-50 p-4">
-          <h4 className="mb-4 font-bold text-stone-800">
-            {editingId ? 'تعديل الباقة' : 'إضافة باقة جديدة'}
+          <h4 className="mb-3 font-bold text-stone-800">
+            {editingId
+              ? isEditingService
+                ? 'تعديل الخدمة العادية'
+                : 'تعديل الباقة'
+              : 'إضافة باقة أو خدمة عادية'}
           </h4>
+
+          <div className="mb-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => handleTypeChange('package')}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition ${
+                !isEditingService
+                  ? 'bg-stone-900 text-white'
+                  : 'border border-stone-200 bg-white text-stone-700 hover:bg-stone-100'
+              }`}
+            >
+              <Package className="h-4 w-4" />
+              باقة اشتراك
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTypeChange('service')}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition ${
+                isEditingService
+                  ? 'bg-stone-900 text-white'
+                  : 'border border-stone-200 bg-white text-stone-700 hover:bg-stone-100'
+              }`}
+            >
+              <Scissors className="h-4 w-4" />
+              خدمة عادية
+            </button>
+          </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <input
@@ -387,21 +540,7 @@ export default function ShopSettingsTab({ shopId, onUpdated }: Props) {
               onChange={(e) =>
                 setPlanForm({ ...planForm, name: e.target.value })
               }
-              placeholder="اسم الباقة"
-              className="rounded-xl border border-stone-200 bg-white px-3 py-2.5"
-            />
-
-            <input
-              type="number"
-              min="1"
-              value={planForm.haircut_count}
-              onChange={(e) =>
-                setPlanForm({
-                  ...planForm,
-                  haircut_count: e.target.value,
-                })
-              }
-              placeholder="عدد الحلاقات"
+              placeholder={isEditingService ? 'اسم الخدمة العادية (مثال: تهذيب لحية)' : 'اسم الباقة'}
               className="rounded-xl border border-stone-200 bg-white px-3 py-2.5"
             />
 
@@ -417,19 +556,37 @@ export default function ShopSettingsTab({ shopId, onUpdated }: Props) {
               className="rounded-xl border border-stone-200 bg-white px-3 py-2.5"
             />
 
-            <input
-              type="number"
-              min="1"
-              value={planForm.duration_days}
-              onChange={(e) =>
-                setPlanForm({
-                  ...planForm,
-                  duration_days: e.target.value,
-                })
-              }
-              placeholder="المدة بالأيام"
-              className="rounded-xl border border-stone-200 bg-white px-3 py-2.5"
-            />
+            {!isEditingService && (
+              <>
+                <input
+                  type="number"
+                  min="1"
+                  value={planForm.haircut_count}
+                  onChange={(e) =>
+                    setPlanForm({
+                      ...planForm,
+                      haircut_count: e.target.value,
+                    })
+                  }
+                  placeholder="عدد الحلاقات"
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2.5"
+                />
+
+                <input
+                  type="number"
+                  min="1"
+                  value={planForm.duration_days}
+                  onChange={(e) =>
+                    setPlanForm({
+                      ...planForm,
+                      duration_days: e.target.value,
+                    })
+                  }
+                  placeholder="المدة بالأيام"
+                  className="rounded-xl border border-stone-200 bg-white px-3 py-2.5"
+                />
+              </>
+            )}
           </div>
 
           <textarea
@@ -440,8 +597,12 @@ export default function ShopSettingsTab({ shopId, onUpdated }: Props) {
                 description: e.target.value,
               })
             }
-            placeholder="وصف الباقة (اختياري)"
-            rows={2}
+            placeholder={
+              isEditingService
+                ? 'وصف وتفاصيل الخدمة العادية بالكامل (سيظهر للعميل)'
+                : 'مميزات ووصف الباقة بالكامل (سيظهر للعميل)'
+            }
+            rows={3}
             className="mt-3 w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5"
           />
 
@@ -457,7 +618,11 @@ export default function ShopSettingsTab({ shopId, onUpdated }: Props) {
               ) : (
                 <Plus className="h-4 w-4" />
               )}
-              {editingId ? 'حفظ التعديلات' : 'إضافة الباقة'}
+              {editingId
+                ? 'حفظ التعديلات'
+                : isEditingService
+                ? 'إضافة الخدمة'
+                : 'إضافة الباقة'}
             </button>
 
             {editingId && (
@@ -473,69 +638,32 @@ export default function ShopSettingsTab({ shopId, onUpdated }: Props) {
           </div>
         </div>
 
-        <div className="space-y-3">
-          {plans.length === 0 ? (
-            <p className="rounded-xl bg-stone-50 py-8 text-center text-sm text-stone-500">
-              لا توجد باقات لهذا المحل حتى الآن.
-            </p>
-          ) : (
-            plans.map((plan) => (
-              <div
-                key={plan.id}
-                className="flex flex-col justify-between gap-3 rounded-xl border border-stone-200 p-4 sm:flex-row sm:items-center"
-              >
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h4 className="font-extrabold text-stone-900">
-                      {plan.name}
-                    </h4>
+        <div className="space-y-6">
+          <div className="space-y-3">
+            <h4 className="font-extrabold text-stone-900">
+              الباقات ({packagesList.length})
+            </h4>
+            {packagesList.length === 0 ? (
+              <p className="rounded-xl bg-stone-50 py-6 text-center text-sm text-stone-500">
+                لا توجد باقات لهذا المحل حتى الآن.
+              </p>
+            ) : (
+              packagesList.map(renderPlanCard)
+            )}
+          </div>
 
-                    <span
-                      className={`rounded-full px-2 py-1 text-xs font-bold ${
-                        plan.is_active
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-stone-100 text-stone-500'
-                      }`}
-                    >
-                      {plan.is_active ? 'نشطة' : 'متوقفة'}
-                    </span>
-                  </div>
-
-                  {plan.description && (
-                    <p className="mt-1 text-sm text-stone-500">
-                      {plan.description}
-                    </p>
-                  )}
-
-                  <div className="mt-2 flex flex-wrap gap-3 text-sm font-bold text-stone-600">
-                    <span>{plan.haircut_count} حلاقة</span>
-                    <span>{formatPrice(Number(plan.price))}</span>
-                    <span>{plan.duration_days} يوم</span>
-                  </div>
-                </div>
-
-                <div className="flex shrink-0 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => editPlan(plan)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-stone-200 px-3 py-2 text-sm font-bold text-stone-700 hover:bg-stone-50"
-                  >
-                    <Pencil className="h-4 w-4" />
-                    تعديل
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => void togglePlan(plan)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-stone-200 px-3 py-2 text-sm font-bold text-stone-700 hover:bg-stone-50"
-                  >
-                    <Power className="h-4 w-4" />
-                    {plan.is_active ? 'إيقاف' : 'تفعيل'}
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
+          <div className="space-y-3">
+            <h4 className="font-extrabold text-stone-900">
+              الخدمات العادية ({servicesList.length})
+            </h4>
+            {servicesList.length === 0 ? (
+              <p className="rounded-xl bg-stone-50 py-6 text-center text-sm text-stone-500">
+                لا توجد خدمات عادية مضافة لهذا المحل حتى الآن.
+              </p>
+            ) : (
+              servicesList.map(renderPlanCard)
+            )}
+          </div>
         </div>
       </section>
     </div>

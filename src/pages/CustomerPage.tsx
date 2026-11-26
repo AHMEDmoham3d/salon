@@ -21,14 +21,11 @@ import {
   Info,
   Store,
   ArrowRight,
-  CalendarPlus,
   Gift,
   Users,
   Copy,
   Tag,
   Zap,
-  Bell,
-  X,
 } from 'lucide-react';
 import {
   findCustomerInShops,
@@ -446,108 +443,6 @@ function ConsultationStep<T extends string>({
   );
 }
 
-/* ---------- Booking widget ---------- */
-// function BookingWidget({ customerName }: { customerName: string }) {
-//   const { t, lang } = useI18n();
-//   const [open, setOpen] = useState(false);
-//   const [selectedDate, setSelectedDate] = useState('');
-//   const [selectedTime, setSelectedTime] = useState('');
-//   const [booked, setBooked] = useState<{ date: string; time: string } | null>(null);
-
-//   const dates = (() => {
-//     const arr: { val: string; label: string }[] = [];
-//     for (let i = 0; i < 7; i++) {
-//       const d = new Date();
-//       d.setDate(d.getDate() + i);
-//       const val = d.toISOString().slice(0, 10);
-//       const label = i === 0 ? t('booking.today') : i === 1 ? t('booking.tomorrow') :
-//         new Intl.DateTimeFormat(lang === 'ar' ? 'ar-EG' : 'en-US', { day: 'numeric', month: 'short' }).format(d);
-//       arr.push({ val, label });
-//     }
-//     return arr;
-//   })();
-
-//   const times = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00'];
-
-//   const confirm = () => {
-//     if (!selectedDate || !selectedTime) return;
-//     setBooked({ date: selectedDate, time: selectedTime });
-//     setOpen(false);
-//   };
-
-//   return (
-//     <div className="card overflow-hidden">
-//       <div className="flex items-center gap-3 bg-gradient-to-br from-stone-900 to-stone-800 p-4 text-amber-50">
-//         <div className="grid h-10 w-10 place-items-center rounded-xl bg-amber-500/20">
-//           <CalendarPlus className="h-5 w-5 text-amber-400" />
-//         </div>
-//         <div>
-//           <p className="font-bold">{t('booking.title')}</p>
-//           <p className="text-xs text-stone-400">{t('booking.subtitle')}</p>
-//         </div>
-//       </div>
-//       <div className="p-4">
-//         {booked ? (
-//           <div className="space-y-3">
-//             <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-700">
-//               <CheckCircle2 className="h-4 w-4" /> {t('booking.success')}
-//             </div>
-//             <div className="rounded-xl bg-stone-50 p-3">
-//               <p className="text-xs text-stone-500">{t('booking.pending')}</p>
-//               <p className="mt-1 font-bold text-stone-900">
-//                 {formatDate(booked.date)} — {booked.time}
-//               </p>
-//               <p className="text-xs text-stone-500">{t('booking.successDesc')}</p>
-//             </div>
-//             <button onClick={() => setBooked(null)} className="btn-ghost w-full">
-//               {t('booking.bookAgain')}
-//             </button>
-//           </div>
-//         ) : open ? (
-//           <div className="space-y-3">
-//             <div>
-//               <label className="label">{t('booking.date')}</label>
-//               <div className="flex gap-2 overflow-x-auto pb-1">
-//                 {dates.map((d) => (
-//                   <button key={d.val} onClick={() => setSelectedDate(d.val)}
-//                     className={`shrink-0 rounded-lg border-2 px-3 py-2 text-xs font-bold transition ${
-//                       selectedDate === d.val ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300'
-//                     }`}>
-//                     {d.label}
-//                   </button>
-//                 ))}
-//               </div>
-//             </div>
-//             <div>
-//               <label className="label">{t('booking.time')}</label>
-//               <div className="grid grid-cols-4 gap-2">
-//                 {times.map((tm) => (
-//                   <button key={tm} onClick={() => setSelectedTime(tm)} dir="ltr"
-//                     className={`rounded-lg border-2 px-2 py-2 text-xs font-bold transition ${
-//                       selectedTime === tm ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300'
-//                     }`}>
-//                     {tm}
-//                   </button>
-//                 ))}
-//               </div>
-//             </div>
-//             <div className="flex gap-2">
-//               <button onClick={confirm} disabled={!selectedDate || !selectedTime} className="btn-primary flex-1 disabled:opacity-50">
-//                 <CheckCircle2 className="h-4 w-4" /> {t('booking.confirm')}
-//               </button>
-//               <button onClick={() => setOpen(false)} className="btn-ghost">{t('booking.cancel')}</button>
-//             </div>
-//           </div>
-//         ) : (
-//           <button onClick={() => setOpen(true)} className="btn-primary w-full">
-//             <CalendarPlus className="h-4 w-4" /> {t('booking.title')}
-//           </button>
-//         )}
-//       </div>
-//     </div>
-//   );
-// }
-
 /* ---------- Referral widget ---------- */
 function ReferralWidget({ customerName }: { customerName: string }) {
   const { t } = useI18n();
@@ -735,6 +630,9 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
   const daysLeft = sub ? Math.ceil((new Date(sub.end_date).getTime() - Date.now()) / 86400000) : 0;
   const L = lang === 'ar';
 
+  const packageItems = plans.filter((p) => p.item_type !== 'service');
+  const serviceItems = plans.filter((p) => p.item_type === 'service');
+
   const loyaltyLevel =
     totalVisits >= 20 ? { label: t('cust.level.gold'), icon: Crown, tone: 'text-amber-500', bg: 'bg-amber-50' } :
     totalVisits >= 10 ? { label: t('cust.level.silver'), icon: Medal, tone: 'text-slate-500', bg: 'bg-slate-50' } :
@@ -789,6 +687,11 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
                 </p>
               </div>
             </div>
+            {active && sub?.plan?.description && (
+              <p className="mt-2.5 whitespace-pre-line rounded-xl bg-white/80 p-3 text-xs leading-relaxed text-stone-700">
+                {sub.plan.description}
+              </p>
+            )}
             {active && sub && (
               <>
                 <div className="mt-4">
@@ -815,13 +718,10 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
 
       <WhatsAppConsentPanel customerName={customer.name} phone={customer.phone} />
 
-      {/* Booking */}
-      {/* <div className="mt-4"><BookingWidget customerName={customer.name} /></div> */}
-
       {/* Hair consultation */}
       <div id="hair-consultation" className="mt-6 scroll-mt-6"><HairConsultation customer={customer} shopId={shopId} /></div>
 
-      {/* Secondary customer information: same features, clearer responsive layout */}
+      {/* Secondary customer information */}
       <div className="mt-6 grid items-start gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.85fr)]">
         <div className="space-y-5">
           {/* Offers */}
@@ -883,18 +783,50 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
             </div>
           </div>
 
-          {/* Plans hint */}
-          {!active && plans.length > 0 && (
+          {/* Plans & Services with full description */}
+          {packageItems.length > 0 && (
             <div id="plans" className="rounded-[24px] border border-[#e9e2d8] bg-white p-5 shadow-sm">
               <h3 className="mb-3 font-bold text-stone-900">{t('cust.plansTitle')}</h3>
-              <div className="space-y-2">
-                {plans.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between rounded-xl border border-stone-200 bg-stone-50 p-3">
-                    <div>
-                      <p className="font-bold text-stone-800">{p.name}</p>
-                      <p className="text-xs text-stone-500">{p.haircut_count} {t('cust.haircuts')} • {p.duration_days} {t('home.days')}</p>
+              <div className="space-y-2.5">
+                {packageItems.map((p) => (
+                  <div key={p.id} className="rounded-xl border border-stone-200 bg-stone-50 p-3.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-bold text-stone-800">{p.name}</p>
+                        <p className="mt-0.5 text-xs text-stone-500">
+                          {p.haircut_count} {t('cust.haircuts')} • {p.duration_days} {t('home.days')}
+                        </p>
+                      </div>
+                      <span className="shrink-0 font-bold text-amber-600">{formatPrice(p.price)}</span>
                     </div>
-                    <span className="font-bold text-amber-600">{formatPrice(p.price)}</span>
+                    {p.description && (
+                      <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-stone-600">
+                        {p.description}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {serviceItems.length > 0 && (
+            <div id="services" className="rounded-[24px] border border-[#e9e2d8] bg-white p-5 shadow-sm">
+              <h3 className="mb-3 font-bold text-stone-900">
+                {L ? 'الخدمات العادية المتاحة' : 'Available Services'}
+              </h3>
+              <div className="space-y-2.5">
+                {serviceItems.map((s) => (
+                  <div key={s.id} className="rounded-xl border border-stone-200 bg-stone-50 p-3.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="font-bold text-stone-800">{s.name}</p>
+                      <span className="shrink-0 font-bold text-amber-600">{formatPrice(s.price)}</span>
+                    </div>
+                    {s.description && (
+                      <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-stone-600">
+                        {s.description}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
