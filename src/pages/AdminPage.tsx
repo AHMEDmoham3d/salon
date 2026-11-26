@@ -35,6 +35,8 @@ import {
   ChevronDown,
   ChevronUp,
   Calendar,
+  PlusCircle,
+  ShoppingBag,
 } from 'lucide-react';
 import Modal from '@/components/Modal';
 import {
@@ -91,22 +93,45 @@ type LedgerTx = {
   notes: string | null;
 };
 
+type ShopExpenseItem = {
+  id: string;
+  shop_id: string;
+  title: string;
+  category: string;
+  amount: number;
+  expense_date: string;
+  notes: string | null;
+  created_at?: string;
+};
+
 type ShopFinancialSnapshot = {
   transactions: LedgerTx[];
   recordedTransactions: LedgerTx[];
   subscriptions: Subscription[];
   visits: Visit[];
+  expenses: ShopExpenseItem[];
   totalCollected: number;
   totalCompanyFees: number;
+  netBeforeExpenses: number;
+  totalExpenses: number;
+  finalNetProfit: number;
   netShopRevenue: number;
   todayCollected: number;
   todayFees: number;
+  todayNetBeforeExpenses: number;
+  todayExpenses: number;
+  todayFinalNet: number;
   todayNet: number;
   thisMonthCollected: number;
   thisMonthFees: number;
+  thisMonthNetBeforeExpenses: number;
+  thisMonthExpenses: number;
+  thisMonthFinalNet: number;
   thisMonthNet: number;
   lastMonthCollected: number;
   lastMonthFees: number;
+  lastMonthExpenses: number;
+  lastMonthFinalNet: number;
   lastMonthNet: number;
   packageSalesCount: number;
   packageSalesRevenue: number;
@@ -132,6 +157,139 @@ function normalizeShopId(shopId: string): string {
 
 function getContractStorageKey(shopId: string): string {
   return `ulmi_smart_contract_sig_${normalizeShopId(shopId)}`;
+}
+
+function getExpensesLocalKey(shopId: string): string {
+  return `ulmi_shop_expenses_${normalizeShopId(shopId)}`;
+}
+
+function readLocalExpenses(shopId: string): ShopExpenseItem[] {
+  const cleanId = normalizeShopId(shopId);
+  if (!cleanId) return [];
+  try {
+    const raw = localStorage.getItem(getExpensesLocalKey(cleanId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalExpenses(shopId: string, items: ShopExpenseItem[]): void {
+  const cleanId = normalizeShopId(shopId);
+  if (!cleanId) return;
+  try {
+    localStorage.setItem(getExpensesLocalKey(cleanId), JSON.stringify(items));
+  } catch {
+    // تجاهل أخطاء التخزين المحلي
+  }
+}
+
+async function fetchShopExpenses(shopId: string): Promise<ShopExpenseItem[]> {
+  const cleanId = normalizeShopId(shopId);
+  if (!cleanId) return [];
+  const localItems = readLocalExpenses(cleanId);
+
+  try {
+    const { data, error } = await supabase
+      .from('shop_expenses')
+      .select('id, shop_id, title, category, amount, expense_date, notes, created_at')
+      .eq('shop_id', cleanId)
+      .order('expense_date', { ascending: false });
+
+    if (!error && Array.isArray(data)) {
+      const normalizedDb: ShopExpenseItem[] = data.map((row) => ({
+        id: String(row.id),
+        shop_id: String(row.shop_id || cleanId),
+        title: String(row.title || 'مصروف تشغيل'),
+        category: String(row.category || 'مستلزمات تشغيل'),
+        amount: Number(row.amount || 0),
+        expense_date: row.expense_date || row.created_at || new Date().toISOString(),
+        notes: row.notes ?? null,
+        created_at: row.created_at,
+      }));
+      writeLocalExpenses(cleanId, normalizedDb);
+      return normalizedDb;
+    }
+  } catch {
+    // في حال عدم إمكانية الاتصال بالجدول نستخدم المحلي
+  }
+
+  return localItems;
+}
+
+async function createShopExpense(
+  shopId: string,
+  payload: { title: string; category: string; amount: number; expenseDate: string; notes?: string }
+): Promise<ShopExpenseItem> {
+  const cleanId = normalizeShopId(shopId);
+  const isoDate = payload.expenseDate
+    ? new Date(`${payload.expenseDate}T12:00:00`).toISOString()
+    : new Date().toISOString();
+
+  const tempId = `exp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const item: ShopExpenseItem = {
+    id: tempId,
+    shop_id: cleanId,
+    title: payload.title.trim(),
+    category: payload.category.trim() || 'مستلزمات تشغيل',
+    amount: Number(payload.amount),
+    expense_date: isoDate,
+    notes: payload.notes?.trim() ? payload.notes.trim() : null,
+    created_at: new Date().toISOString(),
+  };
+
+  try {
+    const { data, error } = await supabase
+      .from('shop_expenses')
+      .insert({
+        shop_id: cleanId,
+        title: item.title,
+        category: item.category,
+        amount: item.amount,
+        expense_date: item.expense_date,
+        notes: item.notes,
+      })
+      .select('id, shop_id, title, category, amount, expense_date, notes, created_at')
+      .single();
+
+    if (!error && data) {
+      const saved: ShopExpenseItem = {
+        id: String(data.id),
+        shop_id: String(data.shop_id || cleanId),
+        title: String(data.title || item.title),
+        category: String(data.category || item.category),
+        amount: Number(data.amount || item.amount),
+        expense_date: data.expense_date || item.expense_date,
+        notes: data.notes ?? null,
+        created_at: data.created_at,
+      };
+      const current = readLocalExpenses(cleanId);
+      writeLocalExpenses(cleanId, [saved, ...current]);
+      return saved;
+    }
+  } catch {
+    // حفظ محلي احتياطي إذا تعذر الاتصال
+  }
+
+  const current = readLocalExpenses(cleanId);
+  writeLocalExpenses(cleanId, [item, ...current]);
+  return item;
+}
+
+async function removeShopExpense(shopId: string, expenseId: string): Promise<void> {
+  const cleanId = normalizeShopId(shopId);
+  try {
+    await supabase.from('shop_expenses').delete().eq('id', expenseId).eq('shop_id', cleanId);
+  } catch {
+    // تجاهل أخطاء الشبكة عند الحذف المحلي
+  }
+  const current = readLocalExpenses(cleanId);
+  writeLocalExpenses(
+    cleanId,
+    current.filter((e) => e.id !== expenseId)
+  );
 }
 
 function generateDeterministicContractId(shopId: string, shopName?: string): string {
@@ -307,9 +465,10 @@ async function fetchShopFinancialSnapshot(
   customers: Customer[]
 ): Promise<ShopFinancialSnapshot> {
   const customerIds = customers.map((c) => c.id);
-  const [txData, { subscriptions, visits }] = await Promise.all([
+  const [txData, { subscriptions, visits }, expenses] = await Promise.all([
     getShopPaymentTransactions(shopId, customerIds),
     getShopActivityData(customers, { shopId }),
+    fetchShopExpenses(shopId),
   ]);
 
   const dbTransactions = txData as LedgerTx[];
@@ -411,6 +570,37 @@ async function fetchShopFinancialSnapshot(
     }
   }
 
+  let totalExpenses = 0;
+  let todayExpenses = 0;
+  let thisMonthExpenses = 0;
+  let lastMonthExpenses = 0;
+
+  for (const exp of expenses) {
+    const expAmt = Number(exp.amount || 0);
+    totalExpenses += expAmt;
+    if (isSameLocalDay(exp.expense_date, now)) {
+      todayExpenses += expAmt;
+    }
+    if (isSameLocalMonth(exp.expense_date, now)) {
+      thisMonthExpenses += expAmt;
+    }
+    if (isSameLocalMonth(exp.expense_date, lastMonthDate)) {
+      lastMonthExpenses += expAmt;
+    }
+  }
+
+  const netBeforeExpenses = totalCollected - totalCompanyFees;
+  const finalNetProfit = netBeforeExpenses - totalExpenses;
+
+  const todayNetBeforeExpenses = todayCollected - todayFees;
+  const todayFinalNet = todayNetBeforeExpenses - todayExpenses;
+
+  const thisMonthNetBeforeExpenses = thisMonthCollected - thisMonthFees;
+  const thisMonthFinalNet = thisMonthNetBeforeExpenses - thisMonthExpenses;
+
+  const lastMonthNetBeforeExpenses = lastMonthCollected - lastMonthFees;
+  const lastMonthFinalNet = lastMonthNetBeforeExpenses - lastMonthExpenses;
+
   const packageSalesCount = recorded.filter((t) => t.payment_kind === 'subscription').length;
   const subscriptionVisitsUsed = visits.filter((v) => v.payment_type === 'subscription').length;
   const regularVisitsCount = visits.filter((v) => v.payment_type !== 'subscription').length;
@@ -420,18 +610,30 @@ async function fetchShopFinancialSnapshot(
     recordedTransactions: recorded,
     subscriptions,
     visits,
+    expenses,
     totalCollected,
     totalCompanyFees,
-    netShopRevenue: totalCollected - totalCompanyFees,
+    netBeforeExpenses,
+    totalExpenses,
+    finalNetProfit,
+    netShopRevenue: finalNetProfit,
     todayCollected,
     todayFees,
-    todayNet: todayCollected - todayFees,
+    todayNetBeforeExpenses,
+    todayExpenses,
+    todayFinalNet,
+    todayNet: todayFinalNet,
     thisMonthCollected,
     thisMonthFees,
-    thisMonthNet: thisMonthCollected - thisMonthFees,
+    thisMonthNetBeforeExpenses,
+    thisMonthExpenses,
+    thisMonthFinalNet,
+    thisMonthNet: thisMonthFinalNet,
     lastMonthCollected,
     lastMonthFees,
-    lastMonthNet: lastMonthCollected - lastMonthFees,
+    lastMonthExpenses,
+    lastMonthFinalNet,
+    lastMonthNet: lastMonthFinalNet,
     packageSalesCount,
     packageSalesRevenue,
     extraServicesRevenue,
@@ -449,6 +651,7 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [addOpen, setAddOpen] = useState(false);
+  const [expenseModalOpen, setExpenseModalOpen] = useState(false);
   const [selected, setSelected] = useState<Customer | null>(null);
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [noticeInitialView, setNoticeInitialView] = useState<'notice' | 'contract'>('notice');
@@ -528,6 +731,14 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
     setNoticeOpen(true);
   }, [isContractSigned]);
 
+  const handleOpenAddExpense = useCallback(() => {
+    if (!isContractSigned) {
+      openContractModal(true);
+      return;
+    }
+    setExpenseModalOpen(true);
+  }, [isContractSigned, openContractModal]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -551,7 +762,7 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
     { k: 'customers', label: 'العملاء', icon: Users },
     { k: 'visits', label: 'الزيارات', icon: Receipt },
     { k: 'subscriptions', label: 'الباقات والاشتراكات', icon: CalendarClock },
-    { k: 'revenue', label: 'الإيرادات والتقارير', icon: Wallet },
+    { k: 'revenue', label: 'الإيرادات والمصروفات', icon: Wallet },
     { k: 'settings', label: 'إعدادات المحل', icon: Settings },
   ];
 
@@ -636,7 +847,7 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
 
               <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
                 <span className="inline-flex items-center gap-1.5">
-                  <span>إدارة العملاء والباقات والزيارات والمالية</span>
+                  <span>إدارة العملاء والباقات والزيارات والمصروفات</span>
                   <span>·</span>
                   <UlmiWordmark variant="light" size="sm" />
                 </span>
@@ -651,6 +862,15 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
 
           <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-stone-100 pt-4 lg:justify-end lg:border-t-0 lg:pt-0">
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleOpenAddExpense}
+                className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-stone-200 bg-stone-50 px-3.5 text-xs font-bold text-stone-800 transition hover:border-stone-300 hover:bg-stone-100"
+              >
+                <ShoppingBag className="h-4 w-4 shrink-0 text-stone-700" />
+                <span>إضافة مصروف</span>
+              </button>
+
               <button
                 type="button"
                 onClick={openNoticeModal}
@@ -780,6 +1000,8 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
             shopId={cleanShopId}
             customers={customers}
             refreshTick={refreshTick}
+            onOpenAddExpense={handleOpenAddExpense}
+            onMutated={bumpData}
           />
         )}
         {tab === 'settings' && (
@@ -793,6 +1015,16 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
           />
         )}
       </main>
+
+      <AddExpenseModal
+        shopId={cleanShopId}
+        open={expenseModalOpen}
+        onClose={() => setExpenseModalOpen(false)}
+        onCreated={() => {
+          setExpenseModalOpen(false);
+          bumpData();
+        }}
+      />
 
       <AddCustomerModal
         shopId={cleanShopId}
@@ -833,6 +1065,148 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
         }}
       />
     </div>
+  );
+}
+
+/* ---------- Add Shop Expense Modal ---------- */
+function AddExpenseModal({
+  shopId,
+  open,
+  onClose,
+  onCreated,
+}: {
+  shopId: string;
+  open: boolean;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [category, setCategory] = useState('مستلزمات تشغيل');
+  const [amount, setAmount] = useState<string>('');
+  const [expenseDate, setExpenseDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    setTitle('');
+    setCategory('مستلزمات تشغيل');
+    setAmount('');
+    setExpenseDate(new Date().toISOString().slice(0, 10));
+    setNotes('');
+    setErr('');
+  }, [open]);
+
+  const submit = async () => {
+    const numAmount = Number(amount);
+    if (!title.trim()) {
+      setErr('يرجى كتابة اسم المصروف (مثال: مناديل، فوط، أمواس)');
+      return;
+    }
+    if (!Number.isFinite(numAmount) || numAmount <= 0) {
+      setErr('يرجى إدخال مبلغ صحيح أكبر من صفر');
+      return;
+    }
+    setSaving(true);
+    setErr('');
+    try {
+      await createShopExpense(shopId, {
+        title,
+        category,
+        amount: numAmount,
+        expenseDate,
+        notes,
+      });
+      onCreated();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'تعذر حفظ المصروف');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="إضافة مصروف للمحل" maxWidth="max-w-md">
+      <div className="space-y-4">
+        <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 text-xs leading-relaxed text-stone-700">
+          يُخصم المصروف من صافي المحل (بعد رسوم الشركة) ويظهر أثره مباشرة في الربح النهائي وفي عمود الجراف.
+        </div>
+
+        <div>
+          <label className="label">بند المصروف *</label>
+          <input
+            value={title}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              if (err) setErr('');
+            }}
+            className="input"
+            placeholder="مثال: مناديل، فوط، أمواس، سبراي"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">المبلغ *</label>
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={amount}
+              onChange={(e) => {
+                setAmount(e.target.value);
+                if (err) setErr('');
+              }}
+              className="input"
+              placeholder="0.00"
+            />
+          </div>
+          <div>
+            <label className="label">التصنيف</label>
+            <select value={category} onChange={(e) => setCategory(e.target.value)} className="input">
+              <option value="مستلزمات تشغيل">مستلزمات تشغيل</option>
+              <option value="أدوات وحلاقة">أدوات وحلاقة</option>
+              <option value="مناديل وفوط">مناديل وفوط</option>
+              <option value="فواتير وصيانة">فواتير وصيانة</option>
+              <option value="أخرى">أخرى</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label className="label">تاريخ المصروف</label>
+          <input
+            type="date"
+            value={expenseDate}
+            onChange={(e) => setExpenseDate(e.target.value)}
+            className="input"
+          />
+        </div>
+
+        <div>
+          <label className="label">ملاحظات</label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="input min-h-16 resize-none"
+            placeholder="تفاصيل إضافية (اختياري)"
+          />
+        </div>
+
+        {err && <p className="text-xs font-extrabold text-red-600">{err}</p>}
+
+        <div className="flex gap-3 pt-1">
+          <button type="button" onClick={submit} disabled={saving} className="btn-primary flex-1">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-4 w-4" />}
+            {saving ? 'جاري الحفظ...' : 'حفظ وخصم من الربح'}
+          </button>
+          <button type="button" onClick={onClose} className="btn-ghost">
+            إلغاء
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -1004,7 +1378,7 @@ function CompanyNoticeModal({
             <div>
               <p className="mb-1 font-extrabold text-stone-900">3. دقة البيانات والالتزام التشغيلي</p>
               <p className="text-xs sm:text-sm">
-                يلتزم الطرف الثاني بتسجيل الزيارات والتحصيلات بدقة ومصداقية عبر لوحة الإدارة، ويقر بصحة بيانات المحل والمالك الظاهرة في هذا العقد، كما تلتزم شركة <span className="font-bold">{BRAND_NAME}</span> بتوفير المنصة واستمرارية تشغيل السجلات والتقارير.
+                يلتزم الطرف الثاني بتسجيل الزيارات والتحصيلات والمصروفات بدقة ومصداقية عبر لوحة الإدارة، ويقر بصحة بيانات المحل والمالك الظاهرة في هذا العقد، كما تلتزم شركة <span className="font-bold">{BRAND_NAME}</span> بتوفير المنصة واستمرارية تشغيل السجلات والتقارير.
               </p>
             </div>
           </div>
@@ -1135,7 +1509,7 @@ function CompanyNoticeModal({
 
         <p className="text-sm leading-relaxed text-stone-700">
           الحلاقة العادية المدفوعة تخضع لرسوم شركة ثابتة قدرها{' '}
-          <span className="font-bold text-stone-900">{formatPrice(COMPANY_FEE_PER_VISIT)}</span>، وبيع الباقات يحتسب رسومها مرة واحدة عند البيع وفق قواعد النظام، بينما استخدام زيارة الباقة لا يضيف رسومًا جديدة والخدمات الإضافية أثناء زيارة الباقة تذهب بالكامل للمحل.
+          <span className="font-bold text-stone-900">{formatPrice(COMPANY_FEE_PER_VISIT)}</span>، وبيع الباقات يحتسب رسومها مرة واحدة عند البيع وفق قواعد النظام، وتُخصم مصروفات المحل بعد رسوم الشركة للوصول لصافي الربح النهائي.
         </p>
 
         <div className="flex gap-3">
@@ -1236,11 +1610,11 @@ function Overview({
 
   const totalCollectedDisplay = snapshot ? snapshot.totalCollected : financial?.totalRevenue ?? 0;
   const companyFeesDisplay = snapshot ? snapshot.totalCompanyFees : financial?.companyFee ?? 0;
-  const netRevenueDisplay = snapshot ? snapshot.netShopRevenue : financial?.netRevenue ?? 0;
+  const netBeforeExpensesDisplay = snapshot ? snapshot.netBeforeExpenses : financial?.netRevenue ?? 0;
+  const expensesDisplay = snapshot ? snapshot.totalExpenses : 0;
+  const finalProfitDisplay = snapshot ? snapshot.finalNetProfit : netBeforeExpensesDisplay - expensesDisplay;
   const actualVisitsDisplay = snapshot ? snapshot.actualVisitsCount : stats.totalVisits;
   const soldPackagesDisplay = snapshot ? snapshot.packageSalesCount : 0;
-  const subVisitsUsedDisplay = snapshot ? snapshot.subscriptionVisitsUsed : 0;
-  const extraServicesDisplay = snapshot ? snapshot.extraServicesRevenue : 0;
 
   const operationalCards = [
     { label: 'إجمالي العملاء', value: stats.totalCustomers, icon: Users },
@@ -1251,28 +1625,28 @@ function Overview({
 
   const primarySummaryCards = [
     {
-      label: 'إجمالي المبالغ المحصلة',
+      label: 'إجمالي التحصيل',
       value: stats.loading ? '—' : formatPrice(totalCollectedDisplay),
-      detail: 'حلاقات عادية + باقات + خدمات إضافية مسجلة',
+      detail: 'حلاقات عادية + باقات + خدمات إضافية',
       tone: 'text-stone-900',
     },
     {
-      label: 'صافي دخل المحل',
-      value: stats.loading ? '—' : formatPrice(netRevenueDisplay),
-      detail: 'إجمالي المحصل بعد خصم رسوم الشركة',
-      tone: 'text-emerald-700',
-    },
-    {
-      label: 'إجمالي رسوم الشركة المستحقة',
-      value: stats.loading ? '—' : formatPrice(companyFeesDisplay),
-      detail: 'بدون تكرار على زيارات الباقة',
+      label: 'رسوم الشركة وصافي المحل (قبل المصروفات)',
+      value: stats.loading ? '—' : formatPrice(netBeforeExpensesDisplay),
+      detail: `بعد خصم ${formatPrice(companyFeesDisplay)} رسوم شركة`,
       tone: 'text-stone-800',
     },
     {
-      label: 'زيارات الباقات المستخدمة',
-      value: stats.loading ? '—' : `${subVisitsUsedDisplay} زيارة`,
-      detail: `من ${actualVisitsDisplay} زيارة فعلية · إضافية ${formatPrice(extraServicesDisplay)}`,
-      tone: 'text-stone-800',
+      label: 'مصروفات المحل',
+      value: stats.loading ? '—' : formatPrice(expensesDisplay),
+      detail: 'مناديل، فوط، أمواس ومستلزمات التشغيل',
+      tone: 'text-red-700',
+    },
+    {
+      label: 'ربح المحل النهائي (بعد المصروفات)',
+      value: stats.loading ? '—' : formatPrice(finalProfitDisplay),
+      detail: 'صافي المحل − مصروفات المحل',
+      tone: finalProfitDisplay >= 0 ? 'text-emerald-700' : 'text-red-700',
     },
   ];
 
@@ -1300,7 +1674,7 @@ function Overview({
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 bg-stone-50/50 px-5 py-4">
           <div>
             <h2 className="font-display text-base font-extrabold text-stone-900">الملخص المالي والتشغيلي</h2>
-            <p className="mt-0.5 text-xs text-stone-500">مؤشرات التحصيل والصافي والرسوم والزيارات الحالية</p>
+            <p className="mt-0.5 text-xs text-stone-500">التحصيل، رسوم الشركة، مصروفات المحل، وربح المحل النهائي</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -1315,7 +1689,7 @@ function Overview({
               className="inline-flex items-center gap-1.5 rounded-xl bg-stone-900 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-stone-800"
             >
               <Wallet className="h-3.5 w-3.5" />
-              الإيرادات والتقارير
+              الإيرادات والمصروفات
               <ArrowUpRight className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -1342,7 +1716,7 @@ function Overview({
         )}
 
         <div className="border-t border-stone-200 bg-stone-50 px-5 py-3 text-[11px] leading-relaxed text-stone-600">
-          حلاقة عادية: رسوم الشركة {formatPrice(COMPANY_FEE_PER_VISIT)} والصافي (السعر − 10) · بيع باقة: تُحسب رسومها مرة واحدة عند البيع · استخدام زيارة من الباقة: صفر رسوم ولا يُعدّ تحصيلًا جديدًا · خدمة إضافية أثناء زيارة باقة: صفر رسوم وتُضاف كاملًا للمحل.
+          المعادلة المالية: إجمالي التحصيل − رسوم الشركة ({formatPrice(COMPANY_FEE_PER_VISIT)}/حلاقة) = صافي المحل (قبل المصروفات) − مصروفات المحل = ربح المحل النهائي.
         </div>
       </section>
 
@@ -2056,15 +2430,19 @@ type ActivityDetailItem = {
   packageTotal?: number;
 };
 
-/* ---------- Revenue, Analytics & Ledger tab ---------- */
+/* ---------- Revenue, Analytics, Expenses & Ledger tab ---------- */
 function RevenueTab({
   shopId,
   customers,
   refreshTick,
+  onOpenAddExpense,
+  onMutated,
 }: {
   shopId: string;
   customers: Customer[];
   refreshTick: number;
+  onOpenAddExpense: () => void;
+  onMutated: () => void;
 }) {
   const [stats, setStats] = useState<RevenueStats | null>(null);
   const [snapshot, setSnapshot] = useState<ShopFinancialSnapshot | null>(null);
@@ -2079,6 +2457,7 @@ function RevenueTab({
   const [dateTo, setDateTo] = useState('');
   const [expandedMonthKey, setExpandedMonthKey] = useState<string | null>(null);
   const [expandedDayKey, setExpandedDayKey] = useState<string | null>(null);
+  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -2117,6 +2496,17 @@ function RevenueTab({
   const transactions = snapshot?.transactions ?? [];
   const allSubscriptions = snapshot?.subscriptions ?? [];
   const allVisits = snapshot?.visits ?? [];
+  const expenses = snapshot?.expenses ?? [];
+
+  const handleDeleteExpense = async (expenseId: string) => {
+    setDeletingExpenseId(expenseId);
+    try {
+      await removeShopExpense(shopId, expenseId);
+      onMutated();
+    } finally {
+      setDeletingExpenseId(null);
+    }
+  };
 
   const customerNames = useMemo(
     () => new Map(customers.map((customer) => [customer.id, customer.name])),
@@ -2196,8 +2586,17 @@ function RevenueTab({
         const date = new Date(transaction.payment_date);
         return date.getFullYear() === year && date.getMonth() === month;
       });
+      const monthExpensesList = expenses.filter((exp) => {
+        const date = new Date(exp.expense_date);
+        return date.getFullYear() === year && date.getMonth() === month;
+      });
+
       const collected = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
       const fees = rows.reduce((sum, row) => sum + Number(row.company_fee_amount || 0), 0);
+      const monthExpenses = monthExpensesList.reduce((sum, exp) => sum + Number(exp.amount || 0), 0);
+      const netBeforeExpenses = collected - fees;
+      const netAfterExpenses = netBeforeExpenses - monthExpenses;
+
       const packages = rows.filter((row) => row.payment_kind === 'subscription').reduce((sum, row) => sum + Number(row.amount || 0), 0);
       const regular = rows.filter((row) => row.payment_kind === 'visit' && Number(row.company_fee_amount || 0) > 0).reduce((sum, row) => sum + Number(row.amount || 0), 0);
       const extras = rows.filter((row) => row.payment_kind === 'visit' && Number(row.company_fee_amount || 0) === 0).reduce((sum, row) => sum + Number(row.amount || 0), 0);
@@ -2231,16 +2630,22 @@ function RevenueTab({
         shortLabel: monthDate.toLocaleDateString('ar-EG', { month: 'short' }),
         collected,
         fees,
-        net: collected - fees,
+        netBeforeExpenses,
+        monthExpenses,
+        netAfterExpenses,
         packages,
         regular,
         extras,
         details,
+        monthExpensesList,
       };
     });
-  }, [reportTransactions, customerNames, buildCustomerSubMeta]);
+  }, [reportTransactions, expenses, customerNames, buildCustomerSubMeta]);
 
-  const monthlyMax = Math.max(1, ...monthlyReport.map((row) => row.collected));
+  const monthlyMax = Math.max(
+    1,
+    ...monthlyReport.map((row) => Math.max(row.collected, row.netBeforeExpenses, Math.max(0, row.netAfterExpenses)))
+  );
 
   const dailyReport = useMemo(() => {
     return Array.from({ length: 7 }, (_, index) => {
@@ -2259,8 +2664,16 @@ function RevenueTab({
         return date.getFullYear() === day.getFullYear() && date.getMonth() === day.getMonth() && date.getDate() === day.getDate();
       });
 
+      const dayExpensesList = expenses.filter((exp) => {
+        const date = new Date(exp.expense_date);
+        return date.getFullYear() === day.getFullYear() && date.getMonth() === day.getMonth() && date.getDate() === day.getDate();
+      });
+
       const collected = dayTx.reduce((sum, row) => sum + Number(row.amount || 0), 0);
       const fees = dayTx.reduce((sum, row) => sum + Number(row.company_fee_amount || 0), 0);
+      const dayExpenses = dayExpensesList.reduce((sum, exp) => sum + Number(exp.amount || 0), 0);
+      const netBeforeExp = collected - fees;
+      const finalDayNet = netBeforeExp - dayExpenses;
 
       const details: ActivityDetailItem[] = [];
 
@@ -2309,14 +2722,17 @@ function RevenueTab({
         shortLabel: day.toLocaleDateString('ar-EG', { weekday: 'short', day: 'numeric', month: 'short' }),
         collected,
         fees,
-        net: collected - fees,
+        netBeforeExp,
+        dayExpenses,
+        finalDayNet,
         count: details.length,
         details,
+        dayExpensesList,
       };
     });
-  }, [reportTransactions, allVisits, customerNames, buildCustomerSubMeta]);
+  }, [reportTransactions, allVisits, expenses, customerNames, buildCustomerSubMeta]);
 
-  const dailyMax = Math.max(1, ...dailyReport.map((row) => row.collected));
+  const dailyMax = Math.max(1, ...dailyReport.map((row) => Math.max(row.collected, Math.max(0, row.finalDayNet))));
 
   const paymentMethodReport = [
     { key: 'cash', label: 'كاش' },
@@ -2358,9 +2774,11 @@ function RevenueTab({
           <p className="mt-2 font-display text-2xl font-extrabold text-stone-900">
             محصل: {formatPrice(snapshot?.todayCollected ?? 0)}
           </p>
-          <div className="mt-3 flex flex-wrap gap-4 text-xs font-bold">
-            <span className="text-stone-600">رسوم الشركة اليوم: {formatPrice(snapshot?.todayFees ?? 0)}</span>
-            <span className="text-emerald-700">صافي المحل اليوم: {formatPrice(snapshot?.todayNet ?? 0)}</span>
+          <div className="mt-3 flex flex-wrap gap-3 text-xs font-bold">
+            <span className="text-stone-600">رسوم الشركة: {formatPrice(snapshot?.todayFees ?? 0)}</span>
+            <span className="text-stone-800">صافي المحل: {formatPrice(snapshot?.todayNetBeforeExpenses ?? 0)}</span>
+            <span className="text-red-700">مصروفات اليوم: {formatPrice(snapshot?.todayExpenses ?? 0)}</span>
+            <span className="text-emerald-700">ربح المحل النهائي: {formatPrice(snapshot?.todayFinalNet ?? 0)}</span>
           </div>
         </div>
 
@@ -2369,10 +2787,11 @@ function RevenueTab({
           <p className="mt-2 font-display text-2xl font-extrabold text-stone-900">
             محصل الشهر: {formatPrice(snapshot?.thisMonthCollected ?? 0)}
           </p>
-          <div className="mt-3 flex flex-wrap gap-4 text-xs font-bold">
+          <div className="mt-3 flex flex-wrap gap-3 text-xs font-bold">
             <span className="text-stone-600">رسوم الشركة: {formatPrice(snapshot?.thisMonthFees ?? 0)}</span>
-            <span className="text-emerald-700">صافي المحل: {formatPrice(snapshot?.thisMonthNet ?? 0)}</span>
-            <span className="text-stone-500">الشهر السابق: {formatPrice(snapshot?.lastMonthCollected ?? 0)}</span>
+            <span className="text-red-700">مصروفات الشهر: {formatPrice(snapshot?.thisMonthExpenses ?? 0)}</span>
+            <span className="text-emerald-700">ربح المحل النهائي: {formatPrice(snapshot?.thisMonthFinalNet ?? 0)}</span>
+            <span className="text-stone-500">الشهر السابق: {formatPrice(snapshot?.lastMonthFinalNet ?? 0)}</span>
           </div>
         </div>
       </section>
@@ -2392,7 +2811,7 @@ function RevenueTab({
             </p>
           </div>
           <div className="card p-5">
-            <p className="text-xs font-bold text-stone-500">إجمالي التحصيلات</p>
+            <p className="text-xs font-bold text-stone-500">إجمالي التحصيل</p>
             <p className="mt-2 font-display text-2xl font-extrabold text-stone-900">
               {formatPrice(snapshot?.totalCollected ?? stats.totalRevenue)}
             </p>
@@ -2426,36 +2845,129 @@ function RevenueTab({
             </div>
             <div>
               <h3 className="flex items-center gap-1.5 font-display text-base font-extrabold text-stone-900">
-                <span>رسوم شركة</span>
+                <span>رسوم</span>
                 <UlmiWordmark variant="light" size="sm" />
+                <span>ومصروفات المحل</span>
               </h3>
               <p className="text-xs text-stone-500">
-                حلاقة عادية: {formatPrice(COMPANY_FEE_PER_VISIT)} · باقة: تُحسب رسومها عند البيع حسب عدد زياراتها · خدمة إضافية أثناء الباقة: 0 رسوم
+                حلاقة عادية: {formatPrice(COMPANY_FEE_PER_VISIT)} · تُخصم رسوم الشركة ثم مصروفات المحل من إجمالي التحصيل
               </p>
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <div className="flex items-center justify-between rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
-              <span className="text-xs font-bold text-stone-600">الرسوم المستحقة (كل الوقت)</span>
+              <span className="text-xs font-bold text-stone-600">رسوم الشركة المستحقة</span>
               <span className="font-bold text-stone-900">{formatPrice(snapshot?.totalCompanyFees ?? stats.companyFee)}</span>
             </div>
             <div className="flex items-center justify-between rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
-              <span className="text-xs font-bold text-stone-600">رسوم هذا الشهر</span>
-              <span className="font-bold text-stone-900">{formatPrice(snapshot?.thisMonthFees ?? stats.thisMonthCompanyFee)}</span>
+              <span className="text-xs font-bold text-stone-600">صافي المحل (قبل المصروفات)</span>
+              <span className="font-bold text-stone-900">{formatPrice(snapshot?.netBeforeExpenses ?? stats.netRevenue)}</span>
+            </div>
+            <div className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50/50 px-4 py-3">
+              <span className="text-xs font-bold text-red-800">إجمالي مصروفات المحل</span>
+              <span className="font-bold text-red-700">− {formatPrice(snapshot?.totalExpenses ?? 0)}</span>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center justify-between border-t border-stone-200 bg-stone-50/70 px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 bg-stone-50/80 px-5 py-4">
           <div>
-            <p className="font-bold text-stone-900">صافي دخل المحل</p>
-            <p className="text-xs text-stone-500">إجمالي التحصيلات − رسوم الشركة</p>
+            <p className="font-bold text-stone-900">ربح المحل النهائي (بعد رسوم الشركة ومصروفات المحل)</p>
+            <p className="text-xs text-stone-500">إجمالي التحصيل − رسوم الشركة − مصروفات المحل</p>
           </div>
-          <p className="font-display text-2xl font-extrabold text-emerald-700">
-            {formatPrice(snapshot?.netShopRevenue ?? stats.netRevenue)}
+          <p
+            className={`font-display text-2xl font-extrabold ${
+              (snapshot?.finalNetProfit ?? stats.netRevenue) >= 0 ? 'text-emerald-700' : 'text-red-700'
+            }`}
+          >
+            {formatPrice(snapshot?.finalNetProfit ?? stats.netRevenue)}
           </p>
         </div>
+      </section>
+
+      {/* ---------- Shop Expenses Management Section ---------- */}
+      <section className="card space-y-4 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="grid h-10 w-10 place-items-center rounded-xl bg-stone-900 text-white">
+              <ShoppingBag className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="font-display text-base font-extrabold text-stone-900">مصروفات المحل (مناديل، فوط، أمواس...)</h3>
+              <p className="text-xs text-stone-500">تُخصم من صافي المحل وتظهر في عمود الربح النهائي بالجراف</p>
+            </div>
+          </div>
+
+          <button type="button" onClick={onOpenAddExpense} className="btn-primary h-10 px-4 text-xs">
+            <PlusCircle className="h-4 w-4" />
+            <span>إضافة مصروف جديد</span>
+          </button>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3.5">
+            <p className="text-xs font-bold text-stone-500">مصروفات اليوم</p>
+            <p className="mt-1 text-lg font-extrabold text-stone-900">{formatPrice(snapshot?.todayExpenses ?? 0)}</p>
+          </div>
+          <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3.5">
+            <p className="text-xs font-bold text-stone-500">مصروفات هذا الشهر</p>
+            <p className="mt-1 text-lg font-extrabold text-red-700">{formatPrice(snapshot?.thisMonthExpenses ?? 0)}</p>
+          </div>
+          <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3.5">
+            <p className="text-xs font-bold text-stone-500">إجمالي المصروفات</p>
+            <p className="mt-1 text-lg font-extrabold text-stone-900">{formatPrice(snapshot?.totalExpenses ?? 0)}</p>
+          </div>
+        </div>
+
+        {expenses.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-stone-300 p-6 text-center text-xs text-stone-500">
+            لا توجد مصروفات مسجلة بعد. اضغط على «إضافة مصروف جديد» لتسجيل شراء مناديل أو فوط أو أمواس.
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-stone-200">
+            <table className="w-full min-w-[620px] text-right text-sm">
+              <thead className="bg-stone-50 text-xs text-stone-600">
+                <tr>
+                  <th className="p-3">التاريخ</th>
+                  <th className="p-3">البند</th>
+                  <th className="p-3">التصنيف</th>
+                  <th className="p-3">المبلغ</th>
+                  <th className="p-3">ملاحظات</th>
+                  <th className="p-3 text-center">حذف</th>
+                </tr>
+              </thead>
+              <tbody>
+                {expenses.map((exp) => (
+                  <tr key={exp.id} className="border-t border-stone-100">
+                    <td className="whitespace-nowrap p-3 text-xs text-stone-600">{formatDate(exp.expense_date)}</td>
+                    <td className="p-3 font-bold text-stone-900">{exp.title}</td>
+                    <td className="p-3">
+                      <span className="rounded-lg bg-stone-100 px-2 py-1 text-xs font-bold text-stone-700">{exp.category}</span>
+                    </td>
+                    <td className="whitespace-nowrap p-3 font-extrabold text-red-700">− {formatPrice(exp.amount)}</td>
+                    <td className="p-3 text-xs text-stone-500">{exp.notes || '—'}</td>
+                    <td className="p-3 text-center">
+                      <button
+                        type="button"
+                        disabled={deletingExpenseId === exp.id}
+                        onClick={() => handleDeleteExpense(exp.id)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 bg-white text-stone-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                        title="حذف المصروف"
+                      >
+                        {deletingExpenseId === exp.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section className="card space-y-6 p-5">
@@ -2463,7 +2975,7 @@ function RevenueTab({
           <BarChart3 className="h-5 w-5 text-stone-700" />
           <div>
             <h3 className="font-display text-base font-extrabold text-stone-900">التقارير والرسوم البيانية ومقارنة الفترات</h3>
-            <p className="mt-0.5 text-xs text-stone-500">تعتمد على العمليات المسجلة وتستجيب لفلاتر سجل التحصيلات.</p>
+            <p className="mt-0.5 text-xs text-stone-500">يوضح الجراف إجمالي التحصيل، صافي المحل قبل المصروفات، وربح المحل النهائي بعد المصروفات.</p>
           </div>
         </div>
 
@@ -2477,58 +2989,84 @@ function RevenueTab({
             <p className="mt-1 text-lg font-extrabold text-emerald-700">{formatPrice(additionalServicesRevenue)}</p>
           </div>
           <div className="rounded-xl border border-stone-200 bg-stone-50/60 p-3.5">
-            <p className="text-xs font-bold text-stone-500">مقارنة الشهر الحالي بالشهر السابق</p>
+            <p className="text-xs font-bold text-stone-500">ربح المحل النهائي (هذا الشهر مقابل السابق)</p>
             <p className="mt-1 text-sm font-extrabold text-stone-900">
-              {formatPrice(snapshot?.thisMonthCollected ?? 0)} مقابل {formatPrice(snapshot?.lastMonthCollected ?? 0)}
+              {formatPrice(snapshot?.thisMonthFinalNet ?? 0)} مقابل {formatPrice(snapshot?.lastMonthFinalNet ?? 0)}
             </p>
           </div>
         </div>
 
         <div className="grid gap-5 lg:grid-cols-2">
+          {/* 3-Column Chart: Collected vs Net Before Expenses vs Final Profit After Expenses */}
           <div className="rounded-2xl border border-stone-200 bg-stone-50/50 p-4">
-            <h4 className="mb-4 text-xs font-extrabold text-stone-800">التحصيلات وصافي المحل — آخر 6 أشهر</h4>
-            <div className="flex h-44 items-end gap-3 border-b border-stone-200 pb-2">
+            <h4 className="mb-4 text-xs font-extrabold text-stone-800">التحصيل وصافي المحل وربح المحل النهائي (بعد المصروفات) — آخر 6 أشهر</h4>
+            <div className="flex h-48 items-end gap-3 border-b border-stone-200 pb-2">
               {monthlyReport.map((month, idx) => (
                 <div key={`${month.label}-${idx}`} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1">
                   <div className="flex h-full w-full items-end justify-center gap-1">
                     <div
-                      title={`التحصيلات: ${formatPrice(month.collected)}`}
-                      className="w-1/2 max-w-5 rounded-t bg-stone-800"
+                      title={`إجمالي التحصيل: ${formatPrice(month.collected)}`}
+                      className="w-1/3 max-w-4 rounded-t bg-stone-900 transition-all"
                       style={{ height: `${Math.max(2, (month.collected / monthlyMax) * 100)}%` }}
                     />
                     <div
-                      title={`صافي المحل: ${formatPrice(month.net)}`}
-                      className="w-1/2 max-w-5 rounded-t bg-emerald-600"
-                      style={{ height: `${Math.max(2, (month.net / monthlyMax) * 100)}%` }}
+                      title={`صافي المحل (قبل المصروفات): ${formatPrice(month.netBeforeExpenses)}`}
+                      className="w-1/3 max-w-4 rounded-t bg-stone-400 transition-all"
+                      style={{ height: `${Math.max(2, (Math.max(0, month.netBeforeExpenses) / monthlyMax) * 100)}%` }}
+                    />
+                    <div
+                      title={`ربح المحل النهائي (بعد المصروفات): ${formatPrice(month.netAfterExpenses)} · مصروفات: ${formatPrice(month.monthExpenses)}`}
+                      className={`w-1/3 max-w-4 rounded-t transition-all ${
+                        month.netAfterExpenses >= 0 ? 'bg-emerald-600' : 'bg-red-500'
+                      }`}
+                      style={{ height: `${Math.max(2, (Math.max(0, month.netAfterExpenses) / monthlyMax) * 100)}%` }}
                     />
                   </div>
                   <span className="text-[10px] font-bold text-stone-500">{month.shortLabel}</span>
                 </div>
               ))}
             </div>
-            <div className="mt-3 flex flex-wrap gap-4 text-[11px] text-stone-600">
-              <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-sm bg-stone-800" /> إجمالي التحصيل</span>
-              <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-sm bg-emerald-600" /> صافي المحل</span>
+            <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-stone-600">
+              <span className="inline-flex items-center gap-1.5">
+                <i className="h-2.5 w-2.5 rounded-sm bg-stone-900" /> إجمالي التحصيل
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <i className="h-2.5 w-2.5 rounded-sm bg-stone-400" /> صافي المحل (قبل المصروفات)
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <i className="h-2.5 w-2.5 rounded-sm bg-emerald-600" /> ربح المحل النهائي (بعد المصروفات)
+              </span>
             </div>
           </div>
 
           <div className="rounded-2xl border border-stone-200 bg-stone-50/50 p-4">
-            <h4 className="mb-4 text-xs font-extrabold text-stone-800">الإيرادات اليومية — آخر 7 أيام</h4>
-            <div className="flex h-44 items-end gap-2 border-b border-stone-200 pb-2">
+            <h4 className="mb-4 text-xs font-extrabold text-stone-800">التحصيل وربح المحل النهائي (بعد المصروفات) — آخر 7 أيام</h4>
+            <div className="flex h-48 items-end gap-2 border-b border-stone-200 pb-2">
               {dailyReport.map((day, idx) => (
                 <div key={`${day.label}-${idx}`} className="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1">
-                  <div
-                    title={`${day.label}: ${formatPrice(day.collected)}`}
-                    className="w-full max-w-7 rounded-t bg-stone-700"
-                    style={{ height: `${Math.max(3, (day.collected / dailyMax) * 100)}%` }}
-                  />
+                  <div className="flex h-full w-full items-end justify-center gap-1">
+                    <div
+                      title={`${day.label} — تحصيل: ${formatPrice(day.collected)}`}
+                      className="w-1/2 max-w-4 rounded-t bg-stone-800"
+                      style={{ height: `${Math.max(3, (day.collected / dailyMax) * 100)}%` }}
+                    />
+                    <div
+                      title={`${day.label} — ربح نهائي بعد المصروفات: ${formatPrice(day.finalDayNet)}`}
+                      className={`w-1/2 max-w-4 rounded-t ${day.finalDayNet >= 0 ? 'bg-emerald-600' : 'bg-red-500'}`}
+                      style={{ height: `${Math.max(3, (Math.max(0, day.finalDayNet) / dailyMax) * 100)}%` }}
+                    />
+                  </div>
                   <span className="truncate text-[9px] font-bold text-stone-500">{day.shortLabel.split(' ')[0]}</span>
                 </div>
               ))}
             </div>
-            <p className="mt-3 text-[11px] text-stone-500">
-              إجمالي آخر 7 أيام: {formatPrice(dailyReport.reduce((s, d) => s + d.collected, 0))}
-            </p>
+            <div className="mt-3 flex flex-wrap justify-between gap-2 text-[11px] text-stone-500">
+              <span className="inline-flex items-center gap-1.5">
+                <i className="h-2.5 w-2.5 rounded-sm bg-stone-800" /> التحصيل
+                <i className="mr-2 h-2.5 w-2.5 rounded-sm bg-emerald-600" /> ربح المحل النهائي
+              </span>
+              <span>صافي ربح 7 أيام: {formatPrice(dailyReport.reduce((s, d) => s + d.finalDayNet, 0))}</span>
+            </div>
           </div>
         </div>
 
@@ -2589,7 +3127,7 @@ function RevenueTab({
           <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
             {monthlyReport.map((month) => {
               const isSelected = expandedMonthKey === month.key;
-              const hasActivity = month.details.length > 0 || month.collected > 0;
+              const hasActivity = month.details.length > 0 || month.collected > 0 || month.monthExpenses > 0;
               return (
                 <button
                   key={month.key}
@@ -2618,11 +3156,19 @@ function RevenueTab({
                     </span>
                   </div>
 
-                  <div className="mt-2.5 flex items-baseline justify-between gap-2 border-t border-current/10 pt-2 text-xs tabular-nums">
-                    <span>تحصيل: <strong>{formatPrice(month.collected)}</strong></span>
-                    <span className={isSelected ? 'text-emerald-300' : 'text-emerald-700'}>
-                      صافي: <strong>{formatPrice(month.net)}</strong>
-                    </span>
+                  <div className="mt-2.5 space-y-1 border-t border-current/10 pt-2 text-[11px] tabular-nums">
+                    <div className="flex justify-between">
+                      <span>تحصيل: <strong>{formatPrice(month.collected)}</strong></span>
+                      <span className={isSelected ? 'text-red-300' : 'text-red-700'}>
+                        مصروفات: <strong>{formatPrice(month.monthExpenses)}</strong>
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>قبل المصروف: <strong>{formatPrice(month.netBeforeExpenses)}</strong></span>
+                      <span className={isSelected ? 'text-emerald-300' : 'text-emerald-700'}>
+                        الربح النهائي: <strong>{formatPrice(month.netAfterExpenses)}</strong>
+                      </span>
+                    </div>
                   </div>
                 </button>
               );
@@ -2634,18 +3180,29 @@ function RevenueTab({
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 pb-2">
                 <p className="text-xs font-extrabold text-stone-900">تفاصيل شهر {activeMonthObj.label}</p>
                 <div className="flex flex-wrap gap-2 text-[11px] font-bold text-stone-600">
-                  <span>رسوم: {formatPrice(activeMonthObj.fees)}</span>
+                  <span>رسوم الشركة: {formatPrice(activeMonthObj.fees)}</span>
                   <span>·</span>
-                  <span>باقات: {formatPrice(activeMonthObj.packages)}</span>
+                  <span className="text-red-700">مصروفات المحل: {formatPrice(activeMonthObj.monthExpenses)}</span>
                   <span>·</span>
-                  <span>عادي: {formatPrice(activeMonthObj.regular)}</span>
-                  <span>·</span>
-                  <span>إضافي: {formatPrice(activeMonthObj.extras)}</span>
+                  <span className="text-emerald-700">الربح النهائي: {formatPrice(activeMonthObj.netAfterExpenses)}</span>
                 </div>
               </div>
 
+              {activeMonthObj.monthExpensesList.length > 0 && (
+                <div className="rounded-lg border border-red-200/80 bg-red-50/40 p-2.5 text-xs">
+                  <p className="mb-1.5 font-extrabold text-red-900">مصروفات هذا الشهر:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {activeMonthObj.monthExpensesList.map((e) => (
+                      <span key={e.id} className="rounded-md border border-red-200 bg-white px-2 py-1 text-[11px] font-bold text-red-800">
+                        {e.title}: −{formatPrice(e.amount)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {activeMonthObj.details.length === 0 ? (
-                <p className="text-xs text-stone-500">لا توجد عمليات مسجلة في هذا الشهر.</p>
+                <p className="text-xs text-stone-500">لا توجد عمليات تحصيل مسجلة في هذا الشهر.</p>
               ) : (
                 <div className="space-y-2">
                   {activeMonthObj.details.map((item) => (
@@ -2661,7 +3218,7 @@ function RevenueTab({
                         <span>·</span>
                         <span>رسوم: <strong>{formatPrice(item.fee)}</strong></span>
                         <span>·</span>
-                        <span className="text-emerald-700">صافي: <strong>{formatPrice(item.net)}</strong></span>
+                        <span className="text-emerald-700">صافي العملية: <strong>{formatPrice(item.net)}</strong></span>
                       </div>
                       <div className="pt-0.5 text-[11px]">
                         {item.isSubscribed ? (
@@ -2688,7 +3245,7 @@ function RevenueTab({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-emerald-700" />
-              <h4 className="text-xs font-extrabold text-stone-900">ملخص آخر 7 أيام (اضغط على اليوم لعرض مين جالك وعمل إيه)</h4>
+              <h4 className="text-xs font-extrabold text-stone-900">ملخص آخر 7 أيام (اضغط على اليوم لعرض مين جالك والمصروفات)</h4>
             </div>
             <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
               سجل يومي تفاعلي
@@ -2706,24 +3263,40 @@ function RevenueTab({
                     className="flex w-full flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 text-right transition hover:bg-white"
                   >
                     <div className="flex items-center gap-2.5">
-                      <span className={`h-2.5 w-2.5 rounded-full ${day.count > 0 ? 'bg-emerald-600' : 'bg-stone-300'}`} />
+                      <span className={`h-2.5 w-2.5 rounded-full ${day.count > 0 || day.dayExpenses > 0 ? 'bg-emerald-600' : 'bg-stone-300'}`} />
                       <span className="text-xs font-extrabold text-stone-900">{day.label}</span>
                       <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-stone-600 ring-1 ring-stone-200">
                         {day.count} حركة
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-3 text-xs tabular-nums">
+                    <div className="flex flex-wrap items-center gap-3 text-xs tabular-nums">
                       <span className="text-stone-700">تحصيل: <strong>{formatPrice(day.collected)}</strong></span>
-                      <span className="text-emerald-700">صافي: <strong>{formatPrice(day.net)}</strong></span>
+                      {day.dayExpenses > 0 && (
+                        <span className="text-red-700">مصروف: <strong>−{formatPrice(day.dayExpenses)}</strong></span>
+                      )}
+                      <span className="text-emerald-700">الربح النهائي: <strong>{formatPrice(day.finalDayNet)}</strong></span>
                       {isOpen ? <ChevronUp className="h-4 w-4 text-stone-500" /> : <ChevronDown className="h-4 w-4 text-stone-500" />}
                     </div>
                   </button>
 
                   {isOpen && (
                     <div className="space-y-2 border-t border-stone-200/80 bg-white p-3">
+                      {day.dayExpensesList.length > 0 && (
+                        <div className="rounded-lg border border-red-200 bg-red-50/50 p-2.5 text-xs">
+                          <p className="mb-1 font-extrabold text-red-900">مصروفات هذا اليوم:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {day.dayExpensesList.map((e) => (
+                              <span key={e.id} className="rounded bg-white px-2 py-0.5 text-[11px] font-bold text-red-800 ring-1 ring-red-200">
+                                {e.title}: −{formatPrice(e.amount)}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {day.details.length === 0 ? (
-                        <p className="text-xs text-stone-500">لا توجد زيارات أو عمليات في هذا اليوم.</p>
+                        <p className="text-xs text-stone-500">لا توجد زيارات أو عمليات تحصيل في هذا اليوم.</p>
                       ) : (
                         day.details.map((item) => (
                           <div key={item.id} className="space-y-1 rounded-lg border border-stone-200 bg-stone-50/60 p-2.5 text-xs">
@@ -2740,7 +3313,7 @@ function RevenueTab({
                               <span>·</span>
                               <span>رسوم الشركة: <strong>{formatPrice(item.fee)}</strong></span>
                               <span>·</span>
-                              <span className="text-emerald-700">صافي المحل: <strong>{formatPrice(item.net)}</strong></span>
+                              <span className="text-emerald-700">صافي العملية: <strong>{formatPrice(item.net)}</strong></span>
                             </div>
                             <div className="pt-0.5 text-[11px]">
                               {item.isSubscribed ? (
@@ -2788,7 +3361,7 @@ function RevenueTab({
             <p className="mt-1 text-lg font-extrabold text-stone-900">{formatPrice(filteredFees)}</p>
           </div>
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-3.5">
-            <p className="text-xs font-bold text-emerald-800">صافي المحل بعد الرسوم</p>
+            <p className="text-xs font-bold text-emerald-800">صافي المحل بعد الرسوم (قبل المصروفات)</p>
             <p className="mt-1 text-lg font-extrabold text-emerald-700">{formatPrice(filteredNet)}</p>
           </div>
         </div>
@@ -2895,7 +3468,7 @@ function RevenueTab({
             { icon: Zap, title: 'تتبع فوري للزيارات', desc: 'سجل دقيق لكل عميل وزيارة دون دفاتر ورقية' },
             { icon: CalendarClock, title: 'تنبيهات الاشتراكات', desc: 'متابعة الاشتراكات القريبة من الانتهاء والمنتهية' },
             { icon: Award, title: 'نظام ولاء تلقائي', desc: 'احتساب الزيارات الفعلية ومستويات الولاء للعملاء' },
-            { icon: Wallet, title: 'حساب الأرباح والرسوم', desc: 'وضوح كامل للمحصل، صافي المحل، ورسوم الشركة' },
+            { icon: Wallet, title: 'حساب الأرباح والمصروفات', desc: 'وضوح كامل للتحصيل، رسوم الشركة، المصروفات، والربح النهائي' },
             { icon: Sparkles, title: 'خدمات إضافية مرنة', desc: 'تسجيل خدمة إضافية أثناء زيارة الباقة لصالح المحل بالكامل' },
             { icon: Building2, title: 'دعم ومزامنة', desc: 'حفظ آمن للبيانات ومتابعة تشغيلية مستمرة' },
           ].map((f) => (
