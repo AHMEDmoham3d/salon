@@ -55,9 +55,6 @@ import {
   getRevenueStats,
   getShopActivityData,
   getShopPaymentTransactions,
-  getShopBookings,
-  updateBookingStatus,
-  completeBookingAsVisit,
   blockCustomer,
   unblockCustomer,
   deleteCustomer,
@@ -70,10 +67,8 @@ import {
   type Subscription,
   type Visit,
   type Plan,
-  type Booking,
   type RevenueStats,
   type SubscriptionAlert,
-  type PaymentMethod,
 } from '@/lib/api';
 import { enableShopBookingPush, playBookingAlertSound, registerServiceWorker } from '@/lib/bookingPush';
 import { REGULAR_HAIRCUT_PRICE, COMPANY_FEE_PER_VISIT, SYSTEM_NAME, supabase } from '@/lib/supabase';
@@ -84,6 +79,23 @@ const BRAND_NAME = 'ulmi';
 const CONTRACT_VERSION = 'v2.0-ulmi';
 
 type Tab = 'overview' | 'bookings' | 'customers' | 'visits' | 'subscriptions' | 'revenue' | 'settings';
+type PaymentMethod = 'cash' | 'instapay' | 'vodafone_cash' | 'card' | 'unknown';
+type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
+
+type Booking = {
+  id: string;
+  shop_id: string;
+  customer_id: string | null;
+  customer_name: string | null;
+  customer_phone: string | null;
+  booking_code: string;
+  service_name: string;
+  start_at: string;
+  status: BookingStatus;
+  auto_confirmed?: boolean;
+  notes?: string | null;
+  created_at?: string;
+};
 
 type LedgerTx = {
   id: string;
@@ -161,6 +173,57 @@ type ContractSignatureRecord = {
 
 function normalizeShopId(shopId: string): string {
   return String(shopId || '').trim();
+}
+
+async function getShopBookings(shopId: string): Promise<Booking[]> {
+  const cleanId = normalizeShopId(shopId);
+  if (!cleanId) return [];
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*')
+    .eq('shop_id', cleanId)
+    .order('start_at', { ascending: false });
+
+  if (error) {
+    console.error('Failed loading bookings:', error);
+    return [];
+  }
+  return (data ?? []) as Booking[];
+}
+
+async function updateBookingStatus(bookingId: string, status: BookingStatus): Promise<void> {
+  const { error } = await supabase
+    .from('bookings')
+    .update({ status })
+    .eq('id', bookingId);
+
+  if (error) {
+    throw new Error(error.message || 'تعذر تحديث حالة الحجز');
+  }
+}
+
+async function completeBookingAsVisit(
+  booking: Booking,
+  opts: {
+    shopId: string;
+    customCharge: number;
+    forcePaid: boolean;
+    paymentMethod: PaymentMethod;
+  }
+): Promise<void> {
+  if (!booking.customer_id) {
+    throw new Error('هذا الحجز غير مرتبط بعميل مسجل في النظام.');
+  }
+  await recordVisit(booking.customer_id, {
+    haircutType: booking.service_name || 'حلاقة عامة',
+    serviceName: booking.service_name || 'حلاقة عامة',
+    customCharge: Number(opts.customCharge || 0),
+    notes: `تحويل من حجز ${booking.booking_code}${booking.notes ? ` — ${booking.notes}` : ''}`,
+    forcePaid: opts.forcePaid,
+    paymentMethod: opts.paymentMethod as 'cash' | 'instapay' | 'vodafone_cash' | 'card',
+    shopId: opts.shopId,
+  });
+  await updateBookingStatus(booking.id, 'completed');
 }
 
 function getContractStorageKey(shopId: string): string {
@@ -1373,7 +1436,7 @@ function BookingsTab({
     setBusyId(completeTarget.id);
     setMessage(null);
     try {
-      await completeBookingAsVisit(completeTarget.id, {
+      await completeBookingAsVisit(completeTarget, {
         shopId,
         customCharge: Number(extraCharge),
         forcePaid,
@@ -2496,7 +2559,11 @@ function VisitsTab({
     if (row.visitToday || row.recording || row.customer.is_blocked) return false;
     setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, recording: true } : r)));
     try {
-      const result = await recordVisit(row.customer.id, { ...opts, shopId });
+      const result = await recordVisit(row.customer.id, {
+        ...opts,
+        paymentMethod: opts.paymentMethod as 'cash' | 'instapay' | 'vodafone_cash' | 'card',
+        shopId,
+      });
       const newVisit = result.visit;
       setRows((prev) =>
         prev
@@ -4406,7 +4473,12 @@ function CustomerDrawer({
         onClose={() => setSubOpen(false)}
         plans={plans}
         onSubscribe={async (planId, paymentMethod) => {
-          await createSubscription(customer.id, planId, shopId, paymentMethod);
+          await createSubscription(
+            customer.id,
+            planId,
+            shopId,
+            paymentMethod as 'cash' | 'instapay' | 'vodafone_cash' | 'card'
+          );
           setSubOpen(false);
           await load();
           onChanged();
@@ -4419,7 +4491,11 @@ function CustomerDrawer({
         active={active}
         remaining={remaining}
         onRecord={async (opts) => {
-          await recordVisit(customer.id, { ...opts, shopId });
+          await recordVisit(customer.id, {
+            ...opts,
+            paymentMethod: opts.paymentMethod as 'cash' | 'instapay' | 'vodafone_cash' | 'card',
+            shopId,
+          });
           setVisitOpen(false);
           await load();
           onChanged();
