@@ -6,9 +6,12 @@ import {
   type Plan,
   type PlanItemType,
   type PaymentType,
+  type Booking,
+  type BookingStatus,
   REGULAR_HAIRCUT_PRICE,
   COMPANY_FEE_PER_VISIT,
 } from './supabase';
+import { triggerBookingPushNotification } from './bookingPush';
 
 export type {
   Customer,
@@ -17,6 +20,8 @@ export type {
   Plan,
   PlanItemType,
   PaymentType,
+  Booking,
+  BookingStatus,
 };
 
 export { COMPANY_FEE_PER_VISIT };
@@ -1345,6 +1350,376 @@ export async function findCustomerInShops(
   }
 
   return results;
+}
+
+/* ============================================================================
+ * Smart Booking System (Customer Self-Booking + Anti-No-Show + Push Alerts)
+ * ============================================================================ */
+
+export type BookingSlot = {
+  start_at: string;
+  end_at: string;
+  label: string;
+  available: boolean;
+};
+
+export type CustomerBookingTrust = {
+  hasActiveSubscription: boolean;
+  completedBookings: number;
+  completedVisits: number;
+  noShowCount: number;
+  lateCancelledCount: number;
+  isTrusted: boolean;
+  trustBadge: string;
+  canBook: boolean;
+  blockReason?: string;
+};
+
+export async function evaluateCustomerBookingTrust(
+  shopId: string,
+  customerId: string
+): Promise<CustomerBookingTrust> {
+  const [sub, visitsRes, bookingsRes] = await Promise.all([
+    getShopActiveSubscription(shopId, customerId),
+    supabase
+      .from('visits')
+      .select('id')
+      .eq('shop_id', shopId)
+      .eq('customer_id', customerId),
+    supabase
+      .from('bookings')
+      .select('id, status')
+      .eq('shop_id', shopId)
+      .eq('customer_id', customerId),
+  ]);
+
+  if (visitsRes.error) throw visitsRes.error;
+  if (bookingsRes.error) throw bookingsRes.error;
+
+  const hasActiveSubscription =
+    sub !== null &&
+    sub.status === 'active' &&
+    sub.haircuts_used < (sub.plan?.haircut_count ?? 0);
+
+  const bookings = bookingsRes.data ?? [];
+  const completedBookings = bookings.filter((b) => b.status === 'completed').length;
+  const noShowCount = bookings.filter((b) => b.status === 'no_show').length;
+  const lateCancelledCount = bookings.filter((b) => b.status === 'cancelled').length;
+  const completedVisits = (visitsRes.data ?? []).length;
+
+  if (noShowCount >= 3 && !hasActiveSubscription) {
+    return {
+      hasActiveSubscription,
+      completedBookings,
+      completedVisits,
+      noShowCount,
+      lateCancelledCount,
+      isTrusted: false,
+      trustBadge: 'مقيّد بسبب عدم الحضور المتكرر',
+      canBook: false,
+      blockReason: 'تم إيقاف الحجز المسبق مؤقتًا بسبب تغيّبك عن 3 مواعيد سابقة. تواصل مع المحل لإعادة التفعيل.',
+    };
+  }
+
+  if (hasActiveSubscription) {
+    return {
+      hasActiveSubscription: true,
+      completedBookings,
+      completedVisits,
+      noShowCount,
+      lateCancelledCount,
+      isTrusted: true,
+      trustBadge: 'مشترك نشط • تأكيد فوري',
+      canBook: true,
+    };
+  }
+
+  if (noShowCount === 0 && (completedBookings >= 1 || completedVisits >= 2)) {
+    return {
+      hasActiveSubscription: false,
+      completedBookings,
+      completedVisits,
+      noShowCount,
+      lateCancelledCount,
+      isTrusted: true,
+      trustBadge: 'عميل ملتزم • تأكيد فوري',
+      canBook: true,
+    };
+  }
+
+  return {
+    hasActiveSubscription: false,
+    completedBookings,
+    completedVisits,
+    noShowCount,
+    lateCancelledCount,
+    isTrusted: false,
+    trustBadge: noShowCount > 0 ? 'يتطلب موافقة المحل (تغيّب سابق)' : 'حجز جديد • بانتظار تأكيد المحل',
+    canBook: true,
+  };
+}
+
+export async function getShopBookingsForDate(
+  shopId: string,
+  dateStr: string
+): Promise<Booking[]> {
+  const dayStart = new Date(`${dateStr}T00:00:00`);
+  const dayEnd = new Date(`${dateStr}T23:59:59.999`);
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*, customer:customers(*), plan:plans(*)')
+    .eq('shop_id', shopId)
+    .gte('start_at', dayStart.toISOString())
+    .lte('start_at', dayEnd.toISOString())
+    .order('start_at', { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as Booking[];
+}
+
+export async function getAvailableBookingSlots(
+  shopId: string,
+  dateStr: string,
+  options: {
+    startHour?: number;
+    endHour?: number;
+    slotMinutes?: number;
+  } = {}
+): Promise<BookingSlot[]> {
+  const startHour = options.startHour ?? 11;
+  const endHour = options.endHour ?? 23;
+  const slotMinutes = options.slotMinutes ?? 60;
+
+  const existing = await getShopBookingsForDate(shopId, dateStr);
+  const activeBookings = existing.filter(
+    (b) => b.status === 'pending' || b.status === 'confirmed'
+  );
+
+  const now = Date.now();
+  const slots: BookingSlot[] = [];
+
+  for (let hour = startHour; hour < endHour; hour += 1) {
+    for (let minute = 0; minute < 60; minute += slotMinutes) {
+      const slotStart = new Date(
+        `${dateStr}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
+      );
+      const slotEnd = new Date(slotStart.getTime() + slotMinutes * 60000);
+
+      if (slotEnd.getHours() > endHour && slotEnd.getMinutes() > 0) {
+        continue;
+      }
+
+      const isPast = slotStart.getTime() <= now + 10 * 60000;
+
+      const isOverlapping = activeBookings.some((b) => {
+        const bStart = new Date(b.start_at).getTime();
+        const bEnd = new Date(b.end_at).getTime();
+        return slotStart.getTime() < bEnd && slotEnd.getTime() > bStart;
+      });
+
+      const startLabel = new Intl.DateTimeFormat('ar-EG', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(slotStart);
+
+      const endLabel = new Intl.DateTimeFormat('ar-EG', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(slotEnd);
+
+      slots.push({
+        start_at: slotStart.toISOString(),
+        end_at: slotEnd.toISOString(),
+        label: `${startLabel} - ${endLabel}`,
+        available: !isPast && !isOverlapping,
+      });
+    }
+  }
+
+  return slots;
+}
+
+export async function createCustomerBooking(params: {
+  shopId: string;
+  customer: Customer;
+  serviceName: string;
+  planId?: string | null;
+  startAt: string;
+  durationMinutes?: number;
+  notes?: string;
+}): Promise<Booking> {
+  const durationMinutes = params.durationMinutes ?? 60;
+  const startDate = new Date(params.startAt);
+  const endDate = new Date(startDate.getTime() + durationMinutes * 60000);
+
+  if (Number.isNaN(startDate.getTime()) || startDate.getTime() <= Date.now()) {
+    throw new Error('لا يمكن الحجز في وقت سابق للوقت الحالي.');
+  }
+
+  const trust = await evaluateCustomerBookingTrust(params.shopId, params.customer.id);
+  if (!trust.canBook) {
+    throw new Error(trust.blockReason || 'غير مسموح بالحجز حاليًا.');
+  }
+
+  const { data: activeExisting, error: activeCheckError } = await supabase
+    .from('bookings')
+    .select('id, booking_code, start_at')
+    .eq('shop_id', params.shopId)
+    .eq('customer_id', params.customer.id)
+    .in('status', ['pending', 'confirmed'])
+    .gte('end_at', new Date().toISOString());
+
+  if (activeCheckError) throw activeCheckError;
+
+  if ((activeExisting ?? []).length > 0) {
+    throw new Error(
+      `لديك حجز قادم بالفعل برقم ${activeExisting![0].booking_code}. يمكنك إلغاؤه أولًا إذا أردت حجز موعد آخر.`
+    );
+  }
+
+  const activeSub = await getShopActiveSubscription(params.shopId, params.customer.id);
+  const hasUsableSub =
+    activeSub !== null &&
+    activeSub.status === 'active' &&
+    activeSub.haircuts_used < (activeSub.plan?.haircut_count ?? 0);
+
+  const autoConfirmed = trust.isTrusted;
+  const status: BookingStatus = autoConfirmed ? 'confirmed' : 'pending';
+  const confirmReason = trust.trustBadge;
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .insert({
+      shop_id: params.shopId,
+      customer_id: params.customer.id,
+      plan_id: params.planId ?? null,
+      subscription_id: hasUsableSub ? activeSub!.id : null,
+      service_name: params.serviceName.trim() || 'حلاقة',
+      duration_minutes: durationMinutes,
+      start_at: startDate.toISOString(),
+      end_at: endDate.toISOString(),
+      status,
+      auto_confirmed: autoConfirmed,
+      confirm_reason: confirmReason,
+      notes: params.notes?.trim() || null,
+    })
+    .select('*, customer:customers(*), plan:plans(*)')
+    .single();
+
+  if (error) {
+    if (error.code === '23P01' || error.message.includes('bookings_no_overlap')) {
+      throw new Error('عذرًا، تم حجز هذا الموعد للتو من عميل آخر. اختر ميعادًا آخر متاحًا.');
+    }
+    throw error;
+  }
+
+  const created = data as Booking;
+
+  void triggerBookingPushNotification({
+    shop_id: params.shopId,
+    booking_id: created.id,
+    booking_code: created.booking_code,
+    customer_name: params.customer.name,
+    customer_phone: params.customer.phone,
+    service_name: created.service_name,
+    start_at: created.start_at,
+    auto_confirmed: created.auto_confirmed,
+    status: created.status,
+  });
+
+  return created;
+}
+
+export async function getCustomerBookings(
+  shopId: string,
+  customerId: string
+): Promise<Booking[]> {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*, plan:plans(*)')
+    .eq('shop_id', shopId)
+    .eq('customer_id', customerId)
+    .order('start_at', { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as Booking[];
+}
+
+export async function getShopAllBookings(
+  shopId: string
+): Promise<Booking[]> {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*, customer:customers(*), plan:plans(*), subscription:subscriptions(*, plan:plans(*))')
+    .eq('shop_id', shopId)
+    .order('start_at', { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as Booking[];
+}
+
+export async function updateBookingStatus(
+  bookingId: string,
+  status: BookingStatus,
+  notes?: string
+): Promise<Booking> {
+  const updates: Record<string, unknown> = {
+    status,
+    updated_at: new Date().toISOString(),
+  };
+  if (notes !== undefined) {
+    updates.notes = notes;
+  }
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .update(updates)
+    .eq('id', bookingId)
+    .select('*, customer:customers(*), plan:plans(*)')
+    .single();
+
+  if (error) throw error;
+  return data as Booking;
+}
+
+export async function completeBookingAsVisit(
+  booking: Booking,
+  opts: {
+    paymentMethod?: PaymentMethod;
+    customCharge?: number;
+    forcePaid?: boolean;
+  } = {}
+): Promise<{ booking: Booking; visit: Visit }> {
+  const visitResult = await recordVisit(booking.customer_id, {
+    shopId: booking.shop_id,
+    haircutType: booking.service_name,
+    serviceName: booking.service_name,
+    notes: booking.notes
+      ? `حجز #${booking.booking_code} — ${booking.notes}`
+      : `حجز #${booking.booking_code}`,
+    paymentMethod: opts.paymentMethod ?? 'cash',
+    customCharge: opts.customCharge,
+    forcePaid: opts.forcePaid,
+  });
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .update({
+      status: 'completed',
+      visit_id: visitResult.visit.id,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', booking.id)
+    .select('*, customer:customers(*), plan:plans(*)')
+    .single();
+
+  if (error) throw error;
+
+  return {
+    booking: data as Booking,
+    visit: visitResult.visit,
+  };
 }
 
 export function formatPrice(n: number): string {

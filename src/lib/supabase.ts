@@ -131,6 +131,37 @@ export type Visit = {
   created_at: string;
 };
 
+export type BookingStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'completed'
+  | 'cancelled'
+  | 'no_show';
+
+export type Booking = {
+  id: string;
+  booking_number: number;
+  booking_code: string;
+  shop_id: string;
+  customer_id: string;
+  plan_id: string | null;
+  subscription_id: string | null;
+  visit_id: string | null;
+  service_name: string;
+  duration_minutes: number;
+  start_at: string;
+  end_at: string;
+  status: BookingStatus;
+  auto_confirmed: boolean;
+  confirm_reason: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  customer?: Customer;
+  plan?: Plan;
+  subscription?: Subscription;
+};
+
 export type CustomerWithStats = Customer & {
   visits_count: number;
   active_subscription: Subscription | null;

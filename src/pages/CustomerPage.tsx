@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Scissors,
   Award,
@@ -26,12 +26,20 @@ import {
   Copy,
   Tag,
   Zap,
+  Calendar,
+  Ticket,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   findCustomerInShops,
   getActiveSubscription,
   getVisitsByCustomer,
   getPlans,
+  getAvailableBookingSlots,
+  evaluateCustomerBookingTrust,
+  createCustomerBooking,
+  getCustomerBookings,
+  updateBookingStatus,
   formatPrice,
   formatDate,
   formatDateTime,
@@ -40,6 +48,9 @@ import {
   type Subscription,
   type Visit,
   type Plan,
+  type Booking,
+  type BookingSlot,
+  type CustomerBookingTrust,
 } from '@/lib/api';
 import { getAllShops, getShopById, type Shop } from '@/lib/shopApi';
 import { useI18n } from '@/lib/i18n';
@@ -188,7 +199,419 @@ function ShopSelect({ onLogin }: { onLogin: (c: Customer, shopId: string, shopNa
           <Sparkles className="mt-0.5 h-4 w-4 shrink-0" /><span>{t('cust.smartHint')}</span>
         </div>
       </div>
+    </div>
+  );
+}
 
+/* ---------- Customer booking widget ---------- */
+function getUpcomingDates(count = 7): { value: string; label: string }[] {
+  const list: { value: string; label: string }[] = [];
+  const base = new Date();
+  for (let i = 0; i < count; i += 1) {
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const isoDate = `${yyyy}-${mm}-${dd}`;
+    const label =
+      i === 0
+        ? `اليوم (${new Intl.DateTimeFormat('ar-EG', { weekday: 'short', day: 'numeric', month: 'short' }).format(d)})`
+        : i === 1
+        ? `غدًا (${new Intl.DateTimeFormat('ar-EG', { weekday: 'short', day: 'numeric', month: 'short' }).format(d)})`
+        : new Intl.DateTimeFormat('ar-EG', { weekday: 'short', day: 'numeric', month: 'short' }).format(d);
+    list.push({ value: isoDate, label });
+  }
+  return list;
+}
+
+function bookingStatusBadge(status: Booking['status']): { label: string; cls: string } {
+  switch (status) {
+    case 'confirmed':
+      return { label: 'مؤكد', cls: 'bg-emerald-100 text-emerald-700' };
+    case 'pending':
+      return { label: 'بانتظار تأكيد المحل', cls: 'bg-amber-100 text-amber-800' };
+    case 'completed':
+      return { label: 'تم الحضور والزيارة', cls: 'bg-blue-100 text-blue-700' };
+    case 'cancelled':
+      return { label: 'ملغي', cls: 'bg-stone-200 text-stone-600' };
+    case 'no_show':
+      return { label: 'لم يحضر بالموعد', cls: 'bg-red-100 text-red-700' };
+  }
+}
+
+function CustomerBookingSection({
+  customer,
+  shopId,
+  plans,
+  activeSub,
+  onBookingChanged,
+}: {
+  customer: Customer;
+  shopId: string;
+  plans: Plan[];
+  activeSub: Subscription | null;
+  onBookingChanged: () => void;
+}) {
+  const dates = getUpcomingDates(7);
+  const [selectedDate, setSelectedDate] = useState<string>(dates[0].value);
+  const [slots, setSlots] = useState<BookingSlot[]>([]);
+  const [selectedSlot, setSelectedSlot] = useState<string>('');
+  const [selectedPlanId, setSelectedPlanId] = useState<string>('');
+  const [notes, setNotes] = useState('');
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [trust, setTrust] = useState<CustomerBookingTrust | null>(null);
+  const [loadingSlots, setLoadingSlots] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  const loadBookingsAndTrust = useCallback(async () => {
+    try {
+      const [userBookings, trustInfo] = await Promise.all([
+        getCustomerBookings(shopId, customer.id),
+        evaluateCustomerBookingTrust(shopId, customer.id),
+      ]);
+      setBookings(userBookings);
+      setTrust(trustInfo);
+    } catch (e) {
+      console.error('Failed loading bookings/trust:', e);
+    }
+  }, [shopId, customer.id]);
+
+  const loadSlots = useCallback(async (dateStr: string) => {
+    setLoadingSlots(true);
+    try {
+      const daySlots = await getAvailableBookingSlots(shopId, dateStr, {
+        startHour: 11,
+        endHour: 23,
+        slotMinutes: 60,
+      });
+      setSlots(daySlots);
+      const firstAvail = daySlots.find((s) => s.available);
+      setSelectedSlot((prev) =>
+        daySlots.some((s) => s.start_at === prev && s.available)
+          ? prev
+          : firstAvail?.start_at ?? ''
+      );
+    } catch (e) {
+      console.error('Failed loading slots:', e);
+      setSlots([]);
+      setSelectedSlot('');
+    } finally {
+      setLoadingSlots(false);
+    }
+  }, [shopId]);
+
+  useEffect(() => {
+    void loadBookingsAndTrust();
+  }, [loadBookingsAndTrust]);
+
+  useEffect(() => {
+    void loadSlots(selectedDate);
+  }, [loadSlots, selectedDate]);
+
+  const hasSub =
+    activeSub?.status === 'active' &&
+    activeSub.haircuts_used < (activeSub.plan?.haircut_count ?? 0);
+
+  const chosenPlan = plans.find((p) => p.id === selectedPlanId) ?? null;
+  const serviceName = chosenPlan
+    ? chosenPlan.name
+    : hasSub && activeSub?.plan
+    ? `حلاقة ضمن باقة (${activeSub.plan.name})`
+    : 'حلاقة عادية';
+
+  const handleBook = async () => {
+    if (!selectedSlot) {
+      setFeedback({ type: 'err', text: 'اختر ميعادًا متاحًا أولًا.' });
+      return;
+    }
+
+    setSubmitting(true);
+    setFeedback(null);
+
+    try {
+      const created = await createCustomerBooking({
+        shopId,
+        customer,
+        serviceName,
+        planId: chosenPlan?.id ?? activeSub?.plan_id ?? null,
+        startAt: selectedSlot,
+        durationMinutes: 60,
+        notes,
+      });
+
+      setNotes('');
+      await Promise.all([loadSlots(selectedDate), loadBookingsAndTrust()]);
+      onBookingChanged();
+
+      setFeedback({
+        type: 'ok',
+        text:
+          created.status === 'confirmed'
+            ? `تم تأكيد حجزك تلقائيًا! رقم حجزك: ${created.booking_code} — الموعد: ${formatDateTime(created.start_at)}`
+            : `تم إرسال طلب حجزك برقم ${created.booking_code} وهو بانتظار تأكيد المحل، والموعد محجوز مؤقتًا باسمك.`,
+      });
+    } catch (e) {
+      setFeedback({
+        type: 'err',
+        text: e instanceof Error ? e.message : 'تعذر إتمام الحجز.',
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCancelBooking = async (booking: Booking) => {
+    setCancellingId(booking.id);
+    setFeedback(null);
+    try {
+      await updateBookingStatus(booking.id, 'cancelled');
+      await Promise.all([loadSlots(selectedDate), loadBookingsAndTrust()]);
+      onBookingChanged();
+      setFeedback({
+        type: 'ok',
+        text: `تم إلغاء الحجز رقم ${booking.booking_code} وإتاحة الموعد لعملاء آخرين.`,
+      });
+    } catch (e) {
+      setFeedback({
+        type: 'err',
+        text: e instanceof Error ? e.message : 'تعذر إلغاء الحجز.',
+      });
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
+  return (
+    <div id="customer-booking" className="mt-6 scroll-mt-6 space-y-5">
+      <div className="rounded-[26px] border border-[#e9e2d8] bg-white p-5 shadow-[0_10px_30px_rgba(48,38,28,0.05)] sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-stone-900 text-amber-400">
+              <Calendar className="h-6 w-6" />
+            </div>
+            <div>
+              <h3 className="font-display text-xl font-extrabold text-stone-900">
+                احجز موعدك الآن
+              </h3>
+              <p className="text-xs text-stone-500">
+                اختر اليوم والوقت المتاح واحصل على رقم حجز خاص بك فورًا
+              </p>
+            </div>
+          </div>
+
+          {trust && (
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${
+                trust.isTrusted
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : 'bg-amber-100 text-amber-800'
+              }`}
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              {trust.trustBadge}
+            </span>
+          )}
+        </div>
+
+        {trust && !trust.canBook ? (
+          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
+            {trust.blockReason}
+          </div>
+        ) : (
+          <div className="mt-5 space-y-5">
+            {/* Step 1: Date */}
+            <div>
+              <label className="mb-2 block text-xs font-extrabold text-stone-700">
+                1. اختر اليوم
+              </label>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {dates.map((d) => {
+                  const activeDay = selectedDate === d.value;
+                  return (
+                    <button
+                      key={d.value}
+                      type="button"
+                      onClick={() => setSelectedDate(d.value)}
+                      className={`shrink-0 rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
+                        activeDay
+                          ? 'border-stone-900 bg-stone-900 text-white'
+                          : 'border-stone-200 bg-[#faf8f5] text-stone-700 hover:bg-stone-100'
+                      }`}
+                    >
+                      {d.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Step 2: Time slot */}
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <label className="text-xs font-extrabold text-stone-700">
+                  2. اختر الوقت المتاح (المواعيد المحجوزة غير متاحة)
+                </label>
+                {loadingSlots && <Loader2 className="h-4 w-4 animate-spin text-stone-400" />}
+              </div>
+
+              {loadingSlots ? (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {[1, 2, 3, 4].map((n) => (
+                    <div key={n} className="h-11 animate-shimmer rounded-xl" />
+                  ))}
+                </div>
+              ) : slots.every((s) => !s.available) ? (
+                <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 text-center text-xs font-bold text-stone-500">
+                  لا توجد مواعيد متاحة في هذا اليوم. جرّب يومًا آخر.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                  {slots.map((slot) => {
+                    const isSelected = selectedSlot === slot.start_at && slot.available;
+                    return (
+                      <button
+                        key={slot.start_at}
+                        type="button"
+                        disabled={!slot.available}
+                        onClick={() => setSelectedSlot(slot.start_at)}
+                        className={`rounded-xl border px-3 py-2.5 text-center text-xs font-bold transition ${
+                          !slot.available
+                            ? 'cursor-not-allowed border-stone-200 bg-stone-100 text-stone-400 line-through'
+                            : isSelected
+                            ? 'border-amber-500 bg-amber-500 text-stone-950 shadow-sm'
+                            : 'border-stone-200 bg-white text-stone-800 hover:border-amber-400 hover:bg-amber-50/50'
+                        }`}
+                      >
+                        {slot.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Step 3: Service / Plan + Notes */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-xs font-extrabold text-stone-700">
+                  3. الخدمة أو الباقة
+                </label>
+                <select
+                  value={selectedPlanId}
+                  onChange={(e) => setSelectedPlanId(e.target.value)}
+                  className="input bg-white"
+                >
+                  <option value="">
+                    {hasSub && activeSub?.plan
+                      ? `حلاقة ضمن باقتي النشطة (${activeSub.plan.name})`
+                      : 'حلاقة عادية'}
+                  </option>
+                  {plans.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({formatPrice(Number(p.price))})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-extrabold text-stone-700">
+                  ملاحظات للحلاق (اختياري)
+                </label>
+                <input
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="مثال: تدرج متوسط + تهذيب لحية"
+                  className="input bg-white"
+                />
+              </div>
+            </div>
+
+            {feedback && (
+              <div
+                className={`rounded-xl border p-3.5 text-xs font-bold ${
+                  feedback.type === 'ok'
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                    : 'border-red-200 bg-red-50 text-red-700'
+                }`}
+              >
+                {feedback.text}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => void handleBook()}
+              disabled={submitting || !selectedSlot}
+              className="btn-gold w-full disabled:opacity-50"
+            >
+              {submitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Ticket className="h-4 w-4" />
+              )}
+              {submitting ? 'جارٍ تأكيد الحجز...' : 'تأكيد الحجز وإصدار رقم الحجز'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Customer's bookings list */}
+      {bookings.length > 0 && (
+        <div className="rounded-[24px] border border-[#e9e2d8] bg-white p-5 shadow-sm">
+          <h4 className="mb-3 flex items-center gap-2 font-bold text-stone-900">
+            <Ticket className="h-4 w-4 text-amber-600" />
+            حجوزاتي ({bookings.length})
+          </h4>
+          <div className="space-y-2.5">
+            {bookings.map((b) => {
+              const badge = bookingStatusBadge(b.status);
+              const canCancel = b.status === 'pending' || b.status === 'confirmed';
+              return (
+                <div
+                  key={b.id}
+                  className="flex flex-col justify-between gap-3 rounded-xl border border-stone-200 bg-[#faf8f5] p-3.5 sm:flex-row sm:items-center"
+                >
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-lg bg-stone-900 px-2.5 py-0.5 font-mono text-xs font-extrabold text-amber-400">
+                        {b.booking_code}
+                      </span>
+                      <span className="text-sm font-extrabold text-stone-900">
+                        {b.service_name}
+                      </span>
+                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${badge.cls}`}>
+                        {badge.label}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-stone-600">
+                      الموعد: {formatDateTime(b.start_at)}
+                    </p>
+                    {b.notes && (
+                      <p className="mt-1 text-xs text-stone-500">ملاحظة: {b.notes}</p>
+                    )}
+                  </div>
+
+                  {canCancel && (
+                    <button
+                      type="button"
+                      disabled={cancellingId === b.id}
+                      onClick={() => void handleCancelBooking(b)}
+                      className="inline-flex shrink-0 items-center justify-center gap-1 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      {cancellingId === b.id && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      إلغاء الحجز
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -553,39 +976,33 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
-    let mounted = true;
+  const loadCustomerData = useCallback(async () => {
+    setLoading(true);
+    setLoadError(false);
 
-    const loadCustomerData = async () => {
-      setLoading(true);
-      setLoadError(false);
+    try {
+      const [s, v, p, shopData] = await Promise.all([
+        getActiveSubscription(customer.id),
+        getVisitsByCustomer(customer.id),
+        getPlans(shopId),
+        getShopById(shopId),
+      ]);
 
-      try {
-        const [s, v, p, shopData] = await Promise.all([
-          getActiveSubscription(customer.id),
-          getVisitsByCustomer(customer.id),
-          getPlans(shopId),
-          getShopById(shopId),
-        ]);
-
-        if (!mounted) return;
-
-        setSub(s);
-        setVisits(v);
-        setPlans(p);
-        setShop(shopData);
-      } catch (error) {
-        console.error('Customer page data loading failed:', error);
-        if (mounted) setLoadError(true);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    void loadCustomerData();
-
-    return () => { mounted = false; };
+      setSub(s);
+      setVisits(v);
+      setPlans(p);
+      setShop(shopData);
+    } catch (error) {
+      console.error('Customer page data loading failed:', error);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   }, [customer.id, shopId]);
+
+  useEffect(() => {
+    void loadCustomerData();
+  }, [loadCustomerData]);
 
   if (loading) {
     return (
@@ -715,6 +1132,15 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
           </div>
         </div>
       </div>
+
+      {/* Smart Booking Section */}
+      <CustomerBookingSection
+        customer={customer}
+        shopId={shopId}
+        plans={plans}
+        activeSub={sub}
+        onBookingChanged={() => void loadCustomerData()}
+      />
 
       <WhatsAppConsentPanel customerName={customer.name} phone={customer.phone} />
 
@@ -876,8 +1302,8 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
           <button type="button" onClick={() => document.getElementById('customer-top')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-stone-700">
             <Store className="h-5 w-5" />{L ? 'الرئيسية' : 'Home'}
           </button>
-          <button type="button" onClick={() => document.getElementById('hair-consultation')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-stone-700">
-            <Camera className="h-5 w-5" />{L ? 'الاستشارة' : 'Consult'}
+          <button type="button" onClick={() => document.getElementById('customer-booking')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-stone-700">
+            <Calendar className="h-5 w-5" />{L ? 'الحجز' : 'Book'}
           </button>
           <button type="button" onClick={() => document.getElementById('visit-history')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-stone-700">
             <CalendarCheck className="h-5 w-5" />{L ? 'زياراتي' : 'Visits'}
