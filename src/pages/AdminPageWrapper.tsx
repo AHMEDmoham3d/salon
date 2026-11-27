@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import {
   Building2,
@@ -42,7 +43,7 @@ function UlmiWordmark({ className = '' }: { className?: string }) {
       viewBox="0 0 240 86"
       role="img"
       aria-label="ULMI"
-      className={`h-auto w-32 shrink-0 ${className}`}
+      className={`h-auto w-32 shrink-0 text-amber-400 ${className}`}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
@@ -692,7 +693,7 @@ function AdminRegister({
         {/* Brand */}
 
         <div className="mb-6 text-center">
-          <div className="mx-auto flex min-h-20 w-full items-center justify-center rounded-2xl border border-stone-200 bg-white px-6 py-4 text-stone-950 shadow-sm">
+          <div className="mx-auto flex min-h-20 w-fit items-center justify-center rounded-2xl bg-gradient-to-br from-stone-800 to-stone-950 px-6 py-4 shadow-sm">
             <UlmiWordmark className="w-36" />
           </div>
 
