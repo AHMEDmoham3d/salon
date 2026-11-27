@@ -1,1622 +1,1719 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Search,
   Scissors,
+  CalendarPlus,
   Award,
-  CheckCircle2,
-  XCircle,
+  Phone,
   Clock,
   Coins,
   Loader2,
-  CalendarCheck,
-  User,
-  ChevronLeft,
-  LogOut,
-  Phone,
-  Lock,
-  AlertCircle,
-  Crown,
-  Medal,
-  Camera,
-  Sparkles,
-  Info,
-  Store,
-  ArrowRight,
-  Gift,
   Users,
-  Copy,
-  Tag,
+  TrendingUp,
+  Receipt,
+  Info,
+  Ban,
+  ShieldAlert,
+  Building2,
+  Wallet,
+  CalendarClock,
+  AlertTriangle,
+  ArrowUpRight,
+  Sparkles,
   Zap,
-  Calendar,
-  Ticket,
+  FileText,
+  Lock,
   ShieldCheck,
+  Settings,
+  BarChart3,
+  Layers,
+  ChevronDown,
+  ChevronUp,
+  Calendar,
+  PlusCircle,
+  ShoppingBag,
+  BellRing,
+  Volume2,
+  Ticket,
+  GitBranch,
+  UserCheck,
+  Armchair,
+  CheckCircle2,
+  XCircle,
+  UserPlus,
+  Star,
+  Gift,
+  Crown,
+  History,
+  MapPin,
+  ArrowLeft,
+  Home,
 } from 'lucide-react';
+import Modal from '@/components/Modal';
 import {
-  findCustomerInShops,
+  getCustomerByPhone,
   getActiveSubscription,
   getVisitsByCustomer,
   getPlans,
-  getAvailableBookingSlots,
-  evaluateCustomerBookingTrust,
-  createCustomerBooking,
-  getCustomerBookings,
-  updateBookingStatus,
+  createSubscription,
+  recordVisit,
+  getCustomerById,
+  getShopById,
   formatPrice,
   formatDate,
   formatDateTime,
   type Customer,
-  type CustomerInShop,
   type Subscription,
   type Visit,
   type Plan,
-  type Booking,
-  type CustomerBookingTrust,
 } from '@/lib/api';
-import { supabase } from '@/lib/supabase';
-import { getAllShops, getShopById, type Shop } from '@/lib/shopApi';
-import { useI18n } from '@/lib/i18n';
-import WhatsAppConsentPanel from '@/components/WhatsAppConsentPanel';
-import SmartHairPhotoAssistant from '@/components/SmartHairPhotoAssistant';
+import { REGULAR_HAIRCUT_PRICE, COMPANY_FEE_PER_VISIT, SYSTEM_NAME, supabase } from '@/lib/supabase';
 
-export default function CustomerPage() {
-  const [customer, setCustomer] = useState<Customer | null>(null);
-  const [shopId, setShopId] = useState<string | null>(null);
-  const [shopName, setShopName] = useState<string | null>(null);
+const BRAND_NAME = 'ulmi';
+const CONTRACT_VERSION = 'v2.0-ulmi';
 
-  useEffect(() => {
+type Tab = 'home' | 'plans' | 'visits' | 'profile';
+type PaymentMethod = 'cash' | 'instapay' | 'vodafone_cash' | 'card' | 'unknown';
+
+type BranchItem = {
+  id: string;
+  shop_id: string;
+  name: string;
+  address?: string | null;
+  phone?: string | null;
+  is_active?: boolean;
+};
+
+type BarberChairItem = {
+  id: string;
+  shop_id: string;
+  branch_id?: string | null;
+  name: string;
+  chair_number?: number | string | null;
+  chair_name?: string | null;
+  specialty?: string | null;
+  is_active?: boolean;
+};
+
+type Booking = {
+  id: string;
+  shop_id: string;
+  branch_id?: string | null;
+  branch_name?: string | null;
+  barber_id?: string | null;
+  barber_name?: string | null;
+  chair_id?: string | null;
+  chair_number?: number | string | null;
+  chair_name?: string | null;
+  duration_minutes?: number | null;
+  customer_id: string | null;
+  customer_name: string | null;
+  customer_phone: string | null;
+  booking_code: string;
+  service_name: string;
+  start_at: string;
+  status: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
+  auto_confirmed?: boolean;
+  notes?: string | null;
+  created_at?: string;
+};
+
+type ChairLiveState = {
+  key: string;
+  branchId: string;
+  branchName: string;
+  barberId: string;
+  barberName: string;
+  chairLabel: string;
+  occupied: boolean;
+  occupancyMode: 'now' | 'upcoming' | 'free';
+  activeBooking?: Booking;
+  nextBooking?: Booking;
+};
+
+type ShopInfo = {
+  id: string;
+  shop_name: string;
+  owner_name: string;
+  logo_url?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  regular_haircut_price?: number;
+};
+
+function normalizeShopId(shopId: string): string {
+  return String(shopId || '').trim();
+}
+
+async function getShopBranchesAndBarbers(shopId: string): Promise<{
+  branches: BranchItem[];
+  barbers: BarberChairItem[];
+}> {
+  const cleanId = normalizeShopId(shopId);
+  if (!cleanId) return { branches: [], barbers: [] };
+
+  let branches: BranchItem[] = [];
+  let barbers: BarberChairItem[] = [];
+
+  try {
+    const { data, error } = await supabase
+      .from('branches')
+      .select('*')
+      .eq('shop_id', cleanId)
+      .order('name', { ascending: true });
+    if (!error && Array.isArray(data)) {
+      branches = data as BranchItem[];
+    }
+  } catch {
+    // تجاهل إذا لم يكن جدول الفروع موجودًا
+  }
+
+  for (const tableName of ['barbers', 'chairs', 'shop_barbers', 'shop_chairs']) {
     try {
-      const savedCustomer = sessionStorage.getItem('barber_customer');
-      const savedShopId = sessionStorage.getItem('barber_shop_id');
-      const savedShopName = sessionStorage.getItem('barber_shop_name');
-      if (savedCustomer && savedShopId) {
-        setCustomer(JSON.parse(savedCustomer));
-        setShopId(savedShopId);
-        if (savedShopName) setShopName(savedShopName);
+      const { data, error } = await supabase
+        .from(tableName)
+        .select('*')
+        .eq('shop_id', cleanId);
+      if (!error && Array.isArray(data) && data.length > 0) {
+        barbers = data as BarberChairItem[];
+        break;
       }
-    } catch { /* ignore */ }
-  }, []);
+    } catch {
+      // تجربة الجدول التالي
+    }
+  }
 
-  const handleLogin = (c: Customer, sid: string, sname: string) => {
-    setCustomer(c); setShopId(sid); setShopName(sname);
+  return { branches, barbers };
+}
+
+async function getShopBookings(shopId: string): Promise<Booking[]> {
+  const cleanId = normalizeShopId(shopId);
+  if (!cleanId) return [];
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*')
+    .eq('shop_id', cleanId)
+    .order('start_at', { ascending: false });
+
+  if (error) {
+    console.error('Failed loading bookings:', error);
+    return [];
+  }
+  return (data ?? []) as Booking[];
+}
+
+function isSameLocalDay(isoDate: string, refDate: Date): boolean {
+  const d = new Date(isoDate);
+  return (
+    d.getFullYear() === refDate.getFullYear() &&
+    d.getMonth() === refDate.getMonth() &&
+    d.getDate() === refDate.getDate()
+  );
+}
+
+function bookingStatusMeta(status: Booking['status']): { label: string; cls: string } {
+  switch (status) {
+    case 'confirmed':
+      return { label: 'مؤكد', cls: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' };
+    case 'pending':
+      return { label: 'بانتظار التأكيد', cls: 'bg-amber-50 text-amber-800 ring-1 ring-amber-200' };
+    case 'completed':
+      return { label: 'مكتمل', cls: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' };
+    case 'cancelled':
+      return { label: 'ملغي', cls: 'bg-stone-100 text-stone-600' };
+    case 'no_show':
+      return { label: 'لم يحضر', cls: 'bg-red-50 text-red-700 ring-1 ring-red-200' };
+  }
+}
+
+function UlmiWordmark({
+  variant = 'light',
+  size = 'md',
+}: {
+  variant?: 'light' | 'dark';
+  size?: 'sm' | 'md' | 'lg';
+}) {
+  const dims =
+    size === 'sm'
+      ? { width: 58, height: 22 }
+      : size === 'lg'
+      ? { width: 96, height: 36 }
+      : { width: 74, height: 28 };
+  const fill = variant === 'dark' ? '#FFFFFF' : '#09090B';
+
+  return (
+    <svg
+      width={dims.width}
+      height={dims.height}
+      viewBox="0 0 240 86"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      role="img"
+      aria-label={BRAND_NAME}
+      className="inline-block shrink-0 select-none"
+    >
+      <path
+        d="M14 38V56C14 68.7025 24.2975 79 37 79C49.7025 79 60 68.7025 60 56V38"
+        stroke={fill}
+        strokeWidth="22"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M60 38V68" stroke={fill} strokeWidth="22" strokeLinecap="round" />
+      <path d="M84 15V68" stroke={fill} strokeWidth="22" strokeLinecap="round" />
+      <path
+        d="M108 68V52C108 43.1634 115.163 36 124 36C132.837 36 140 43.1634 140 52V68"
+        stroke={fill}
+        strokeWidth="22"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M140 68V52C140 43.1634 147.163 36 156 36C164.837 36 172 43.1634 172 52V68"
+        stroke={fill}
+        strokeWidth="22"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M214 38V68" stroke={fill} strokeWidth="22" strokeLinecap="round" />
+      <circle cx="214" cy="15" r="11" fill={fill} />
+    </svg>
+  );
+}
+
+/* ============================================================
+   Main Customer Page Component
+   ============================================================ */
+export default function CustomerPage({
+  shopId,
+  onBack,
+}: {
+  shopId: string;
+  onBack?: () => void;
+}) {
+  const cleanShopId = useMemo(() => normalizeShopId(shopId), [shopId]);
+
+  // Core state
+  const [tab, setTab] = useState<Tab>('home');
+  const [shopInfo, setShopInfo] = useState<ShopInfo | null>(null);
+  const [regularHaircutPrice, setRegularHaircutPrice] = useState(REGULAR_HAIRCUT_PRICE);
+  const [loadingShop, setLoadingShop] = useState(true);
+
+  // Customer session state
+  const [phone, setPhone] = useState<string>(() => {
     try {
-      sessionStorage.setItem('barber_customer', JSON.stringify(c));
-      sessionStorage.setItem('barber_shop_id', sid);
-      sessionStorage.setItem('barber_shop_name', sname);
-    } catch { /* ignore */ }
+      return localStorage.getItem(`ulmi_customer_phone_${cleanShopId}`) || '';
+    } catch {
+      return '';
+    }
+  });
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
+
+  // Customer data
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [visits, setVisits] = useState<Visit[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [branches, setBranches] = useState<BranchItem[]>([]);
+  const [barbers, setBarbers] = useState<BarberChairItem[]>([]);
+
+  const [dataLoading, setDataLoading] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
+
+  // Modals
+  const [bookingOpen, setBookingOpen] = useState(false);
+  const [subscribeOpen, setSubscribeOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+
+  const bumpData = useCallback(() => setRefreshTick((n) => n + 1), []);
+
+  /* ---------- Load shop info ---------- */
+  useEffect(() => {
+    let active = true;
+    setLoadingShop(true);
+    (async () => {
+      try {
+        const [shop, price] = await Promise.all([
+          getShopById(cleanShopId),
+          // fallback if helper not available: shop.regular_haircut_price
+          Promise.resolve(null).then(async () => {
+            try {
+              // Try importing dynamically if exists
+              const api = await import('@/lib/api');
+              if (typeof (api as any).getShopRegularHaircutPrice === 'function') {
+                return await (api as any).getShopRegularHaircutPrice(cleanShopId);
+              }
+            } catch {
+              // ignore
+            }
+            return null;
+          }),
+        ]);
+        if (!active) return;
+        if (shop) {
+          setShopInfo({
+            id: shop.id,
+            shop_name: shop.shop_name,
+            owner_name: shop.owner_name,
+            logo_url: shop.logo_url ?? null,
+            phone: (shop as any).phone ?? null,
+            address: (shop as any).address ?? null,
+            regular_haircut_price: (shop as any).regular_haircut_price,
+          });
+          const resolvedPrice =
+            typeof price === 'number'
+              ? price
+              : Number((shop as any).regular_haircut_price ?? REGULAR_HAIRCUT_PRICE);
+          setRegularHaircutPrice(resolvedPrice || REGULAR_HAIRCUT_PRICE);
+        }
+      } catch (e) {
+        console.error('Failed to load shop info:', e);
+      } finally {
+        if (active) setLoadingShop(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [cleanShopId]);
+
+  /* ---------- Auto re-login if phone cached ---------- */
+  useEffect(() => {
+    if (!phone) return;
+    let active = true;
+    setAuthLoading(true);
+    (async () => {
+      try {
+        const c = await getCustomerByPhone(cleanShopId, phone);
+        if (!active) return;
+        if (c) {
+          setCustomer(c);
+        } else {
+          setCustomer(null);
+        }
+      } catch (e) {
+        console.error('Auto login failed:', e);
+      } finally {
+        if (active) setAuthLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [cleanShopId, phone]);
+
+  /* ---------- Load customer data ---------- */
+  useEffect(() => {
+    if (!customer) {
+      setSubscription(null);
+      setVisits([]);
+      setBookings([]);
+      return;
+    }
+    let active = true;
+    setDataLoading(true);
+    (async () => {
+      try {
+        const [sub, v, planList, meta, allBookings] = await Promise.all([
+          getActiveSubscription(customer.id),
+          getVisitsByCustomer(customer.id),
+          getPlans(cleanShopId),
+          getShopBranchesAndBarbers(cleanShopId),
+          getShopBookings(cleanShopId),
+        ]);
+        if (!active) return;
+        setSubscription(sub);
+        setVisits(v);
+        setPlans(planList);
+        setBranches(meta.branches);
+        setBarbers(meta.barbers);
+        setBookings(allBookings.filter((b) => b.customer_id === customer.id));
+      } catch (e) {
+        console.error('Failed to load customer data:', e);
+      } finally {
+        if (active) setDataLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [customer, cleanShopId, refreshTick]);
+
+  /* ---------- Realtime bookings ---------- */
+  useEffect(() => {
+    if (!customer) return;
+    const channel = supabase
+      .channel(`customer-bookings-${customer.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bookings',
+          filter: `customer_id=eq.${customer.id}`,
+        },
+        () => {
+          void (async () => {
+            const all = await getShopBookings(cleanShopId);
+            setBookings(all.filter((b) => b.customer_id === customer.id));
+          })();
+        }
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [customer, cleanShopId]);
+
+  /* ---------- Login handler ---------- */
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = phone.trim();
+    if (!trimmed) {
+      setAuthError('يرجى إدخال رقم الهاتف');
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      const c = await getCustomerByPhone(cleanShopId, trimmed);
+      if (!c) {
+        setAuthError('لم يتم العثور على عميل بهذا الرقم. تأكد من الرقم أو تواصل مع المحل.');
+        setCustomer(null);
+        return;
+      }
+      if (c.is_blocked) {
+        setAuthError('هذا الحساب محظور من قبل المحل. يرجى التواصل مع الإدارة.');
+        setCustomer(null);
+        return;
+      }
+      setCustomer(c);
+      try {
+        localStorage.setItem(`ulmi_customer_phone_${cleanShopId}`, trimmed);
+      } catch {
+        // ignore
+      }
+      setTab('home');
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : 'تعذر تسجيل الدخول');
+    } finally {
+      setAuthLoading(false);
+    }
   };
 
   const handleLogout = () => {
-    setCustomer(null); setShopId(null); setShopName(null);
+    setCustomer(null);
+    setSubscription(null);
+    setVisits([]);
+    setBookings([]);
+    setTab('home');
     try {
-      sessionStorage.removeItem('barber_customer');
-      sessionStorage.removeItem('barber_shop_id');
-      sessionStorage.removeItem('barber_shop_name');
-    } catch { /* ignore */ }
-  };
-
-  if (customer && shopId) {
-    return <CustomerDetail customer={customer} shopId={shopId} shopName={shopName} onLogout={handleLogout} />;
-  }
-  return <ShopSelect onLogin={handleLogin} />;
-}
-
-/* ---------- Smart login ---------- */
-function ShopSelect({ onLogin }: { onLogin: (c: Customer, shopId: string, shopName: string) => void }) {
-  const { t } = useI18n();
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [matches, setMatches] = useState<CustomerInShop[] | null>(null);
-
-  const submit = async () => {
-    if (!name.trim() || !phone.trim()) {
-      setError(t('cust.errorEmpty'));
-      setMatches(null);
-      return;
+      localStorage.removeItem(`ulmi_customer_phone_${cleanShopId}`);
+    } catch {
+      // ignore
     }
-    setLoading(true); setError(''); setMatches(null);
-    try {
-      const shops = await getAllShops();
-      const approved = shops.filter((s) => s.status === 'approved');
-      if (approved.length === 0) { setError(t('cust.errorNoShops')); return; }
-      const results = await findCustomerInShops(name, phone, approved.map((s) => ({ id: s.id, shop_name: s.shop_name })));
-      if (results.length === 0) { setError(t('cust.errorNotFound')); return; }
-      if (results.every((r) => r.blocked)) { setError(t('cust.errorBlocked')); return; }
-      const unblocked = results.filter((r) => !r.blocked);
-      if (unblocked.length === 1) { onLogin(unblocked[0].customer, unblocked[0].shop_id, unblocked[0].shop_name); return; }
-      setMatches(unblocked);
-    } catch { setError(t('cust.errorGeneric')); } finally { setLoading(false); }
   };
 
-  if (matches && matches.length > 1) {
+  /* ---------- Computed ---------- */
+  const activeSub = subscription?.status === 'active' ? subscription : null;
+  const remainingHaircuts = activeSub
+    ? Math.max(0, (activeSub.plan?.haircut_count ?? 0) - activeSub.haircuts_used)
+    : 0;
+  const upcomingBookings = useMemo(
+    () =>
+      bookings
+        .filter((b) => b.status === 'pending' || b.status === 'confirmed')
+        .filter((b) => new Date(b.start_at).getTime() >= Date.now() - 5 * 60000)
+        .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime()),
+    [bookings]
+  );
+  const pastBookings = useMemo(
+    () =>
+      bookings
+        .filter((b) => b.status === 'completed' || b.status === 'cancelled' || b.status === 'no_show')
+        .sort((a, b) => new Date(b.start_at).getTime() - new Date(a.start_at).getTime()),
+    [bookings]
+  );
+  const visitsToday = useMemo(
+    () => visits.filter((v) => isSameLocalDay(v.visit_date, new Date())).length,
+    [visits]
+  );
+
+  /* ---------- Login screen ---------- */
+  if (!customer) {
     return (
-      <div className="animate-fade-in mx-auto flex min-h-[calc(100vh-64px)] max-w-md flex-col justify-center bg-stone-50 px-4 py-10 sm:px-6">
-        <div className="text-center">
-          <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-stone-900 text-amber-400 shadow-sm">
-            <Store className="h-8 w-8" />
+      <div className="animate-fade-in mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-10">
+        <div className="card border-stone-200 bg-white p-6 sm:p-8">
+          <div className="flex flex-col items-center text-center">
+            <div className="grid h-16 w-16 place-items-center rounded-2xl bg-stone-900 shadow-sm">
+              <UlmiWordmark variant="dark" size="md" />
+            </div>
+            <h1 className="mt-4 font-display text-2xl font-extrabold text-stone-900">
+              {loadingShop ? 'جاري التحميل...' : shopInfo?.shop_name || 'بوابة العميل'}
+            </h1>
+            <p className="mt-1 text-xs font-bold text-stone-500">
+              سجّل الدخول برقم هاتفك لمتابعة حجوزاتك وباقتك وزياراتك
+            </p>
           </div>
-          <h1 className="mt-5 font-display text-3xl font-extrabold text-stone-900">{t('cust.welcome')} {name.trim()}</h1>
-          <p className="mt-2 text-sm text-stone-500">{t('cust.multiShop')}</p>
-        </div>
-        <div className="mt-8 space-y-2.5 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-          {matches.map((m) => (
-            <button key={m.shop_id} onClick={() => onLogin(m.customer, m.shop_id, m.shop_name)}
-              className="flex w-full items-center gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4 text-right transition hover:border-amber-500 hover:bg-amber-50/40">
-              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-stone-900 font-display text-lg font-extrabold text-amber-400">
-                {m.shop_name.charAt(0)}
+
+          <form onSubmit={handleLogin} className="mt-6 space-y-4">
+            <div>
+              <label className="label flex items-center gap-1.5">
+                <Phone className="h-3.5 w-3.5 text-stone-500" />
+                <span>رقم الهاتف</span>
+              </label>
+              <input
+                type="tel"
+                inputMode="tel"
+                value={phone}
+                onChange={(e) => {
+                  setPhone(e.target.value);
+                  if (authError) setAuthError('');
+                }}
+                className="input bg-white text-center text-lg font-extrabold tracking-wider"
+                placeholder="01xxxxxxxxx"
+                dir="ltr"
+                autoComplete="tel"
+              />
+            </div>
+
+            {authError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-700">
+                {authError}
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-bold text-stone-900">{m.shop_name}</p>
-                <p className="text-xs text-stone-500">{t('cust.shopHint')}</p>
-              </div>
-              <ArrowRight className="h-5 w-5 text-stone-400" />
+            )}
+
+            <button
+              type="submit"
+              disabled={authLoading || loadingShop}
+              className="btn-primary w-full"
+            >
+              {authLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <UserCheck className="h-4 w-4" />
+              )}
+              <span>{authLoading ? 'جاري الدخول...' : 'دخول'}</span>
             </button>
-          ))}
-          <button onClick={() => setMatches(null)} className="w-full rounded-xl py-2.5 text-sm font-bold text-stone-600 transition hover:bg-stone-100">
-            {t('cust.back')}
-          </button>
+
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="btn-ghost w-full"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>رجوع</span>
+              </button>
+            )}
+          </form>
+
+          <div className="mt-6 rounded-xl border border-stone-200 bg-stone-50 p-3 text-center text-[11px] leading-relaxed text-stone-500">
+            بالدخول أنت توافق على استخدام بياناتك داخل النظام لإدارة حجوزاتك وباقاتك.
+          </div>
         </div>
       </div>
     );
   }
 
+  /* ---------- Main customer dashboard ---------- */
   return (
-    <div className="animate-fade-in mx-auto flex min-h-[calc(100vh-64px)] max-w-md flex-col justify-center bg-stone-50 px-4 py-10 sm:px-6">
-      <div className="text-center">
-        <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-stone-900 text-amber-400 shadow-sm">
-          <User className="h-8 w-8" />
-        </div>
-        <h1 className="mt-5 font-display text-3xl font-extrabold text-stone-900">{t('cust.title')}</h1>
-        <p className="mt-2 text-sm text-stone-500">{t('cust.subtitle')}</p>
-      </div>
-      <div className="mt-8 space-y-4 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-        <div>
-          <label className="mb-2 block text-sm font-bold text-stone-600">{t('cust.fullName')}</label>
-          <div className="relative">
-            <User className="absolute right-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-stone-400" />
-            <input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()}
-              placeholder={t('cust.namePlaceholder')} className="w-full rounded-xl border border-stone-200 bg-white py-3 pl-4 pr-11 text-sm text-stone-900 outline-none transition focus:border-amber-500" />
+    <div className="animate-fade-in mx-auto max-w-5xl space-y-5 px-4 py-6 sm:px-6">
+      {/* Header */}
+      <header className="card border-stone-200 bg-white p-4 sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            {shopInfo?.logo_url ? (
+              <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl border border-stone-200 bg-stone-50 p-1.5">
+                <img
+                  src={shopInfo.logo_url}
+                  alt={shopInfo.shop_name}
+                  className="h-full w-full rounded-xl object-contain"
+                />
+              </div>
+            ) : (
+              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-stone-900 font-display text-xl font-extrabold text-white">
+                {shopInfo?.shop_name?.charAt(0) ?? 'م'}
+              </div>
+            )}
+            <div className="min-w-0">
+              <h1 className="truncate font-display text-lg font-extrabold text-stone-900 sm:text-xl">
+                {shopInfo?.shop_name || 'المحل'}
+              </h1>
+              <p className="mt-0.5 flex items-center gap-1.5 text-xs font-bold text-stone-500">
+                <UserCheck className="h-3.5 w-3.5" />
+                <span>مرحبًا، {customer.name}</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setBookingOpen(true)}
+              className="btn-primary h-10 px-3.5 text-xs"
+            >
+              <CalendarPlus className="h-4 w-4" />
+              <span>حجز موعد</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3 text-xs font-bold text-stone-600 transition hover:bg-stone-50 hover:text-stone-900"
+            >
+              <XCircle className="h-4 w-4" />
+              <span>خروج</span>
+            </button>
           </div>
         </div>
-        <div>
-          <label className="mb-2 block text-sm font-bold text-stone-600">{t('cust.phone')}</label>
-          <div className="relative">
-            <Phone className="absolute right-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-stone-400" />
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()}
-              placeholder="01xxxxxxxxx" className="w-full rounded-xl border border-stone-200 bg-white py-3 pl-4 pr-11 text-sm text-stone-900 outline-none transition focus:border-amber-500" dir="ltr" />
-          </div>
-        </div>
-        {error && (
-          <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><span>{error}</span>
-          </div>
+      </header>
+
+      {/* Tabs */}
+      <nav
+        aria-label="أقسام بوابة العميل"
+        className="flex gap-1.5 overflow-x-auto rounded-2xl border border-stone-200 bg-stone-50/80 p-1.5"
+      >
+        {[
+          { k: 'home' as Tab, label: 'الرئيسية', icon: Home },
+          { k: 'plans' as Tab, label: 'الباقات', icon: Layers },
+          { k: 'visits' as Tab, label: 'زياراتي', icon: History },
+          { k: 'profile' as Tab, label: 'ملفي', icon: UserCheck },
+        ].map((t) => {
+          const active = tab === t.k;
+          return (
+            <button
+              key={t.k}
+              onClick={() => setTab(t.k)}
+              className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition sm:text-sm ${
+                active
+                  ? 'bg-stone-900 text-white shadow-xs'
+                  : 'text-stone-600 hover:bg-white hover:text-stone-900'
+              }`}
+            >
+              <t.icon className={`h-4 w-4 ${active ? 'text-stone-200' : 'text-stone-500'}`} />
+              <span>{t.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Content */}
+      <main className="min-w-0">
+        {tab === 'home' && (
+          <HomeTab
+            customer={customer}
+            subscription={activeSub}
+            remainingHaircuts={remainingHaircuts}
+            visits={visits}
+            visitsToday={visitsToday}
+            upcomingBookings={upcomingBookings}
+            regularHaircutPrice={regularHaircutPrice}
+            loading={dataLoading}
+            onBook={() => setBookingOpen(true)}
+            onSubscribe={() => {
+              setSelectedPlan(null);
+              setSubscribeOpen(true);
+            }}
+            onGoVisits={() => setTab('visits')}
+            onGoPlans={() => setTab('plans')}
+          />
         )}
-        <button onClick={submit} disabled={loading} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-stone-900 px-5 py-3 text-sm font-bold text-white transition hover:bg-stone-700 disabled:opacity-50">
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
-          {loading ? t('cust.searching') : t('cust.login')}
-        </button>
-        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">
-          <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" /><span>{t('cust.smartHint')}</span>
+
+        {tab === 'plans' && (
+          <PlansTab
+            plans={plans}
+            activeSubscription={activeSub}
+            remainingHaircuts={remainingHaircuts}
+            loading={dataLoading}
+            onSubscribe={(p) => {
+              setSelectedPlan(p);
+              setSubscribeOpen(true);
+            }}
+          />
+        )}
+
+        {tab === 'visits' && (
+          <VisitsTab
+            visits={visits}
+            upcomingBookings={upcomingBookings}
+            pastBookings={pastBookings}
+            loading={dataLoading}
+            onBook={() => setBookingOpen(true)}
+          />
+        )}
+
+        {tab === 'profile' && (
+          <ProfileTab customer={customer} onLogout={handleLogout} />
+        )}
+      </main>
+
+      {/* Booking Modal */}
+      <BookingModal
+        open={bookingOpen}
+        onClose={() => setBookingOpen(false)}
+        shopId={cleanShopId}
+        customer={customer}
+        branches={branches}
+        barbers={barbers}
+        regularHaircutPrice={regularHaircutPrice}
+        onCreated={() => {
+          setBookingOpen(false);
+          bumpData();
+        }}
+      />
+
+      {/* Subscribe Modal */}
+      <SubscribeModal
+        open={subscribeOpen}
+        onClose={() => setSubscribeOpen(false)}
+        shopId={cleanShopId}
+        customer={customer}
+        plans={plans}
+        initialPlan={selectedPlan}
+        activeSubscription={activeSub}
+        onSubscribed={() => {
+          setSubscribeOpen(false);
+          bumpData();
+        }}
+      />
+    </div>
+  );
+}
+
+/* ============================================================
+   Home Tab
+   ============================================================ */
+function HomeTab({
+  customer,
+  subscription,
+  remainingHaircuts,
+  visits,
+  visitsToday,
+  upcomingBookings,
+  regularHaircutPrice,
+  loading,
+  onBook,
+  onSubscribe,
+  onGoVisits,
+  onGoPlans,
+}: {
+  customer: Customer;
+  subscription: Subscription | null;
+  remainingHaircuts: number;
+  visits: Visit[];
+  visitsToday: number;
+  upcomingBookings: Booking[];
+  regularHaircutPrice: number;
+  loading: boolean;
+  onBook: () => void;
+  onSubscribe: () => void;
+  onGoVisits: () => void;
+  onGoPlans: () => void;
+}) {
+  const totalVisits = visits.length;
+  const nextBooking = upcomingBookings[0];
+
+  return (
+    <div className="space-y-5">
+      {/* Welcome banner */}
+      <div className="card border-stone-200 bg-stone-900 p-5 text-white sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-bold text-stone-400">أهلًا بك مرة أخرى</p>
+            <h2 className="mt-1 font-display text-2xl font-extrabold text-white">{customer.name}</h2>
+            <p className="mt-1.5 flex items-center gap-1.5 text-xs text-stone-300">
+              <Phone className="h-3.5 w-3.5" />
+              <span dir="ltr">{customer.phone}</span>
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onBook}
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-white px-4 text-xs font-extrabold text-stone-900 transition hover:bg-stone-100"
+            >
+              <CalendarPlus className="h-4 w-4" />
+              <span>حجز موعد جديد</span>
+            </button>
+            <button
+              type="button"
+              onClick={onSubscribe}
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-stone-700 bg-stone-800 px-4 text-xs font-extrabold text-white transition hover:bg-stone-700"
+            >
+              <Sparkles className="h-4 w-4 text-amber-400" />
+              <span>اشترك في باقة</span>
+            </button>
+          </div>
         </div>
+      </div>
+
+      {/* Quick stats */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="card flex items-center justify-between p-4">
+          <div>
+            <p className="text-xs font-bold text-stone-500">الباقة الحالية</p>
+            {loading ? (
+              <div className="mt-2 h-6 w-20 animate-shimmer rounded" />
+            ) : (
+              <p className="mt-1.5 font-display text-lg font-extrabold text-stone-900">
+                {subscription ? subscription.plan?.name || 'نشطة' : 'بدون باقة'}
+              </p>
+            )}
+            {subscription && (
+              <p className="mt-1 text-[11px] font-bold text-emerald-700">
+                باقي {remainingHaircuts} حلاقة
+              </p>
+            )}
+          </div>
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-stone-200 bg-stone-50 text-stone-700">
+            <Crown className="h-5 w-5" />
+          </div>
+        </div>
+
+        <div className="card flex items-center justify-between p-4">
+          <div>
+            <p className="text-xs font-bold text-stone-500">زياراتي الكلية</p>
+            {loading ? (
+              <div className="mt-2 h-6 w-12 animate-shimmer rounded" />
+            ) : (
+              <p className="mt-1.5 font-display text-lg font-extrabold text-stone-900">{totalVisits}</p>
+            )}
+            <p className="mt-1 text-[11px] text-stone-500">اليوم: {visitsToday}</p>
+          </div>
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-stone-200 bg-stone-50 text-stone-700">
+            <Scissors className="h-5 w-5" />
+          </div>
+        </div>
+
+        <div className="card flex items-center justify-between p-4">
+          <div>
+            <p className="text-xs font-bold text-stone-500">حجوزات قادمة</p>
+            {loading ? (
+              <div className="mt-2 h-6 w-12 animate-shimmer rounded" />
+            ) : (
+              <p className="mt-1.5 font-display text-lg font-extrabold text-stone-900">
+                {upcomingBookings.length}
+              </p>
+            )}
+            <p className="mt-1 text-[11px] text-stone-500">مؤكدة وبانتظار</p>
+          </div>
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-stone-200 bg-stone-50 text-stone-700">
+            <Ticket className="h-5 w-5" />
+          </div>
+        </div>
+
+        <div className="card flex items-center justify-between p-4">
+          <div>
+            <p className="text-xs font-bold text-stone-500">سعر الحلاقة</p>
+            <p className="mt-1.5 font-display text-lg font-extrabold text-stone-900">
+              {formatPrice(regularHaircutPrice)}
+            </p>
+            <p className="mt-1 text-[11px] text-stone-500">للحلاقة العادية</p>
+          </div>
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-stone-200 bg-stone-50 text-stone-700">
+            <Coins className="h-5 w-5" />
+          </div>
+        </div>
+      </div>
+
+      {/* Next booking */}
+      {nextBooking && (
+        <div className="card border-stone-300 bg-white p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-stone-900 text-white">
+                <CalendarClock className="h-5 w-5 text-amber-400" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-stone-500">موعدك القادم</p>
+                <p className="mt-0.5 font-display text-base font-extrabold text-stone-900">
+                  {nextBooking.service_name}
+                </p>
+                <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-stone-600">
+                  <span className="inline-flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {formatDateTime(nextBooking.start_at)}
+                  </span>
+                  <span className="font-mono text-stone-500">{nextBooking.booking_code}</span>
+                  {nextBooking.branch_name && (
+                    <span className="inline-flex items-center gap-1">
+                      <MapPin className="h-3 w-3" />
+                      {nextBooking.branch_name}
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+            <span className={`rounded-full px-3 py-1 text-[11px] font-bold ${bookingStatusMeta(nextBooking.status).cls}`}>
+              {bookingStatusMeta(nextBooking.status).label}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Quick actions */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <button
+          onClick={onGoPlans}
+          className="card flex items-center justify-between p-4 text-right transition hover:border-stone-300 hover:bg-stone-50/60"
+        >
+          <div className="flex items-center gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-stone-900 text-white">
+              <Layers className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-extrabold text-stone-900">الباقات والاشتراكات</p>
+              <p className="text-[11px] text-stone-500">تصفح الباقات المتاحة واشترك</p>
+            </div>
+          </div>
+          <ArrowUpRight className="h-4 w-4 text-stone-400" />
+        </button>
+
+        <button
+          onClick={onGoVisits}
+          className="card flex items-center justify-between p-4 text-right transition hover:border-stone-300 hover:bg-stone-50/60"
+        >
+          <div className="flex items-center gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-stone-900 text-white">
+              <History className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-extrabold text-stone-900">سجل الزيارات</p>
+              <p className="text-[11px] text-stone-500">اعرض كل زياراتك السابقة</p>
+            </div>
+          </div>
+          <ArrowUpRight className="h-4 w-4 text-stone-400" />
+        </button>
       </div>
     </div>
   );
 }
 
-/* ---------- Customer booking widget (Multi-branch & Multi-barber aware) ---------- */
-type ShopBranchOption = {
-  id: string;
-  name: string;
-  address: string | null;
-};
-
-type BarberOption = {
-  id: string;
-  branch_id: string | null;
-  name: string;
-  chair_label: string | null;
-  is_active: boolean;
-  is_available_for_booking: boolean;
-};
-
-type SmartSlot = {
-  start_at: string;
-  end_at: string;
-  label: string;
-  available: boolean;
-  freeChairsCount: number;
-};
-
-type CustomerBookingRow = Booking & {
-  branch_id?: string | null;
-  barber_id?: string | null;
-};
-
-function getUpcomingDates(count = 7): { value: string; label: string }[] {
-  const list: { value: string; label: string }[] = [];
-  const base = new Date();
-  for (let i = 0; i < count; i += 1) {
-    const d = new Date(base);
-    d.setDate(base.getDate() + i);
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    const isoDate = `${yyyy}-${mm}-${dd}`;
-    const label =
-      i === 0
-        ? `اليوم (${new Intl.DateTimeFormat('ar-EG', { weekday: 'short', day: 'numeric', month: 'short' }).format(d)})`
-        : i === 1
-        ? `غدًا (${new Intl.DateTimeFormat('ar-EG', { weekday: 'short', day: 'numeric', month: 'short' }).format(d)})`
-        : new Intl.DateTimeFormat('ar-EG', { weekday: 'short', day: 'numeric', month: 'short' }).format(d);
-    list.push({ value: isoDate, label });
-  }
-  return list;
-}
-
-function bookingStatusBadge(status: Booking['status']): { label: string; cls: string } {
-  switch (status) {
-    case 'confirmed':
-      return { label: 'مؤكد', cls: 'bg-emerald-100 text-emerald-700' };
-    case 'pending':
-      return { label: 'بانتظار تأكيد المحل', cls: 'bg-amber-100 text-amber-800' };
-    case 'completed':
-      return { label: 'تم الحضور والزيارة', cls: 'bg-blue-100 text-blue-700' };
-    case 'cancelled':
-      return { label: 'ملغي', cls: 'bg-stone-200 text-stone-600' };
-    case 'no_show':
-      return { label: 'لم يحضر بالموعد', cls: 'bg-red-100 text-red-700' };
-  }
-}
-
-function CustomerBookingSection({
-  customer,
-  shopId,
+/* ============================================================
+   Plans Tab
+   ============================================================ */
+function PlansTab({
   plans,
-  activeSub,
-  onBookingChanged,
+  activeSubscription,
+  remainingHaircuts,
+  loading,
+  onSubscribe,
 }: {
-  customer: Customer;
-  shopId: string;
   plans: Plan[];
-  activeSub: Subscription | null;
-  onBookingChanged: () => void;
+  activeSubscription: Subscription | null;
+  remainingHaircuts: number;
+  loading: boolean;
+  onSubscribe: (plan: Plan) => void;
 }) {
-  const dates = getUpcomingDates(7);
-  const [selectedDate, setSelectedDate] = useState<string>(dates[0].value);
-  const [branches, setBranches] = useState<ShopBranchOption[]>([]);
-  const [barbers, setBarbers] = useState<BarberOption[]>([]);
-  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
-  const [selectedBarberId, setSelectedBarberId] = useState<string>('any');
-
-  const [slots, setSlots] = useState<SmartSlot[]>([]);
-  const [selectedSlot, setSelectedSlot] = useState<string>('');
-  const [selectedPlanId, setSelectedPlanId] = useState<string>('');
-  const [notes, setNotes] = useState('');
-  const [bookings, setBookings] = useState<CustomerBookingRow[]>([]);
-  const [trust, setTrust] = useState<CustomerBookingTrust | null>(null);
-  const [loadingSlots, setLoadingSlots] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
-
-  const loadBranchesAndBarbers = useCallback(async () => {
-    try {
-      const [brRes, barbRes] = await Promise.all([
-        supabase
-          .from('shop_branches')
-          .select('id, name, address')
-          .eq('shop_id', shopId)
-          .eq('is_active', true)
-          .order('created_at', { ascending: true }),
-        supabase
-          .from('barbers')
-          .select('id, branch_id, name, chair_label, is_active, is_available_for_booking')
-          .eq('shop_id', shopId)
-          .eq('is_active', true)
-          .order('created_at', { ascending: true }),
-      ]);
-
-      const activeBranches = (brRes.data ?? []) as ShopBranchOption[];
-      const activeBarbers = (barbRes.data ?? []) as BarberOption[];
-
-      setBranches(activeBranches);
-      setBarbers(activeBarbers);
-
-      if (activeBranches.length > 0) {
-        setSelectedBranchId((prev) =>
-          activeBranches.some((b) => b.id === prev) ? prev : activeBranches[0].id
-        );
-      }
-    } catch (e) {
-      console.error('Failed loading branches/barbers:', e);
-    }
-  }, [shopId]);
-
-  const loadBookingsAndTrust = useCallback(async () => {
-    try {
-      const [userBookings, trustInfo] = await Promise.all([
-        getCustomerBookings(shopId, customer.id),
-        evaluateCustomerBookingTrust(shopId, customer.id),
-      ]);
-      setBookings(userBookings as CustomerBookingRow[]);
-      setTrust(trustInfo);
-    } catch (e) {
-      console.error('Failed loading bookings/trust:', e);
-    }
-  }, [shopId, customer.id]);
-
-  const branchBarbers = useMemo(
-    () =>
-      barbers.filter(
-        (b) =>
-          b.is_active &&
-          b.is_available_for_booking &&
-          (!selectedBranchId || !b.branch_id || b.branch_id === selectedBranchId)
-      ),
-    [barbers, selectedBranchId]
-  );
-
-  const loadSlots = useCallback(
-    async (dateStr: string) => {
-      setLoadingSlots(true);
-      try {
-        const dayStart = new Date(`${dateStr}T00:00:00`);
-        const dayEnd = new Date(`${dateStr}T23:59:59`);
-
-        let query = supabase
-          .from('bookings')
-          .select('id, barber_id, branch_id, start_at, end_at, status')
-          .eq('shop_id', shopId)
-          .in('status', ['pending', 'confirmed'])
-          .lt('start_at', dayEnd.toISOString())
-          .gt('end_at', dayStart.toISOString());
-
-        if (selectedBranchId) {
-          query = query.eq('branch_id', selectedBranchId);
-        }
-
-        const { data: dayBookings, error } = await query;
-        if (error) throw error;
-
-        const activeBookings = dayBookings ?? [];
-        const currentBranchBarbers = barbers.filter(
-          (b) =>
-            b.is_active &&
-            b.is_available_for_booking &&
-            (!selectedBranchId || !b.branch_id || b.branch_id === selectedBranchId)
-        );
-
-        const candidateBarbers =
-          selectedBarberId !== 'any'
-            ? currentBranchBarbers.filter((b) => b.id === selectedBarberId)
-            : currentBranchBarbers;
-
-        const now = new Date();
-        const generated: SmartSlot[] = [];
-
-        for (let hour = 11; hour < 23; hour += 1) {
-          const slotStart = new Date(`${dateStr}T${String(hour).padStart(2, '0')}:00:00`);
-          const slotEnd = new Date(slotStart.getTime() + 60 * 60000);
-          const isPast = slotStart.getTime() <= now.getTime();
-
-          let freeChairsCount = 0;
-
-          if (!isPast && candidateBarbers.length > 0) {
-            for (const barber of candidateBarbers) {
-              const isBarberBusy = activeBookings.some((bk) => {
-                const sameBarber =
-                  bk.barber_id === barber.id ||
-                  (!bk.barber_id && candidateBarbers.length === 1);
-                if (!sameBarber) return false;
-                return (
-                  new Date(bk.start_at).getTime() < slotEnd.getTime() &&
-                  new Date(bk.end_at).getTime() > slotStart.getTime()
-                );
-              });
-              if (!isBarberBusy) freeChairsCount += 1;
-            }
-          }
-
-          const label = slotStart.toLocaleTimeString('ar-EG', {
-            hour: '2-digit',
-            minute: '2-digit',
-          });
-
-          generated.push({
-            start_at: slotStart.toISOString(),
-            end_at: slotEnd.toISOString(),
-            label,
-            available: !isPast && freeChairsCount > 0,
-            freeChairsCount,
-          });
-        }
-
-        setSlots(generated);
-        const firstAvail = generated.find((s) => s.available);
-        setSelectedSlot((prev) =>
-          generated.some((s) => s.start_at === prev && s.available)
-            ? prev
-            : firstAvail?.start_at ?? ''
-        );
-      } catch (e) {
-        console.error('Failed loading smart slots:', e);
-        try {
-          const fallback = await getAvailableBookingSlots(shopId, dateStr, {
-            startHour: 11,
-            endHour: 23,
-            slotMinutes: 60,
-          });
-          setSlots(
-            fallback.map((s) => ({
-              ...s,
-              freeChairsCount: s.available ? 1 : 0,
-            }))
-          );
-        } catch {
-          setSlots([]);
-        }
-      } finally {
-        setLoadingSlots(false);
-      }
-    },
-    [shopId, selectedBranchId, selectedBarberId, barbers]
-  );
-
-  useEffect(() => {
-    void loadBranchesAndBarbers();
-    void loadBookingsAndTrust();
-  }, [loadBranchesAndBarbers, loadBookingsAndTrust]);
-
-  useEffect(() => {
-    void loadSlots(selectedDate);
-  }, [loadSlots, selectedDate]);
-
-  const hasSub =
-    activeSub?.status === 'active' &&
-    activeSub.haircuts_used < (activeSub.plan?.haircut_count ?? 0);
-
-  const chosenPlan = plans.find((p) => p.id === selectedPlanId) ?? null;
-  const serviceName = chosenPlan
-    ? chosenPlan.name
-    : hasSub && activeSub?.plan
-    ? `حلاقة ضمن باقة (${activeSub.plan.name})`
-    : 'حلاقة عادية';
-
-  const barberMap = new Map(barbers.map((b) => [b.id, b]));
-  const branchMap = new Map(branches.map((b) => [b.id, b]));
-
-  const handleBook = async () => {
-    if (!selectedSlot) {
-      setFeedback({ type: 'err', text: 'اختر ميعادًا متاحًا أولًا.' });
-      return;
-    }
-
-    if (branchBarbers.length === 0) {
-      setFeedback({
-        type: 'err',
-        text: 'لا يوجد حلاقون متاحون حاليًا في هذا الفرع.',
-      });
-      return;
-    }
-
-    setSubmitting(true);
-    setFeedback(null);
-
-    try {
-      const startIso = selectedSlot;
-      const endIso = new Date(new Date(startIso).getTime() + 60 * 60000).toISOString();
-      const targetBranchId = selectedBranchId || branches[0]?.id || null;
-      const requestedBarberId = selectedBarberId === 'any' ? null : selectedBarberId;
-
-      const { data: assignedBarberId, error: assignErr } = await supabase.rpc(
-        'assign_available_barber',
-        {
-          p_shop_id: shopId,
-          p_branch_id: targetBranchId,
-          p_barber_id: requestedBarberId,
-          p_start_at: startIso,
-          p_end_at: endIso,
-        }
-      );
-
-      if (assignErr) {
-        throw new Error(assignErr.message || 'الموعد اكتمل للتو، اختر موعدًا آخر.');
-      }
-
-      const created = await createCustomerBooking({
-        shopId,
-        customer,
-        serviceName,
-        planId: chosenPlan?.id ?? activeSub?.plan_id ?? null,
-        startAt: startIso,
-        durationMinutes: 60,
-        notes,
-      });
-
-      if (created?.id) {
-        await supabase
-          .from('bookings')
-          .update({
-            branch_id: targetBranchId,
-            barber_id: assignedBarberId,
-          })
-          .eq('id', created.id);
-      }
-
-      const assignedBarber = assignedBarberId ? barberMap.get(String(assignedBarberId)) : null;
-      const assignedBranch = targetBranchId ? branchMap.get(targetBranchId) : null;
-
-      setNotes('');
-      await Promise.all([loadSlots(selectedDate), loadBookingsAndTrust()]);
-      onBookingChanged();
-
-      const placeSummary = [
-        assignedBranch ? `الفرع: ${assignedBranch.name}` : null,
-        assignedBarber ? `الحلاق: ${assignedBarber.name}` : null,
-      ]
-        .filter(Boolean)
-        .join(' — ');
-
-      setFeedback({
-        type: 'ok',
-        text:
-          created.status === 'confirmed'
-            ? `تم تأكيد حجزك تلقائيًا! رقم حجزك: ${created.booking_code} — الموعد: ${formatDateTime(created.start_at)}${placeSummary ? ` (${placeSummary})` : ''}`
-            : `تم إرسال طلب حجزك برقم ${created.booking_code} وهو بانتظار تأكيد المحل${placeSummary ? ` (${placeSummary})` : ''}.`,
-      });
-    } catch (e) {
-      setFeedback({
-        type: 'err',
-        text: e instanceof Error ? e.message : 'تعذر إتمام الحجز.',
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleCancelBooking = async (booking: CustomerBookingRow) => {
-    setCancellingId(booking.id);
-    setFeedback(null);
-    try {
-      await updateBookingStatus(booking.id, 'cancelled');
-      await Promise.all([loadSlots(selectedDate), loadBookingsAndTrust()]);
-      onBookingChanged();
-      setFeedback({
-        type: 'ok',
-        text: `تم إلغاء الحجز رقم ${booking.booking_code} وإتاحة الموعد لعملاء آخرين.`,
-      });
-    } catch (e) {
-      setFeedback({
-        type: 'err',
-        text: e instanceof Error ? e.message : 'تعذر إلغاء الحجز.',
-      });
-    } finally {
-      setCancellingId(null);
-    }
-  };
-
   return (
-    <div id="customer-booking" className="mt-6 scroll-mt-6 space-y-5">
-      <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-stone-900 text-amber-400">
-              <Calendar className="h-6 w-6" />
-            </div>
-            <div>
-              <h3 className="font-display text-xl font-extrabold text-stone-900">
-                احجز موعدك الآن
-              </h3>
-              <p className="text-xs text-stone-500">
-                اختر اليوم والوقت المتاح واحصل على رقم حجز خاص بك فورًا
-              </p>
-            </div>
-          </div>
-
-          {trust && (
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${
-                trust.isTrusted
-                  ? 'bg-emerald-100 text-emerald-700'
-                  : 'bg-amber-100 text-amber-800'
-              }`}
-            >
-              <ShieldCheck className="h-3.5 w-3.5" />
-              {trust.trustBadge}
-            </span>
-          )}
-        </div>
-
-        {trust && !trust.canBook ? (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
-            {trust.blockReason}
-          </div>
-        ) : (
-          <div className="mt-5 space-y-5">
-            {branches.length > 1 && (
-              <div>
-                <label className="mb-2 block text-xs font-extrabold text-stone-700">
-                  اختر الفرع
-                </label>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {branches.map((br) => {
-                    const activeBranch = selectedBranchId === br.id;
-                    return (
-                      <button
-                        key={br.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedBranchId(br.id);
-                          setSelectedBarberId('any');
-                        }}
-                        className={`rounded-xl border p-3 text-right transition ${
-                          activeBranch
-                            ? 'border-stone-900 bg-stone-900 text-white'
-                            : 'border-stone-200 bg-stone-50 text-stone-800 hover:bg-stone-100'
-                        }`}
-                      >
-                        <p className="text-xs font-extrabold">{br.name}</p>
-                        {br.address && (
-                          <p
-                            className={`mt-0.5 text-[11px] ${
-                              activeBranch ? 'text-stone-300' : 'text-stone-500'
-                            }`}
-                          >
-                            {br.address}
-                          </p>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {branchBarbers.length > 1 && (
-              <div>
-                <label className="mb-2 block text-xs font-extrabold text-stone-700">
-                  اختر الحلاق / الكرسي
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedBarberId('any')}
-                    className={`rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
-                      selectedBarberId === 'any'
-                        ? 'border-stone-900 bg-stone-900 text-white'
-                        : 'border-stone-200 bg-stone-50 text-stone-700 hover:bg-stone-100'
-                    }`}
-                  >
-                    أقرب حلاق متاح ({branchBarbers.length})
-                  </button>
-                  {branchBarbers.map((barber) => {
-                    const activeBarber = selectedBarberId === barber.id;
-                    return (
-                      <button
-                        key={barber.id}
-                        type="button"
-                        onClick={() => setSelectedBarberId(barber.id)}
-                        className={`rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
-                          activeBarber
-                            ? 'border-stone-900 bg-stone-900 text-white'
-                            : 'border-stone-200 bg-stone-50 text-stone-700 hover:bg-stone-100'
-                        }`}
-                      >
-                        {barber.name}
-                        {barber.chair_label ? ` (${barber.chair_label})` : ''}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            <div>
-              <label className="mb-2 block text-xs font-extrabold text-stone-700">
-                1. اختر اليوم
-              </label>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {dates.map((d) => {
-                  const activeDay = selectedDate === d.value;
-                  return (
-                    <button
-                      key={d.value}
-                      type="button"
-                      onClick={() => setSelectedDate(d.value)}
-                      className={`shrink-0 rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
-                        activeDay
-                          ? 'border-stone-900 bg-stone-900 text-white'
-                          : 'border-stone-200 bg-stone-50 text-stone-700 hover:bg-stone-100'
-                      }`}
-                    >
-                      {d.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <label className="text-xs font-extrabold text-stone-700">
-                  2. اختر الوقت المتاح (المواعيد المحجوزة بالكامل مغلقة)
-                </label>
-                {loadingSlots && <Loader2 className="h-4 w-4 animate-spin text-stone-400" />}
-              </div>
-
-              {branchBarbers.length === 0 ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center text-xs font-bold text-amber-800">
-                  جميع الحلاقين في إجازة حاليًا. يرجى المحاولة لاحقًا أو اختيار فرع آخر.
-                </div>
-              ) : loadingSlots ? (
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {[1, 2, 3, 4].map((n) => (
-                    <div key={n} className="h-11 animate-shimmer rounded-xl" />
-                  ))}
-                </div>
-              ) : slots.every((s) => !s.available) ? (
-                <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 text-center text-xs font-bold text-stone-500">
-                  جميع الكراسي محجوزة في هذا اليوم. جرّب يومًا آخر.
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-                  {slots.map((slot) => {
-                    const isSelected = selectedSlot === slot.start_at && slot.available;
-                    return (
-                      <button
-                        key={slot.start_at}
-                        type="button"
-                        disabled={!slot.available}
-                        onClick={() => setSelectedSlot(slot.start_at)}
-                        className={`rounded-xl border px-3 py-2.5 text-center text-xs font-bold transition ${
-                          !slot.available
-                            ? 'cursor-not-allowed border-stone-200 bg-stone-100 text-stone-400 line-through'
-                            : isSelected
-                            ? 'border-amber-600 bg-amber-600 text-white shadow-sm'
-                            : 'border-stone-200 bg-white text-stone-800 hover:border-amber-500 hover:bg-amber-50/50'
-                        }`}
-                      >
-                        <div>{slot.label}</div>
-                        {slot.available && branchBarbers.length > 1 && selectedBarberId === 'any' && (
-                          <div
-                            className={`mt-0.5 text-[10px] ${
-                              isSelected ? 'text-amber-100' : 'text-emerald-700'
-                            }`}
-                          >
-                            متاح {slot.freeChairsCount} كرسي
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="mb-1.5 block text-xs font-extrabold text-stone-700">
-                  3. الخدمة أو الباقة
-                </label>
-                <select
-                  value={selectedPlanId}
-                  onChange={(e) => setSelectedPlanId(e.target.value)}
-                  className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-2.5 text-sm text-stone-900 outline-none focus:border-amber-500"
-                >
-                  <option value="">
-                    {hasSub && activeSub?.plan
-                      ? `حلاقة ضمن باقتي النشطة (${activeSub.plan.name})`
-                      : 'حلاقة عادية'}
-                  </option>
-                  {plans.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({formatPrice(Number(p.price))})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-xs font-extrabold text-stone-700">
-                  ملاحظات للحلاق (اختياري)
-                </label>
-                <input
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="مثال: تدرج متوسط + تهذيب لحية"
-                  className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-2.5 text-sm text-stone-900 outline-none focus:border-amber-500"
-                />
-              </div>
-            </div>
-
-            {feedback && (
-              <div
-                className={`rounded-xl border p-3.5 text-xs font-bold ${
-                  feedback.type === 'ok'
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                    : 'border-red-200 bg-red-50 text-red-700'
-                }`}
-              >
-                {feedback.text}
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={() => void handleBook()}
-              disabled={submitting || !selectedSlot}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-amber-700 disabled:opacity-50"
-            >
-              {submitting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Ticket className="h-4 w-4" />
-              )}
-              {submitting ? 'جارٍ تأكيد الحجز...' : 'تأكيد الحجز وإصدار رقم الحجز'}
-            </button>
-          </div>
-        )}
+    <div className="space-y-4">
+      <div>
+        <h2 className="font-display text-lg font-extrabold text-stone-900">الباقات المتاحة</h2>
+        <p className="text-xs text-stone-500">اختر الباقة المناسبة لك واستمتع بأسعار أفضل</p>
       </div>
 
-      {/* Customer's bookings list */}
-      {bookings.length > 0 && (
-        <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-          <h4 className="mb-3 flex items-center gap-2 font-extrabold text-stone-900">
-            <Ticket className="h-4 w-4 text-amber-600" />
-            حجوزاتي ({bookings.length})
-          </h4>
-          <div className="space-y-2.5">
-            {bookings.map((b) => {
-              const badge = bookingStatusBadge(b.status);
-              const canCancel = b.status === 'pending' || b.status === 'confirmed';
-              const bBranch = b.branch_id ? branchMap.get(b.branch_id) : null;
-              const bBarber = b.barber_id ? barberMap.get(b.barber_id) : null;
+      {activeSubscription && (
+        <div className="card border-emerald-200 bg-emerald-50/50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-700 text-white">
+                <Crown className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-emerald-800">باقتك النشطة</p>
+                <p className="font-display text-base font-extrabold text-stone-900">
+                  {activeSubscription.plan?.name || 'باقة نشطة'}
+                </p>
+                <p className="text-[11px] font-bold text-emerald-800">
+                  باقي {remainingHaircuts} حلاقة · ينتهي {formatDate(activeSubscription.end_date)}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-              return (
-                <div
-                  key={b.id}
-                  className="flex flex-col justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50 p-3.5 sm:flex-row sm:items-center"
-                >
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-lg bg-stone-900 px-2.5 py-0.5 font-mono text-xs font-extrabold text-amber-400">
-                        {b.booking_code}
-                      </span>
-                      <span className="text-sm font-extrabold text-stone-900">
-                        {b.service_name}
-                      </span>
-                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${badge.cls}`}>
-                        {badge.label}
-                      </span>
+      {loading ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-48 animate-shimmer rounded-2xl" />
+          ))}
+        </div>
+      ) : plans.length === 0 ? (
+        <div className="card p-10 text-center">
+          <Layers className="mx-auto h-10 w-10 text-stone-300" />
+          <p className="mt-3 font-bold text-stone-700">لا توجد باقات متاحة حاليًا</p>
+          <p className="text-xs text-stone-500">يرجى التواصل مع المحل للاستفسار</p>
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {plans.map((plan) => {
+            const isActive = activeSubscription?.plan?.id === plan.id;
+            const savings = plan.haircut_count * 0 + 0; // placeholder for future
+            return (
+              <div
+                key={plan.id}
+                className={`card flex flex-col justify-between p-5 ${
+                  isActive ? 'border-emerald-300 ring-2 ring-emerald-200' : ''
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div className="grid h-10 w-10 place-items-center rounded-xl bg-stone-900 text-white">
+                      <Gift className="h-5 w-5" />
                     </div>
-                    <p className="mt-1 text-xs text-stone-600">
-                      الموعد: {formatDateTime(b.start_at)}
-                      {bBranch && branches.length > 1 ? ` · الفرع: ${bBranch.name}` : ''}
-                      {bBarber ? ` · الحلاق: ${bBarber.name}` : ''}
-                    </p>
-                    {b.notes && (
-                      <p className="mt-1 text-xs text-stone-500">ملاحظة: {b.notes}</p>
+                    {isActive && (
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-extrabold text-emerald-800">
+                        باقتك الحالية
+                      </span>
                     )}
                   </div>
-
-                  {canCancel && (
-                    <button
-                      type="button"
-                      disabled={cancellingId === b.id}
-                      onClick={() => void handleCancelBooking(b)}
-                      className="inline-flex shrink-0 items-center justify-center gap-1 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
-                    >
-                      {cancellingId === b.id && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                      إلغاء الحجز
-                    </button>
-                  )}
+                  <h3 className="mt-3 font-display text-base font-extrabold text-stone-900">
+                    {plan.name}
+                  </h3>
+                  <p className="mt-1 text-xs text-stone-500">
+                    {plan.haircut_count} حلاقة · صالحة {plan.duration_days} يوم
+                  </p>
+                  <div className="mt-3 flex items-baseline gap-1.5">
+                    <span className="font-display text-2xl font-extrabold text-stone-900">
+                      {formatPrice(plan.price)}
+                    </span>
+                    <span className="text-[11px] font-bold text-stone-500">/ باقة</span>
+                  </div>
+                  <p className="mt-1 text-[11px] font-bold text-emerald-700">
+                    ≈ {formatPrice(plan.haircut_count > 0 ? plan.price / plan.haircut_count : 0)} للحلاقة
+                  </p>
                 </div>
-              );
-            })}
-          </div>
+
+                <button
+                  onClick={() => onSubscribe(plan)}
+                  disabled={isActive}
+                  className={`mt-4 inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl text-xs font-extrabold transition ${
+                    isActive
+                      ? 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200 cursor-not-allowed'
+                      : 'bg-stone-900 text-white hover:bg-stone-800'
+                  }`}
+                >
+                  {isActive ? (
+                    <>
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span>مفعّلة</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      <span>اشترك الآن</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
-/* ---------- Hair consultation ---------- */
-type HairType = 'straight' | 'wavy' | 'curly' | 'coily';
-type FaceShape = 'oval' | 'round' | 'square' | 'long';
-type StylePref = 'classic' | 'modern' | 'bold' | 'low-maintenance';
+/* ============================================================
+   Visits Tab
+   ============================================================ */
+function VisitsTab({
+  visits,
+  upcomingBookings,
+  pastBookings,
+  loading,
+  onBook,
+}: {
+  visits: Visit[];
+  upcomingBookings: Booking[];
+  pastBookings: Booking[];
+  loading: boolean;
+  onBook: () => void;
+}) {
+  const [filter, setFilter] = useState<'all' | 'visits' | 'bookings'>('all');
 
-const HAIR_CONSULTATION: Record<HairType, Record<FaceShape, Record<StylePref, { name_ar: string; name_en: string; desc_ar: string; desc_en: string }>>> = {
-  straight: {
-    oval: {
-      classic: { name_ar: 'كروب كلاسيكي', name_en: 'Classic Crop', desc_ar: 'قصة متساوية من الجوانب مع تعتيق خفيف', desc_en: 'Even sides with a subtle fade' },
-      modern: { name_ar: 'قصة البومر', name_en: 'Pompadour', desc_ar: 'تدرج عصري مع خط أنيق', desc_en: 'Modern taper with a clean line' },
-      bold: { name_ar: 'سكين فايد', name_en: 'Skin Fade', desc_ar: 'تدرج حاد بالماكينة مع خط حاد', desc_en: 'Sharp clipper fade with a hard line' },
-      'low-maintenance': { name_ar: 'قصة عسكرية', name_en: 'Buzz Cut', desc_ar: 'قصيرة من الجوانب ووسطي', desc_en: 'Short sides and top — easy daily' },
-    },
-    round: {
-      classic: { name_ar: 'قصة جانبية', name_en: 'Side Part', desc_ar: 'تفريط جانبي يطيل الوجه', desc_en: 'Side part that elongates the face' },
-      modern: { name_ar: 'كيف بمقدمة', name_en: 'Quiff', desc_ar: 'مقدمة منسدلة لتطويل الوجه', desc_en: 'Front quiff to lengthen the face' },
-      bold: { name_ar: 'فوك هوك', name_en: 'Faux Hawk', desc_ar: 'شعر منتصب للأعلى', desc_en: 'Hair styled upward for height' },
-      'low-maintenance': { name_ar: 'قصة بسيطة بمقدمة', name_en: 'Short with Bangs', desc_ar: 'تدرج خفيف مع مقدمة قصيرة', desc_en: 'Light taper with short bangs' },
-    },
-    square: {
-      classic: { name_ar: 'قصة كلاسيكية بمقدمة', name_en: 'Classic with Bangs', desc_ar: 'تخفيف زوايا الوجه المربع', desc_en: 'Soften square jaw angles' },
-      modern: { name_ar: 'تدرج عصري', name_en: 'Modern Taper', desc_ar: 'تدرج يلطفف زوايا الفك', desc_en: 'Taper that softens the jaw' },
-      bold: { name_ar: 'بازل كات', name_en: 'Buzz Cut', desc_ar: 'قصة حادة تعزز الملامح', desc_en: 'Sharp cut that enhances features' },
-      'low-maintenance': { name_ar: 'قصة قصيرة', name_en: 'Short Cut', desc_ar: 'قصيرة ومتساوية', desc_en: 'Short and even — no maintenance' },
-    },
-    long: {
-      classic: { name_ar: 'قصة بمقدمة جانبية', name_en: 'Side Sweep', desc_ar: 'مقدمة جانبية تقصر الوجه', desc_en: 'Side bangs to shorten the face' },
-      modern: { name_ar: 'ميد فايد', name_en: 'Mid Fade', desc_ar: 'تدرج متوسط يوازن الوجه', desc_en: 'Mid fade to balance the face' },
-      bold: { name_ar: 'تشارليز', name_en: 'Charles', desc_ar: 'مقدمة منسدلة جانبياً', desc_en: 'Side-swept front with sharp taper' },
-      'low-maintenance': { name_ar: 'قصة كوت', name_en: 'Crop Cut', desc_ar: 'قصيرة بتدرج بسيط', desc_en: 'Short with simple taper' },
-    },
-  },
-  wavy: {
-    oval: {
-      classic: { name_ar: 'قصة كلاسيكية للأمواج', name_en: 'Classic Wavy', desc_ar: 'تدرج يحافظ على تمايل الشعر', desc_en: 'Taper that keeps natural waves' },
-      modern: { name_ar: 'تكسشر كات', name_en: 'Texture Cut', desc_ar: 'يبرز تموجات الشعر', desc_en: 'Enhances natural texture' },
-      bold: { name_ar: 'كيف مع مواج', name_en: 'Wavy Quiff', desc_ar: 'تدرج مع الحفاظ على الموج', desc_en: 'Taper keeping the wave bold' },
-      'low-maintenance': { name_ar: 'قصة قصيرة للأمواج', name_en: 'Short Wavy', desc_ar: 'تستفيد من الموج الطبيعي', desc_en: 'Uses natural wave, no styling' },
-    },
-    round: {
-      classic: { name_ar: 'قصة بطول علوي', name_en: 'Top Volume', desc_ar: 'الطول العلوي يطيل الوجه', desc_en: 'Top length elongates the face' },
-      modern: { name_ar: 'كيف موجي', name_en: 'Wavy Quiff', desc_ar: 'تدرج عصري مع موج جانبي', desc_en: 'Modern taper with side wave' },
-      bold: { name_ar: 'موهوك موجي', name_en: 'Wavy Mohawk', desc_ar: 'شعر منتصف يطيل الوجه', desc_en: 'Middle spike to add height' },
-      'low-maintenance': { name_ar: 'قصة قصيرة موجية', name_en: 'Short Wave', desc_ar: 'موج طبيعي بدون مجهود', desc_en: 'Natural wave, no effort' },
-    },
-    square: {
-      classic: { name_ar: 'قصة متدرجة', name_en: 'Layered Cut', desc_ar: 'تدرج يلطفف زوايا الوجه', desc_en: 'Taper softens jaw angles' },
-      modern: { name_ar: 'تدرج بأمواج', name_en: 'Wavy Taper', desc_ar: 'تدرج عصري مع موج طبيعي', desc_en: 'Modern taper with natural wave' },
-      bold: { name_ar: 'بومر موجي', name_en: 'Wavy Pompadour', desc_ar: 'بومر بموج الشعر', desc_en: 'Pomp with natural wave' },
-      'low-maintenance': { name_ar: 'كروب موجي', name_en: 'Wavy Crop', desc_ar: 'قصة متساوية تستفيد من الموج', desc_en: 'Even cut using the wave' },
-    },
-    long: {
-      classic: { name_ar: 'قصة بطول جانبي', name_en: 'Side Volume', desc_ar: 'حجم جانبي يوازن الوجه', desc_en: 'Side volume balances the face' },
-      modern: { name_ar: 'تكسشر بطول', name_en: 'Long Texture', desc_ar: 'تدرج يوازن الوجه الطويل', desc_en: 'Taper to balance long face' },
-      bold: { name_ar: 'كيف موجي طويل', name_en: 'Long Wavy Quiff', desc_ar: 'ارتفاع مع موج يضيف عرضاً', desc_en: 'Height with wave for width' },
-      'low-maintenance': { name_ar: 'قصة قصيرة موجية', name_en: 'Short Wavy', desc_ar: 'بسيطة وموجية بدون تصفيف', desc_en: 'Simple, no styling needed' },
-    },
-  },
-  curly: {
-    oval: {
-      classic: { name_ar: 'قصة كلاسيكية للتجاعيد', name_en: 'Classic Curly', desc_ar: 'تحافظ على شكل التجاعيد', desc_en: 'Keeps the curl shape elegant' },
-      modern: { name_ar: 'تدرج للكيرلي', name_en: 'Curly Taper', desc_ar: 'يبرز التجاعيد بشكل عصري', desc_en: 'Modern curl-enhancing taper' },
-      bold: { name_ar: 'كيرلي فايد', name_en: 'Curly Fade', desc_ar: 'تدرج حاد مع تجاعيد منتصبة', desc_en: 'Sharp fade with upright curls' },
-      'low-maintenance': { name_ar: 'كيرلي قصير', name_en: 'Short Curly', desc_ar: 'قصير يستفيد من التجعد', desc_en: 'Short, uses natural curl' },
-    },
-    round: {
-      classic: { name_ar: 'كيرلي بطول علوي', name_en: 'Curly Top', desc_ar: 'الطول العلوي يطيل الوجه', desc_en: 'Top length elongates the face' },
-      modern: { name_ar: 'تدرج كيرلي', name_en: 'Curly Taper', desc_ar: 'تدرج عصري يطيل الوجه', desc_en: 'Modern taper lengthens the face' },
-      bold: { name_ar: 'كيرلي عالي', name_en: 'High Curly', desc_ar: 'تجعد منتصب يطيل الوجه', desc_en: 'Upright curls add height' },
-      'low-maintenance': { name_ar: 'كيرلي بسيط', name_en: 'Easy Curly', desc_ar: 'قصير ومرتب بدون مجهود', desc_en: 'Short and neat, no effort' },
-    },
-    square: {
-      classic: { name_ar: 'كيرلي متدرج', name_en: 'Curly Taper', desc_ar: 'تدرج يخفف زوايا الوجه', desc_en: 'Taper softens jaw angles' },
-      modern: { name_ar: 'تكسشر كيرلي', name_en: 'Curly Texture', desc_ar: 'تدرج عصري مع تجعد', desc_en: 'Modern taper with curl' },
-      bold: { name_ar: 'كيرلي بومر', name_en: 'Curly Pomp', desc_ar: 'بومر مع تجعد', desc_en: 'Pomp with curls — strong look' },
-      'low-maintenance': { name_ar: 'كيرلي كوت', name_en: 'Curly Crop', desc_ar: 'قصير ومتساوٍ', desc_en: 'Short and even, easy care' },
-    },
-    long: {
-      classic: { name_ar: 'كيرلي بطول جانبي', name_en: 'Side Curly', desc_ar: 'حجم جانبي يوازن الوجه', desc_en: 'Side volume balances the face' },
-      modern: { name_ar: 'تدرج كيرلي عصري', name_en: 'Modern Curly', desc_ar: 'يضيف عرضاً للوجه الطويل', desc_en: 'Adds width to long face' },
-      bold: { name_ar: 'كيرلي فرو', name_en: 'Curly Fro', desc_ar: 'تجعد منتفش يوازن الوجه', desc_en: 'Full fro balances the face' },
-      'low-maintenance': { name_ar: 'كيرلي قصير', name_en: 'Short Curly', desc_ar: 'بسيط بدون تصفيف', desc_en: 'Simple, no styling' },
-    },
-  },
-  coily: {
-    oval: {
-      classic: { name_ar: 'قصة كلاسيكية للكيرلي الدقيق', name_en: 'Classic Coily', desc_ar: 'تحافظ على شكل الشعر الأفريقي', desc_en: 'Keeps the afro shape' },
-      modern: { name_ar: 'تدرج تويست', name_en: 'Twist Taper', desc_ar: 'تدرج عصري يحافظ على النسيج', desc_en: 'Modern taper keeping texture' },
-      bold: { name_ar: 'فرو', name_en: 'Fro', desc_ar: 'شعر منتصب بمظهر جريء', desc_en: 'Bold upright afro' },
-      'low-maintenance': { name_ar: 'بز كت', name_en: 'Buzz', desc_ar: 'قصير جداً — بدون عناية', desc_en: 'Very short — no care needed' },
-    },
-    round: {
-      classic: { name_ar: 'قصة بطول علوي', name_en: 'Top Volume', desc_ar: 'الطول يطيل الوجه', desc_en: 'Length elongates the face' },
-      modern: { name_ar: 'تدرج عصري', name_en: 'Modern Taper', desc_ar: 'يضيف ارتفاعاً للوجه', desc_en: 'Adds height to the face' },
-      bold: { name_ar: 'فرو عالي', name_en: 'High Fro', desc_ar: 'ارتفاع مميز يطيل الوجه', desc_en: 'Tall fro elongates the face' },
-      'low-maintenance': { name_ar: 'بز كت قصير', name_en: 'Short Buzz', desc_ar: 'قصير جداً — بدون مجهود', desc_en: 'Very short, no effort' },
-    },
-    square: {
-      classic: { name_ar: 'قصة متدرجة', name_en: 'Tapered Cut', desc_ar: 'تدرج يخفف زوايا الوجه', desc_en: 'Taper softens jaw angles' },
-      modern: { name_ar: 'تدرج بأفريقي', name_en: 'Afro Taper', desc_ar: 'أسلوب عصري يحافظ على النسيج', desc_en: 'Modern taper keeping texture' },
-      bold: { name_ar: 'فرو متميز', name_en: 'Bold Fro', desc_ar: 'مظهر قوي يعزز الملامح', desc_en: 'Bold look, strong features' },
-      'low-maintenance': { name_ar: 'بز كت', name_en: 'Buzz', desc_ar: 'قصير ومرتب', desc_en: 'Short and neat' },
-    },
-    long: {
-      classic: { name_ar: 'قصة بطول جانبي', name_en: 'Side Volume', desc_ar: 'يوازن الوجه الطويل', desc_en: 'Balances long face' },
-      modern: { name_ar: 'تدرج عصري', name_en: 'Modern Taper', desc_ar: 'يضيف عرضاً للوجه', desc_en: 'Adds width to the face' },
-      bold: { name_ar: 'فرو كامل', name_en: 'Full Fro', desc_ar: 'حجم كامل يوازن الوجه', desc_en: 'Full volume balances the face' },
-      'low-maintenance': { name_ar: 'بز كت قصير', name_en: 'Short Buzz', desc_ar: 'بسيط بدون عناية', desc_en: 'Simple, no care' },
-    },
-  },
-};
+  const sortedVisits = useMemo(
+    () => [...visits].sort((a, b) => new Date(b.visit_date).getTime() - new Date(a.visit_date).getTime()),
+    [visits]
+  );
 
-function HairConsultation({ customer, shopId }: { customer: Customer; shopId: string }) {
-  const { t, lang } = useI18n();
-  const [step, setStep] = useState<'intro' | 'hair' | 'face' | 'style' | 'result'>('intro');
-  const [hair, setHair] = useState<HairType | null>(null);
-  const [face, setFace] = useState<FaceShape | null>(null);
-  const [style, setStyle] = useState<StylePref | null>(null);
-
-  const result = hair && face && style ? HAIR_CONSULTATION[hair][face][style] : null;
-  const reset = () => { setHair(null); setFace(null); setStyle(null); setStep('intro'); };
-  const L = lang === 'ar';
-
-  if (step === 'intro') {
-    return (
-      <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="grid h-12 w-12 place-items-center rounded-xl bg-amber-50 text-amber-600 ring-1 ring-amber-200">
-            <Camera className="h-6 w-6" />
-          </div>
-          <div>
-            <h3 className="font-extrabold text-stone-900">{t('consult.title')}</h3>
-            <p className="text-xs text-stone-500">{t('consult.subtitle')}</p>
-          </div>
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="font-display text-lg font-extrabold text-stone-900">زياراتي وحجوزاتي</h2>
+          <p className="text-xs text-stone-500">تابع كل زياراتك السابقة وحجوزاتك القادمة</p>
         </div>
-        <p className="mt-3 text-sm leading-relaxed text-stone-600">{t('consult.intro')}</p>
-        <button onClick={() => setStep('hair')} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-amber-700">
-          <Sparkles className="h-4 w-4" /> {t('consult.start')}
+        <button onClick={onBook} className="btn-primary h-9 px-3 text-xs">
+          <CalendarPlus className="h-3.5 w-3.5" />
+          <span>حجز جديد</span>
         </button>
       </div>
-    );
-  }
 
-  if (step === 'hair') {
-    return <ConsultationStep title={t('consult.hairType')} icon={<Scissors className="h-6 w-6" />}
-      options={[
-        { value: 'straight' as HairType, label: t('consult.hairStraight'), emoji: '▬' },
-        { value: 'wavy' as HairType, label: t('consult.hairWavy'), emoji: '〰' },
-        { value: 'curly' as HairType, label: t('consult.hairCurly'), emoji: '◉' },
-        { value: 'coily' as HairType, label: t('consult.hairCoily'), emoji: '✦' },
-      ]}
-      selected={hair} onSelect={(v) => { setHair(v); setStep('face'); }} onBack={reset} t={t} />;
-  }
-
-  if (step === 'face') {
-    return <ConsultationStep title={t('consult.faceShape')} icon={<User className="h-6 w-6" />}
-      options={[
-        { value: 'oval' as FaceShape, label: t('consult.faceOval'), emoji: '⬭' },
-        { value: 'round' as FaceShape, label: t('consult.faceRound'), emoji: '◯' },
-        { value: 'square' as FaceShape, label: t('consult.faceSquare'), emoji: '◻' },
-        { value: 'long' as FaceShape, label: t('consult.faceLong'), emoji: '▯' },
-      ]}
-      selected={face} onSelect={(v) => { setFace(v); setStep('style'); }} onBack={() => setStep('hair')} t={t} />;
-  }
-
-  if (step === 'style') {
-    return <ConsultationStep title={t('consult.stylePref')} icon={<Sparkles className="h-6 w-6" />}
-      options={[
-        { value: 'classic' as StylePref, label: t('consult.styleClassic'), emoji: '◆' },
-        { value: 'modern' as StylePref, label: t('consult.styleModern'), emoji: '★' },
-        { value: 'bold' as StylePref, label: t('consult.styleBold'), emoji: '⚡' },
-        { value: 'low-maintenance' as StylePref, label: t('consult.styleEasy'), emoji: '○' },
-      ]}
-      selected={style} onSelect={(v) => { setStyle(v); setStep('result'); }} onBack={() => setStep('face')} t={t} />;
-  }
-
-  return (
-    <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
-      <div className="border-b border-stone-200 bg-stone-900 p-4 text-white">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-amber-400" /><span className="font-extrabold">{t('consult.result')}</span>
-        </div>
-      </div>
-      <div className="p-5">
-        {result && (
-          <>
-            <h3 className="font-display text-2xl font-extrabold text-stone-900">{L ? result.name_ar : result.name_en}</h3>
-            <p className="mt-2 text-sm leading-relaxed text-stone-600">{L ? result.desc_ar : result.desc_en}</p>
-            <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-3">
-              <p className="text-xs font-bold text-stone-500">{t('consult.summary')}</p>
-              <p className="mt-1 text-xs font-bold text-stone-700">
-                {L ? `شعر ${hair === 'straight' ? 'أملس' : hair === 'wavy' ? 'مموج' : hair === 'curly' ? 'مجعد' : 'كيرلي'}` : `Hair: ${hair}`}
-                {' • '}
-                {L ? `وجه ${face === 'oval' ? 'بيضاوي' : face === 'round' ? 'دائري' : face === 'square' ? 'مربع' : 'طويل'}` : `Face: ${face}`}
-                {' • '}
-                {L ? `أسلوب ${style === 'classic' ? 'كلاسيكي' : style === 'modern' ? 'عصري' : style === 'bold' ? 'جريء' : 'سهل'}` : `Style: ${style}`}
-              </p>
-            </div>
-            <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">
-              <Info className="h-3.5 w-3.5 shrink-0 text-amber-600" /> {t('consult.disclaimer')}
-            </div>
-            <button onClick={reset} className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-stone-200 bg-stone-50 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-100">
-              <ChevronLeft className="h-4 w-4" /> {t('consult.newConsult')}
-            </button>
-            <SmartHairPhotoAssistant
-              customer={customer}
-              shopId={shopId}
-              hairType={hair ?? ''}
-              faceShape={face ?? ''}
-              stylePreference={style ?? ''}
-            />
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ConsultationStep<T extends string>({
-  title, icon, options, selected, onSelect, onBack, t,
-}: {
-  title: string; icon: React.ReactNode;
-  options: { value: T; label: string; emoji: string }[];
-  selected: T | null; onSelect: (v: T) => void; onBack: () => void;
-  t: (k: string) => string;
-}) {
-  return (
-    <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex items-center gap-3">
-        <div className="grid h-10 w-10 place-items-center rounded-xl bg-stone-900 text-amber-400">{icon}</div>
-        <h3 className="font-extrabold text-stone-900">{title}</h3>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        {options.map((o) => (
-          <button key={o.value} onClick={() => onSelect(o.value)}
-            className={`flex flex-col items-center gap-2 rounded-xl border p-4 transition ${
-              selected === o.value ? 'border-amber-600 bg-amber-50 text-amber-900' : 'border-stone-200 bg-stone-50 text-stone-800 hover:bg-stone-100'
-            }`}>
-            <span className="text-2xl">{o.emoji}</span>
-            <span className="text-sm font-bold">{o.label}</span>
+      <div className="flex gap-1.5 rounded-xl border border-stone-200 bg-stone-50 p-1">
+        {[
+          { k: 'all' as const, label: 'الكل' },
+          { k: 'bookings' as const, label: 'الحجوزات' },
+          { k: 'visits' as const, label: 'الزيارات' },
+        ].map((item) => (
+          <button
+            key={item.k}
+            onClick={() => setFilter(item.k)}
+            className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+              filter === item.k ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-white'
+            }`}
+          >
+            {item.label}
           </button>
         ))}
       </div>
-      <button onClick={onBack} className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-stone-500 hover:text-stone-800">
-        <ChevronLeft className="h-4 w-4" /> {t('cust.back')}
-      </button>
+
+      {loading ? (
+        <div className="space-y-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-20 animate-shimmer rounded-2xl" />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filter !== 'visits' && (
+            <section className="space-y-2">
+              <h3 className="flex items-center gap-1.5 text-sm font-extrabold text-stone-900">
+                <Ticket className="h-4 w-4 text-stone-600" />
+                <span>حجوزات قادمة ({upcomingBookings.length})</span>
+              </h3>
+              {upcomingBookings.length === 0 ? (
+                <div className="card p-5 text-center text-xs text-stone-500">
+                  لا توجد حجوزات قادمة حاليًا
+                </div>
+              ) : (
+                upcomingBookings.map((b) => (
+                  <div key={b.id} className="card flex flex-wrap items-center justify-between gap-3 p-4">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-lg bg-stone-900 px-2.5 py-0.5 font-mono text-[11px] font-extrabold text-amber-400">
+                          {b.booking_code}
+                        </span>
+                        <span className="text-sm font-extrabold text-stone-900">{b.service_name}</span>
+                        <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${bookingStatusMeta(b.status).cls}`}>
+                          {bookingStatusMeta(b.status).label}
+                        </span>
+                      </div>
+                      <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-stone-600">
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {formatDateTime(b.start_at)}
+                        </span>
+                        {b.branch_name && (
+                          <span className="inline-flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {b.branch_name}
+                          </span>
+                        )}
+                        {b.barber_name && (
+                          <span className="inline-flex items-center gap-1">
+                            <UserCheck className="h-3 w-3" />
+                            {b.barber_name}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </section>
+          )}
+
+          {filter !== 'bookings' && (
+            <section className="space-y-2">
+              <h3 className="flex items-center gap-1.5 text-sm font-extrabold text-stone-900">
+                <Scissors className="h-4 w-4 text-stone-600" />
+                <span>سجل الزيارات ({sortedVisits.length})</span>
+              </h3>
+              {sortedVisits.length === 0 ? (
+                <div className="card p-5 text-center text-xs text-stone-500">
+                  لم تسجل أي زيارة بعد
+                </div>
+              ) : (
+                sortedVisits.map((v) => (
+                  <div key={v.id} className="card flex flex-wrap items-center justify-between gap-3 p-4">
+                    <div>
+                      <p className="text-sm font-extrabold text-stone-900">
+                        {v.haircut_type || v.service_name || 'حلاقة'}
+                      </p>
+                      <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-stone-600">
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {formatDateTime(v.visit_date)}
+                        </span>
+                        {v.notes && <span className="text-stone-500">· {v.notes}</span>}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {v.payment_type === 'subscription' ? (
+                        <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 ring-1 ring-emerald-200">
+                          بالاشتراك
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-[11px] font-bold text-stone-700">
+                          {formatPrice(Number(v.charge_amount ?? 0))}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </section>
+          )}
+
+          {filter !== 'visits' && pastBookings.length > 0 && (
+            <section className="space-y-2">
+              <h3 className="flex items-center gap-1.5 text-sm font-extrabold text-stone-900">
+                <History className="h-4 w-4 text-stone-600" />
+                <span>حجوزات سابقة ({pastBookings.length})</span>
+              </h3>
+              {pastBookings.map((b) => (
+                <div key={b.id} className="card flex flex-wrap items-center justify-between gap-3 p-4 opacity-80">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-lg bg-stone-100 px-2 py-0.5 font-mono text-[10px] font-bold text-stone-700">
+                        {b.booking_code}
+                      </span>
+                      <span className="text-sm font-extrabold text-stone-800">{b.service_name}</span>
+                      <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${bookingStatusMeta(b.status).cls}`}>
+                        {bookingStatusMeta(b.status).label}
+                      </span>
+                    </div>
+                    <p className="mt-1 flex items-center gap-1 text-[11px] font-bold text-stone-500">
+                      <Clock className="h-3 w-3" />
+                      {formatDateTime(b.start_at)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </section>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-/* ---------- Referral widget ---------- */
-function ReferralWidget({ customerName }: { customerName: string }) {
-  const { t } = useI18n();
-  const [copied, setCopied] = useState(false);
-  const code = `BARBER-${customerName.substring(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+/* ============================================================
+   Profile Tab
+   ============================================================ */
+function ProfileTab({ customer, onLogout }: { customer: Customer; onLogout: () => void }) {
+  return (
+    <div className="space-y-4">
+      <div className="card p-5">
+        <div className="flex items-center gap-3">
+          <div className="grid h-14 w-14 place-items-center rounded-2xl bg-stone-900 font-display text-xl font-extrabold text-white">
+            {customer.name.charAt(0)}
+          </div>
+          <div className="min-w-0">
+            <h2 className="truncate font-display text-lg font-extrabold text-stone-900">
+              {customer.name}
+            </h2>
+            <p className="mt-0.5 flex items-center gap-1.5 text-xs font-bold text-stone-500">
+              <Phone className="h-3.5 w-3.5" />
+              <span dir="ltr">{customer.phone}</span>
+            </p>
+          </div>
+        </div>
 
-  const copy = () => {
-    try { navigator.clipboard.writeText(code); } catch { /* ignore */ }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+        <div className="mt-4 space-y-2">
+          <div className="flex items-center justify-between rounded-xl border border-stone-200 bg-stone-50 p-3">
+            <span className="text-xs font-bold text-stone-600">تاريخ الانضمام</span>
+            <span className="text-xs font-extrabold text-stone-900">
+              {customer.created_at ? formatDate(customer.created_at) : '—'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between rounded-xl border border-stone-200 bg-stone-50 p-3">
+            <span className="text-xs font-bold text-stone-600">الحالة</span>
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ${
+                customer.is_blocked
+                  ? 'bg-red-100 text-red-700'
+                  : 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200'
+              }`}
+            >
+              {customer.is_blocked ? 'محظور' : 'نشط'}
+            </span>
+          </div>
+        </div>
+
+        <button
+          onClick={onLogout}
+          className="mt-4 inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-stone-200 bg-white text-xs font-extrabold text-stone-700 transition hover:bg-stone-50 hover:text-stone-900"
+        >
+          <XCircle className="h-4 w-4" />
+          <span>تسجيل الخروج</span>
+        </button>
+      </div>
+
+      <div className="card p-5 text-center text-[11px] leading-relaxed text-stone-500">
+        نظام <span className="font-extrabold text-stone-800">{SYSTEM_NAME}</span> · مدعوم بواسطة{' '}
+        <span className="font-extrabold text-stone-800">{BRAND_NAME}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   Booking Modal
+   ============================================================ */
+function BookingModal({
+  open,
+  onClose,
+  shopId,
+  customer,
+  branches,
+  barbers,
+  regularHaircutPrice,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  shopId: string;
+  customer: Customer;
+  branches: BranchItem[];
+  barbers: BarberChairItem[];
+  regularHaircutPrice: number;
+  onCreated: () => void;
+}) {
+  const [serviceName, setServiceName] = useState('حلاقة عامة');
+  const [branchId, setBranchId] = useState('');
+  const [barberId, setBarberId] = useState('');
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [time, setTime] = useState('12:00');
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setServiceName('حلاقة عامة');
+    setBranchId(branches[0]?.id ?? '');
+    setBarberId('');
+    setDate(new Date().toISOString().slice(0, 10));
+    setTime('12:00');
+    setNotes('');
+    setErr('');
+    setOk(false);
+    setSaving(false);
+  }, [open, branches]);
+
+  const submit = async () => {
+    setSaving(true);
+    setErr('');
+    try {
+      const startAt = new Date(`${date}T${time}:00`);
+      if (Number.isNaN(startAt.getTime())) {
+        throw new Error('التاريخ أو الوقت غير صالح');
+      }
+      const bookingCode = `BK-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+      const chosenBranch = branches.find((b) => b.id === branchId);
+      const chosenBarber = barbers.find((b) => b.id === barberId);
+
+      const { error } = await supabase.from('bookings').insert({
+        shop_id: shopId,
+        branch_id: chosenBranch?.id ?? null,
+        branch_name: chosenBranch?.name ?? null,
+        barber_id: chosenBarber?.id ?? null,
+        barber_name: chosenBarber?.name ?? null,
+        chair_name: chosenBarber?.chair_name ?? null,
+        chair_number: chosenBarber?.chair_number ?? null,
+        customer_id: customer.id,
+        customer_name: customer.name,
+        customer_phone: customer.phone,
+        booking_code: bookingCode,
+        service_name: serviceName.trim() || 'حلاقة عامة',
+        start_at: startAt.toISOString(),
+        status: 'pending',
+        notes: notes.trim() || null,
+      });
+
+      if (error) throw new Error(error.message);
+      setOk(true);
+      onCreated();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'تعذر إرسال الحجز');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
-      <div className="flex items-center gap-3 border-b border-stone-200 bg-stone-50 p-4">
-        <div className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 text-emerald-700">
-          <Gift className="h-5 w-5" />
-        </div>
-        <div>
-          <p className="font-extrabold text-stone-900">{t('referral.title')}</p>
-          <p className="text-xs text-stone-500">{t('referral.desc')}</p>
-        </div>
-      </div>
-      <div className="space-y-3 p-4">
-        <div className="flex items-center gap-2">
-          <div className="flex-1 rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-3 text-center font-display text-lg font-extrabold tracking-wider text-stone-900" dir="ltr">
-            {code}
+    <Modal open={open} onClose={onClose} title="حجز موعد جديد" maxWidth="max-w-md">
+      {ok ? (
+        <div className="space-y-4 text-center">
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-50 ring-1 ring-emerald-200">
+            <CheckCircle2 className="h-8 w-8 text-emerald-700" />
           </div>
-          <button onClick={copy} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-stone-900 px-4 py-3 text-xs font-bold text-white transition hover:bg-stone-700">
-            {copied ? <><CheckCircle2 className="h-4 w-4 text-emerald-400" /> {t('referral.copied')}</> : <><Copy className="h-4 w-4" /> {t('referral.copy')}</>}
+          <div>
+            <p className="font-display text-base font-extrabold text-stone-900">تم إرسال الحجز بنجاح</p>
+            <p className="mt-1 text-xs text-stone-500">
+              سيتم تأكيد الحجز من قِبل المحل وسيظهر في قائمة حجوزاتك
+            </p>
+          </div>
+          <button onClick={onClose} className="btn-primary w-full">
+            <CheckCircle2 className="h-4 w-4" />
+            <span>حسنًا</span>
           </button>
         </div>
-        <p className="text-xs text-stone-500">{t('referral.share')}</p>
-        <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-xl border border-stone-200/80 bg-stone-50 p-3 text-center">
-            <Users className="mx-auto h-4 w-4 text-stone-400" />
-            <p className="mt-1 font-display text-xl font-extrabold text-stone-900">0</p>
-            <p className="text-[10px] font-bold text-stone-500">{t('referral.invited')}</p>
+      ) : (
+        <div className="space-y-4">
+          <div>
+            <label className="label">الخدمة</label>
+            <input
+              value={serviceName}
+              onChange={(e) => setServiceName(e.target.value)}
+              className="input"
+              placeholder="مثال: حلاقة عامة"
+            />
           </div>
-          <div className="rounded-xl border border-stone-200/80 bg-stone-50 p-3 text-center">
-            <CheckCircle2 className="mx-auto h-4 w-4 text-emerald-600" />
-            <p className="mt-1 font-display text-xl font-extrabold text-stone-900">0</p>
-            <p className="text-[10px] font-bold text-stone-500">{t('referral.joined')}</p>
-          </div>
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-center">
-            <Gift className="mx-auto h-4 w-4 text-amber-600" />
-            <p className="mt-1 font-display text-xl font-extrabold text-amber-900">0</p>
-            <p className="text-[10px] font-bold text-amber-700">{t('referral.earned')}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
-/* ---------- Offers widget ---------- */
-function OffersWidget({ totalVisits, active, daysLeft }: { totalVisits: number; active: boolean; daysLeft: number }) {
-  const { t } = useI18n();
-  const offers: { icon: typeof Tag; title: string; desc: string; color: string; bg: string }[] = [];
-
-  if (active && daysLeft <= 7) {
-    offers.push({
-      icon: Tag, title: t('offers.renew'), desc: t('offers.renewDesc'),
-      color: 'text-amber-700', bg: 'bg-amber-50/70 border-amber-200',
-    });
-  }
-  offers.push({
-    icon: Gift, title: t('offers.refer'), desc: t('offers.referDesc'),
-    color: 'text-emerald-700', bg: 'bg-emerald-50/70 border-emerald-200',
-  });
-  if (totalVisits >= 10 && totalVisits < 20) {
-    offers.push({
-      icon: Zap, title: t('offers.vip'), desc: t('offers.vipDesc'),
-      color: 'text-amber-700', bg: 'bg-stone-50 border-stone-200',
-    });
-  }
-
-  if (offers.length === 0) return null;
-
-  return (
-    <div className="space-y-3">
-      <h3 className="font-extrabold text-stone-900">{t('offers.title')}</h3>
-      {offers.map((o, i) => (
-        <div key={i} className={`flex items-start gap-3 rounded-2xl border p-4 shadow-sm ${o.bg}`}>
-          <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-stone-200 bg-white ${o.color}`}>
-            <o.icon className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="rounded-full bg-amber-600 px-2.5 py-0.5 text-[11px] font-bold text-white">{t('offers.badge')}</span>
+          {branches.length > 0 && (
+            <div>
+              <label className="label">الفرع</label>
+              <select
+                value={branchId}
+                onChange={(e) => {
+                  setBranchId(e.target.value);
+                  setBarberId('');
+                }}
+                className="input"
+              >
+                <option value="">الفرع الرئيسي</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
             </div>
-            <p className="mt-1.5 font-extrabold text-stone-900">{o.title}</p>
-            <p className="text-xs text-stone-600">{o.desc}</p>
+          )}
+
+          {barbers.filter((b) => !branchId || !b.branch_id || b.branch_id === branchId).length > 0 && (
+            <div>
+              <label className="label">الحلاق / الكرسي (اختياري)</label>
+              <select value={barberId} onChange={(e) => setBarberId(e.target.value)} className="input">
+                <option value="">أي حلاق متاح</option>
+                {barbers
+                  .filter((b) => !branchId || !b.branch_id || b.branch_id === branchId)
+                  .map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                      {b.chair_name || b.chair_number ? ` — ${b.chair_name || `كرسي ${b.chair_number}`}` : ''}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">التاريخ</label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="input"
+                min={new Date().toISOString().slice(0, 10)}
+              />
+            </div>
+            <div>
+              <label className="label">الوقت</label>
+              <input
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className="input"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="label">ملاحظات (اختياري)</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="input min-h-16 resize-none"
+              placeholder="أي تفاصيل إضافية للحجز"
+            />
+          </div>
+
+          <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 text-[11px] font-bold text-stone-700">
+            سعر الحلاقة العادية: <span className="font-extrabold text-stone-900">{formatPrice(regularHaircutPrice)}</span>
+            {customer.name && <span> · الحجز باسم: {customer.name}</span>}
+          </div>
+
+          {err && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-700">
+              {err}
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-1">
+            <button onClick={submit} disabled={saving} className="btn-primary flex-1">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarPlus className="h-4 w-4" />}
+              <span>{saving ? 'جاري الإرسال...' : 'تأكيد الحجز'}</span>
+            </button>
+            <button onClick={onClose} className="btn-ghost">
+              إلغاء
+            </button>
           </div>
         </div>
-      ))}
-    </div>
+      )}
+    </Modal>
   );
 }
 
-/* ---------- Customer detail ---------- */
-function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Customer; shopId: string; shopName: string | null; onLogout: () => void }) {
-  const { t, lang } = useI18n();
-  const [sub, setSub] = useState<Subscription | null>(null);
-  const [visits, setVisits] = useState<Visit[]>([]);
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [shop, setShop] = useState<Shop | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
-
-  const loadCustomerData = useCallback(async () => {
-    setLoading(true);
-    setLoadError(false);
-
-    try {
-      const [s, v, p, shopData] = await Promise.all([
-        getActiveSubscription(customer.id),
-        getVisitsByCustomer(customer.id),
-        getPlans(shopId),
-        getShopById(shopId),
-      ]);
-
-      setSub(s);
-      setVisits(v);
-      setPlans(p);
-      setShop(shopData);
-    } catch (error) {
-      console.error('Customer page data loading failed:', error);
-      setLoadError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [customer.id, shopId]);
+/* ============================================================
+   Subscribe Modal
+   ============================================================ */
+function SubscribeModal({
+  open,
+  onClose,
+  shopId,
+  customer,
+  plans,
+  initialPlan,
+  activeSubscription,
+  onSubscribed,
+}: {
+  open: boolean;
+  onClose: () => void;
+  shopId: string;
+  customer: Customer;
+  plans: Plan[];
+  initialPlan: Plan | null;
+  activeSubscription: Subscription | null;
+  onSubscribed: () => void;
+}) {
+  const [planId, setPlanId] = useState<string>('');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState(false);
 
   useEffect(() => {
-    void loadCustomerData();
-  }, [loadCustomerData]);
+    if (!open) return;
+    setPlanId(initialPlan?.id || plans[0]?.id || '');
+    setErr('');
+    setOk(false);
+    setSaving(false);
+  }, [open, initialPlan, plans]);
 
-  if (loading) {
-    return (
-      <div className="mx-auto max-w-2xl px-4 py-10">
-        <div className="space-y-4">
-          <div className="h-24 animate-shimmer rounded-2xl" />
-          <div className="h-48 animate-shimmer rounded-2xl" />
-        </div>
-      </div>
-    );
-  }
+  const selectedPlan = plans.find((p) => p.id === planId) || null;
 
-  if (loadError) {
-    return (
-      <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center px-4 text-center">
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm font-bold text-red-700">
-          تعذر تحميل بيانات حسابك حاليًا. من فضلك حاول مرة أخرى.
-        </div>
-        <button
-          type="button"
-          onClick={() => window.location.reload()}
-          className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-stone-900 px-5 py-3 text-sm font-bold text-white transition hover:bg-stone-700"
-        >
-          إعادة المحاولة
-        </button>
-        <button
-          type="button"
-          onClick={onLogout}
-          className="mt-3 text-sm font-bold text-stone-500 underline"
-        >
-          تسجيل الخروج
-        </button>
-      </div>
-    );
-  }
-
-  const active = sub?.status === 'active';
-  const remaining = sub && sub.plan ? sub.plan.haircut_count - sub.haircuts_used : 0;
-  const totalVisits = visits.length;
-  const totalPaid = visits.filter((v) => v.payment_type === 'paid').reduce((s, v) => s + Number(v.charge_amount), 0);
-  const subscriptionVisits = visits.filter((v) => v.payment_type === 'subscription').length;
-  const daysLeft = sub ? Math.ceil((new Date(sub.end_date).getTime() - Date.now()) / 86400000) : 0;
-  const L = lang === 'ar';
-
-  const packageItems = plans.filter((p) => p.item_type !== 'service');
-  const serviceItems = plans.filter((p) => p.item_type === 'service');
-
-  const loyaltyLevel =
-    totalVisits >= 20 ? { label: t('cust.level.gold'), icon: Crown, tone: 'text-amber-600', bg: 'bg-amber-50' } :
-    totalVisits >= 10 ? { label: t('cust.level.silver'), icon: Medal, tone: 'text-stone-700', bg: 'bg-stone-100' } :
-    totalVisits >= 5 ? { label: t('cust.level.bronze'), icon: Award, tone: 'text-amber-700', bg: 'bg-amber-50/70' } :
-    { label: t('cust.level.new'), icon: User, tone: 'text-stone-600', bg: 'bg-stone-100' };
-  const LoyaltyIcon = loyaltyLevel.icon;
+  const submit = async () => {
+    if (!selectedPlan) {
+      setErr('يرجى اختيار باقة');
+      return;
+    }
+    setSaving(true);
+    setErr('');
+    try {
+      await createSubscription(customer.id, selectedPlan, {
+        shopId,
+        paymentMethod: 'cash',
+      });
+      setOk(true);
+      onSubscribed();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'تعذر تفعيل الاشتراك');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <div id="customer-top" className="customer-page animate-fade-in mx-auto min-h-screen max-w-6xl bg-stone-50 px-4 pb-28 pt-5 sm:px-6 lg:px-8">
-      <div className="mb-5 flex items-center justify-between">
-        <button onClick={onLogout} className="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-xs font-bold text-stone-700 shadow-sm transition hover:bg-stone-100">
-          <LogOut className="h-4 w-4" /> {t('cust.logout')}
-        </button>
-        <span className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-bold text-stone-500 shadow-sm">
-          <Lock className="h-3.5 w-3.5 text-amber-600" /> {t('cust.secure')}
-        </span>
-      </div>
-
-      {/* Header card */}
-      <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
-        <div className="relative flex items-center gap-4 border-b border-stone-200 bg-stone-50 px-5 py-6 text-stone-900 sm:px-7">
-          <div className="grid h-[68px] w-[68px] shrink-0 place-items-center overflow-hidden rounded-2xl border border-stone-200 bg-white font-display text-2xl font-extrabold text-stone-900 shadow-sm">
-            {shop?.logo_url ? (
-              <img src={shop.logo_url} alt={shop.shop_name || shopName || 'Shop logo'} className="h-full w-full object-contain p-1.5" />
-            ) : (
-              (shopName || customer.name).charAt(0)
-            )}
+    <Modal open={open} onClose={onClose} title="الاشتراك في باقة" maxWidth="max-w-md">
+      {ok ? (
+        <div className="space-y-4 text-center">
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-50 ring-1 ring-emerald-200">
+            <CheckCircle2 className="h-8 w-8 text-emerald-700" />
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="mb-1 text-[11px] font-bold tracking-wide text-amber-700">{L ? 'أهلاً بيك في' : 'WELCOME TO'}</p>
-            <h2 className="truncate font-display text-2xl font-extrabold text-stone-900">{customer.name}</h2>
-            <p className="mt-1 text-sm text-stone-500">
-              {shop?.shop_name || shopName ? `${shop?.shop_name || shopName} • ` : ''}{t('cust.customerSince')} {formatDate(customer.created_at)}
-            </p>
-            {shop && (
-              <p className="mt-2 inline-flex rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 ring-1 ring-amber-200">
-                {lang === 'ar' ? 'سعر الحلاقة العادية:' : 'Regular haircut:'} {formatPrice(Number(shop.regular_haircut_price ?? 50))}
-              </p>
-            )}
+          <div>
+            <p className="font-display text-base font-extrabold text-stone-900">تم تفعيل الباقة بنجاح</p>
+            <p className="mt-1 text-xs text-stone-500">يمكنك الآن الاستمتاع بحلاقاتك</p>
           </div>
+          <button onClick={onClose} className="btn-primary w-full">
+            <CheckCircle2 className="h-4 w-4" />
+            <span>حسنًا</span>
+          </button>
         </div>
-
-        {/* Subscription status */}
-        <div className="bg-white p-4 sm:p-5">
-          <div className={`rounded-xl border p-4 ${active ? 'border-emerald-200 bg-emerald-50/60' : 'border-stone-200 bg-stone-50'}`}>
-            <div className="flex items-center gap-2">
-              {active ? <CheckCircle2 className="h-6 w-6 text-emerald-700" /> : <XCircle className="h-6 w-6 text-stone-400" />}
-              <div>
-                <p className="font-extrabold text-stone-900">{active ? t('cust.subActive') : t('cust.subInactive')}</p>
-                <p className="text-xs text-stone-500">
-                  {active ? `${sub?.plan?.name ?? ''} — ${t('cust.subEnds')} ${formatDate(sub?.end_date ?? '')}` : t('cust.subAskBarber')}
-                </p>
-              </div>
+      ) : (
+        <div className="space-y-4">
+          {activeSubscription && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-bold text-amber-900">
+              لديك باقة نشطة بالفعل. سيتم اعتماد الباقة الجديدة بعد انتهاء الحالية أو يمكنك التواصل مع المحل.
             </div>
-            {active && sub?.plan?.description && (
-              <p className="mt-2.5 whitespace-pre-line rounded-xl border border-stone-200/80 bg-white p-3 text-xs leading-relaxed text-stone-700">
-                {sub.plan.description}
-              </p>
-            )}
-            {active && sub && (
-              <>
-                <div className="mt-4">
-                  <div className="flex items-center justify-between text-xs font-bold text-stone-600">
-                    <span>{t('cust.used')}</span><span>{sub.haircuts_used} / {sub.plan?.haircut_count}</span>
-                  </div>
-                  <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-stone-200">
-                    <div className="h-full rounded-full bg-emerald-600 transition-all duration-500"
-                      style={{ width: `${Math.min(100, (sub.haircuts_used / (sub.plan?.haircut_count ?? 1)) * 100)}%` }} />
-                  </div>
-                  <p className="mt-2 text-xs font-bold text-emerald-700">{remaining} {t('cust.remainingIn')}</p>
-                </div>
-                <div className={`mt-3 flex items-center gap-1.5 rounded-xl p-2.5 text-xs font-bold ${
-                  daysLeft <= 3 ? 'bg-red-50 text-red-700' : daysLeft <= 7 ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-700'
-                }`}>
-                  {daysLeft <= 3 ? <XCircle className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
-                  {daysLeft > 0 ? `${t('cust.expiresIn')} ${daysLeft} ${t('cust.days')}` : t('cust.expired')}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+          )}
 
-      {/* Smart Booking Section */}
-      <CustomerBookingSection
-        customer={customer}
-        shopId={shopId}
-        plans={plans}
-        activeSub={sub}
-        onBookingChanged={() => void loadCustomerData()}
-      />
-
-      <WhatsAppConsentPanel customerName={customer.name} phone={customer.phone} />
-
-      {/* Hair consultation */}
-      <div id="hair-consultation" className="mt-6 scroll-mt-6"><HairConsultation customer={customer} shopId={shopId} /></div>
-
-      {/* Secondary customer information */}
-      <div className="mt-6 grid items-start gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.85fr)]">
-        <div className="space-y-5">
-          {/* Offers */}
-          <OffersWidget totalVisits={totalVisits} active={active} daysLeft={daysLeft} />
-
-          {/* Loyalty */}
-          <div id="loyalty" className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`grid h-12 w-12 place-items-center rounded-xl border border-stone-200/80 ${loyaltyLevel.bg}`}>
-                  <LoyaltyIcon className={`h-6 w-6 ${loyaltyLevel.tone}`} />
-                </div>
-                <div>
-                  <p className="font-extrabold text-stone-900">{t('cust.loyalty')}: {loyaltyLevel.label}</p>
-                  <p className="text-xs text-stone-500">{t('cust.totalVisits')} {totalVisits} {t('cust.visits')}</p>
-                </div>
-              </div>
-              <div className="text-left">
-                <p className="font-display text-2xl font-extrabold text-stone-900">{totalVisits}</p>
-                <p className="text-[11px] font-bold text-stone-500">{t('cust.haircuts')}</p>
-              </div>
-            </div>
-            <div className="mt-4 grid grid-cols-4 gap-1.5">
-              {[
-                { min: 0, label: t('cust.level.new') },
-                { min: 5, label: t('cust.level.bronze') },
-                { min: 10, label: t('cust.level.silver') },
-                { min: 20, label: t('cust.level.gold') },
-              ].map((lvl, i) => {
-                const reached = totalVisits >= lvl.min;
+          <div>
+            <label className="label">اختر الباقة</label>
+            <div className="space-y-2">
+              {plans.map((p) => {
+                const active = planId === p.id;
                 return (
-                  <div key={lvl.label}
-                    className={`rounded-xl py-2 text-center text-[11px] font-bold transition ${
-                      reached ? 'bg-stone-900 text-amber-400' : 'bg-stone-100 text-stone-400'
-                    }`}>
-                    {lvl.label}{i < 3 && <span className="mr-1 text-stone-400">›</span>}
-                  </div>
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setPlanId(p.id)}
+                    className={`flex w-full items-center justify-between rounded-xl border p-3 text-right transition ${
+                      active
+                        ? 'border-stone-900 bg-stone-50 ring-2 ring-stone-900/10'
+                        : 'border-stone-200 bg-white hover:border-stone-300'
+                    }`}
+                  >
+                    <div>
+                      <p className="text-sm font-extrabold text-stone-900">{p.name}</p>
+                      <p className="mt-0.5 text-[11px] font-bold text-stone-500">
+                        {p.haircut_count} حلاقة · {p.duration_days} يوم
+                      </p>
+                    </div>
+                    <div className="text-left">
+                      <p className="font-display text-base font-extrabold text-stone-900">
+                        {formatPrice(p.price)}
+                      </p>
+                    </div>
+                  </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-stone-200 bg-white p-4 text-center shadow-sm">
-              <CalendarCheck className="mx-auto h-5 w-5 text-emerald-700" />
-              <p className="mt-1 font-display text-xl font-extrabold text-stone-900">{subscriptionVisits}</p>
-              <p className="text-[11px] font-bold text-stone-500">{t('cust.subVisits')}</p>
-            </div>
-            <div className="rounded-2xl border border-stone-200 bg-white p-4 text-center shadow-sm">
-              <Scissors className="mx-auto h-5 w-5 text-amber-600" />
-              <p className="mt-1 font-display text-xl font-extrabold text-stone-900">{visits.length - subscriptionVisits}</p>
-              <p className="text-[11px] font-bold text-stone-500">{t('cust.regVisits')}</p>
-            </div>
-            <div className="rounded-2xl border border-stone-200 bg-white p-4 text-center shadow-sm">
-              <Coins className="mx-auto h-5 w-5 text-amber-600" />
-              <p className="mt-1 font-display text-xl font-extrabold text-stone-900">{formatPrice(totalPaid)}</p>
-              <p className="text-[11px] font-bold text-stone-500">{t('cust.totalPaid')}</p>
-            </div>
-          </div>
-
-          {/* Plans & Services with full description */}
-          {packageItems.length > 0 && (
-            <div id="plans" className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-              <h3 className="mb-3 font-extrabold text-stone-900">{t('cust.plansTitle')}</h3>
-              <div className="space-y-2.5">
-                {packageItems.map((p) => (
-                  <div key={p.id} className="rounded-xl border border-stone-200 bg-stone-50 p-3.5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-extrabold text-stone-900">{p.name}</p>
-                        <p className="mt-0.5 text-xs text-stone-500">
-                          {p.haircut_count} {t('cust.haircuts')} • {p.duration_days} {t('home.days')}
-                        </p>
-                      </div>
-                      <span className="shrink-0 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-extrabold text-amber-800 ring-1 ring-amber-200">{formatPrice(p.price)}</span>
-                    </div>
-                    {p.description && (
-                      <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-stone-600">
-                        {p.description}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
+          {selectedPlan && (
+            <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 text-[11px] font-bold text-stone-700">
+              متوسط سعر الحلاقة:{' '}
+              <span className="font-extrabold text-stone-900">
+                {formatPrice(selectedPlan.haircut_count > 0 ? selectedPlan.price / selectedPlan.haircut_count : 0)}
+              </span>
             </div>
           )}
 
-          {serviceItems.length > 0 && (
-            <div id="services" className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
-              <h3 className="mb-3 font-extrabold text-stone-900">
-                {L ? 'الخدمات العادية المتاحة' : 'Available Services'}
-              </h3>
-              <div className="space-y-2.5">
-                {serviceItems.map((s) => (
-                  <div key={s.id} className="rounded-xl border border-stone-200 bg-stone-50 p-3.5">
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="font-extrabold text-stone-900">{s.name}</p>
-                      <span className="shrink-0 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-extrabold text-amber-800 ring-1 ring-amber-200">{formatPrice(s.price)}</span>
-                    </div>
-                    {s.description && (
-                      <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-stone-600">
-                        {s.description}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
+          {err && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-700">
+              {err}
             </div>
           )}
-        </div>
 
-        <aside className="space-y-5">
-          {/* Referral */}
-          <div id="rewards" className="scroll-mt-6"><ReferralWidget customerName={customer.name} /></div>
-
-          {/* Visit history */}
-          <div id="visit-history" className="scroll-mt-6">
-            <h3 className="mb-3 font-display text-lg font-extrabold text-stone-900">{t('cust.history')}</h3>
-            {visits.length === 0 ? (
-              <div className="rounded-2xl border border-stone-200 bg-white p-6 text-center text-sm text-stone-500 shadow-sm">{t('cust.noVisits')}</div>
-            ) : (
-              <div className="space-y-2">
-                {visits.map((v) => (
-                  <div key={v.id} className="flex items-center gap-3 rounded-2xl border border-stone-200 bg-white p-3.5 shadow-sm">
-                    <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${
-                      v.payment_type === 'subscription' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
-                    }`}>
-                      {v.payment_type === 'subscription' ? <CheckCircle2 className="h-4 w-4" /> : <Coins className="h-4 w-4" />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-extrabold text-stone-900">{v.haircut_type ?? t('cust.haircut')}</p>
-                      <p className="flex items-center gap-1 text-xs text-stone-500">
-                        <Clock className="h-3 w-3" /> {formatDateTime(v.visit_date)}
-                      </p>
-                    </div>
-                    {v.payment_type === 'subscription' ? (
-                      <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-700">{t('cust.subscription')}</span>
-                    ) : (
-                      <span className="font-extrabold text-amber-700">{formatPrice(Number(v.charge_amount))}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+          <div className="flex gap-3 pt-1">
+            <button onClick={submit} disabled={saving || !selectedPlan} className="btn-primary flex-1">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              <span>{saving ? 'جاري التفعيل...' : 'تأكيد الاشتراك'}</span>
+            </button>
+            <button onClick={onClose} className="btn-ghost">
+              إلغاء
+            </button>
           </div>
-        </aside>
-      </div>
-
-      <nav aria-label={L ? 'تنقل صفحة العميل' : 'Customer navigation'} className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-white/95 px-3 pb-[max(env(safe-area-inset-bottom),10px)] pt-2 shadow-sm backdrop-blur-xl md:hidden">
-        <div className="mx-auto grid max-w-md grid-cols-4 gap-1">
-          <button type="button" onClick={() => document.getElementById('customer-top')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-stone-700 transition hover:bg-stone-100">
-            <Store className="h-5 w-5 text-stone-800" />{L ? 'الرئيسية' : 'Home'}
-          </button>
-          <button type="button" onClick={() => document.getElementById('customer-booking')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-stone-700 transition hover:bg-stone-100">
-            <Calendar className="h-5 w-5 text-amber-600" />{L ? 'الحجز' : 'Book'}
-          </button>
-          <button type="button" onClick={() => document.getElementById('visit-history')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-stone-700 transition hover:bg-stone-100">
-            <CalendarCheck className="h-5 w-5 text-stone-800" />{L ? 'زياراتي' : 'Visits'}
-          </button>
-          <button type="button" onClick={() => document.getElementById('rewards')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-stone-700 transition hover:bg-stone-100">
-            <Gift className="h-5 w-5 text-amber-600" />{L ? 'المكافآت' : 'Rewards'}
-          </button>
         </div>
-      </nav>
-    </div>
+      )}
+    </Modal>
   );
 }
