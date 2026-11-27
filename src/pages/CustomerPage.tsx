@@ -57,8 +57,6 @@ import {
   getPlans,
   createSubscription,
   recordVisit,
-  getCustomerById,
-  getShopById,
   formatPrice,
   formatDate,
   formatDateTime,
@@ -67,6 +65,7 @@ import {
   type Visit,
   type Plan,
 } from '@/lib/api';
+import { getShopById } from '@/lib/shopApi';
 import { REGULAR_HAIRCUT_PRICE, COMPANY_FEE_PER_VISIT, SYSTEM_NAME, supabase } from '@/lib/supabase';
 
 const BRAND_NAME = 'ulmi';
@@ -337,10 +336,8 @@ export default function CustomerPage({
       try {
         const [shop, price] = await Promise.all([
           getShopById(cleanShopId),
-          // fallback if helper not available: shop.regular_haircut_price
           Promise.resolve(null).then(async () => {
             try {
-              // Try importing dynamically if exists
               const api = await import('@/lib/api');
               if (typeof (api as any).getShopRegularHaircutPrice === 'function') {
                 return await (api as any).getShopRegularHaircutPrice(cleanShopId);
@@ -1051,7 +1048,6 @@ function PlansTab({
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {plans.map((plan) => {
             const isActive = activeSubscription?.plan?.id === plan.id;
-            const savings = plan.haircut_count * 0 + 0; // placeholder for future
             return (
               <div
                 key={plan.id}
