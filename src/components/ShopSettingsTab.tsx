@@ -1034,4 +1034,4 @@ export default function ShopSettingsTab({ shopId, onUpdated }: Props) {
       </section>
     </div>
   );
-}س
+}
