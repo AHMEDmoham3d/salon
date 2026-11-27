@@ -130,19 +130,19 @@ function ShopSelect({ onLogin }: { onLogin: (c: Customer, shopId: string, shopNa
 
   if (matches && matches.length > 1) {
     return (
-      <div className="animate-fade-in mx-auto flex min-h-[calc(100vh-64px)] max-w-md flex-col justify-center px-4 py-10 sm:px-6">
+      <div className="animate-fade-in mx-auto flex min-h-[calc(100vh-64px)] max-w-md flex-col justify-center bg-stone-50 px-4 py-10 sm:px-6">
         <div className="text-center">
-          <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-stone-900 to-stone-800 text-amber-400 shadow-lg">
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-stone-900 text-amber-400 shadow-sm">
             <Store className="h-8 w-8" />
           </div>
           <h1 className="mt-5 font-display text-3xl font-extrabold text-stone-900">{t('cust.welcome')} {name.trim()}</h1>
-          <p className="mt-2 text-sm text-stone-600">{t('cust.multiShop')}</p>
+          <p className="mt-2 text-sm text-stone-500">{t('cust.multiShop')}</p>
         </div>
-        <div className="card mt-8 space-y-2 p-4">
+        <div className="mt-8 space-y-2.5 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
           {matches.map((m) => (
             <button key={m.shop_id} onClick={() => onLogin(m.customer, m.shop_id, m.shop_name)}
-              className="card flex w-full items-center gap-3 p-4 text-right transition hover:-translate-y-0.5 hover:shadow-soft">
-              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-stone-700 to-stone-900 font-display text-lg font-extrabold text-amber-400">
+              className="flex w-full items-center gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4 text-right transition hover:border-amber-500 hover:bg-amber-50/40">
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-stone-900 font-display text-lg font-extrabold text-amber-400">
                 {m.shop_name.charAt(0)}
               </div>
               <div className="min-w-0 flex-1">
@@ -152,7 +152,7 @@ function ShopSelect({ onLogin }: { onLogin: (c: Customer, shopId: string, shopNa
               <ArrowRight className="h-5 w-5 text-stone-400" />
             </button>
           ))}
-          <button onClick={() => setMatches(null)} className="w-full rounded-lg py-2.5 text-sm font-bold text-stone-500 transition hover:bg-stone-100">
+          <button onClick={() => setMatches(null)} className="w-full rounded-xl py-2.5 text-sm font-bold text-stone-600 transition hover:bg-stone-100">
             {t('cust.back')}
           </button>
         </div>
@@ -161,29 +161,29 @@ function ShopSelect({ onLogin }: { onLogin: (c: Customer, shopId: string, shopNa
   }
 
   return (
-    <div className="animate-fade-in mx-auto flex min-h-[calc(100vh-64px)] max-w-md flex-col justify-center px-4 py-10 sm:px-6">
+    <div className="animate-fade-in mx-auto flex min-h-[calc(100vh-64px)] max-w-md flex-col justify-center bg-stone-50 px-4 py-10 sm:px-6">
       <div className="text-center">
-        <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-stone-900 to-stone-800 text-amber-400 shadow-lg">
+        <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-stone-900 text-amber-400 shadow-sm">
           <User className="h-8 w-8" />
         </div>
         <h1 className="mt-5 font-display text-3xl font-extrabold text-stone-900">{t('cust.title')}</h1>
-        <p className="mt-2 text-sm text-stone-600">{t('cust.subtitle')}</p>
+        <p className="mt-2 text-sm text-stone-500">{t('cust.subtitle')}</p>
       </div>
-      <div className="card mt-8 space-y-4 p-6">
+      <div className="mt-8 space-y-4 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
         <div>
-          <label className="label">{t('cust.fullName')}</label>
+          <label className="mb-2 block text-sm font-bold text-stone-600">{t('cust.fullName')}</label>
           <div className="relative">
             <User className="absolute right-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-stone-400" />
             <input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()}
-              placeholder={t('cust.namePlaceholder')} className="input pr-11" />
+              placeholder={t('cust.namePlaceholder')} className="w-full rounded-xl border border-stone-200 bg-white py-3 pl-4 pr-11 text-sm text-stone-900 outline-none transition focus:border-amber-500" />
           </div>
         </div>
         <div>
-          <label className="label">{t('cust.phone')}</label>
+          <label className="mb-2 block text-sm font-bold text-stone-600">{t('cust.phone')}</label>
           <div className="relative">
             <Phone className="absolute right-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-stone-400" />
             <input value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()}
-              placeholder="01xxxxxxxxx" className="input pr-11" dir="ltr" />
+              placeholder="01xxxxxxxxx" className="w-full rounded-xl border border-stone-200 bg-white py-3 pl-4 pr-11 text-sm text-stone-900 outline-none transition focus:border-amber-500" dir="ltr" />
           </div>
         </div>
         {error && (
@@ -191,12 +191,12 @@ function ShopSelect({ onLogin }: { onLogin: (c: Customer, shopId: string, shopNa
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><span>{error}</span>
           </div>
         )}
-        <button onClick={submit} disabled={loading} className="btn-primary w-full">
+        <button onClick={submit} disabled={loading} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-stone-900 px-5 py-3 text-sm font-bold text-white transition hover:bg-stone-700 disabled:opacity-50">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
           {loading ? t('cust.searching') : t('cust.login')}
         </button>
-        <div className="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-700">
-          <Sparkles className="mt-0.5 h-4 w-4 shrink-0" /><span>{t('cust.smartHint')}</span>
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">
+          <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" /><span>{t('cust.smartHint')}</span>
         </div>
       </div>
     </div>
@@ -597,10 +597,10 @@ function CustomerBookingSection({
 
   return (
     <div id="customer-booking" className="mt-6 scroll-mt-6 space-y-5">
-      <div className="rounded-[26px] border border-[#e9e2d8] bg-white p-5 shadow-[0_10px_30px_rgba(48,38,28,0.05)] sm:p-6">
+      <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-stone-900 text-amber-400">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-stone-900 text-amber-400">
               <Calendar className="h-6 w-6" />
             </div>
             <div>
@@ -617,7 +617,7 @@ function CustomerBookingSection({
             <span
               className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${
                 trust.isTrusted
-                  ? 'bg-emerald-100 text-emerald-800'
+                  ? 'bg-emerald-100 text-emerald-700'
                   : 'bg-amber-100 text-amber-800'
               }`}
             >
@@ -628,7 +628,7 @@ function CustomerBookingSection({
         </div>
 
         {trust && !trust.canBook ? (
-          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
+          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
             {trust.blockReason}
           </div>
         ) : (
@@ -652,7 +652,7 @@ function CustomerBookingSection({
                         className={`rounded-xl border p-3 text-right transition ${
                           activeBranch
                             ? 'border-stone-900 bg-stone-900 text-white'
-                            : 'border-stone-200 bg-[#faf8f5] text-stone-800 hover:bg-stone-100'
+                            : 'border-stone-200 bg-stone-50 text-stone-800 hover:bg-stone-100'
                         }`}
                       >
                         <p className="text-xs font-extrabold">{br.name}</p>
@@ -684,7 +684,7 @@ function CustomerBookingSection({
                     className={`rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
                       selectedBarberId === 'any'
                         ? 'border-stone-900 bg-stone-900 text-white'
-                        : 'border-stone-200 bg-[#faf8f5] text-stone-700 hover:bg-stone-100'
+                        : 'border-stone-200 bg-stone-50 text-stone-700 hover:bg-stone-100'
                     }`}
                   >
                     أقرب حلاق متاح ({branchBarbers.length})
@@ -699,7 +699,7 @@ function CustomerBookingSection({
                         className={`rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
                           activeBarber
                             ? 'border-stone-900 bg-stone-900 text-white'
-                            : 'border-stone-200 bg-[#faf8f5] text-stone-700 hover:bg-stone-100'
+                            : 'border-stone-200 bg-stone-50 text-stone-700 hover:bg-stone-100'
                         }`}
                       >
                         {barber.name}
@@ -726,7 +726,7 @@ function CustomerBookingSection({
                       className={`shrink-0 rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
                         activeDay
                           ? 'border-stone-900 bg-stone-900 text-white'
-                          : 'border-stone-200 bg-[#faf8f5] text-stone-700 hover:bg-stone-100'
+                          : 'border-stone-200 bg-stone-50 text-stone-700 hover:bg-stone-100'
                       }`}
                     >
                       {d.label}
@@ -772,15 +772,15 @@ function CustomerBookingSection({
                           !slot.available
                             ? 'cursor-not-allowed border-stone-200 bg-stone-100 text-stone-400 line-through'
                             : isSelected
-                            ? 'border-amber-500 bg-amber-500 text-stone-950 shadow-sm'
-                            : 'border-stone-200 bg-white text-stone-800 hover:border-amber-400 hover:bg-amber-50/50'
+                            ? 'border-amber-600 bg-amber-600 text-white shadow-sm'
+                            : 'border-stone-200 bg-white text-stone-800 hover:border-amber-500 hover:bg-amber-50/50'
                         }`}
                       >
                         <div>{slot.label}</div>
                         {slot.available && branchBarbers.length > 1 && selectedBarberId === 'any' && (
                           <div
                             className={`mt-0.5 text-[10px] ${
-                              isSelected ? 'text-stone-900' : 'text-emerald-700'
+                              isSelected ? 'text-amber-100' : 'text-emerald-700'
                             }`}
                           >
                             متاح {slot.freeChairsCount} كرسي
@@ -801,7 +801,7 @@ function CustomerBookingSection({
                 <select
                   value={selectedPlanId}
                   onChange={(e) => setSelectedPlanId(e.target.value)}
-                  className="input bg-white"
+                  className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-2.5 text-sm text-stone-900 outline-none focus:border-amber-500"
                 >
                   <option value="">
                     {hasSub && activeSub?.plan
@@ -824,7 +824,7 @@ function CustomerBookingSection({
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="مثال: تدرج متوسط + تهذيب لحية"
-                  className="input bg-white"
+                  className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-2.5 text-sm text-stone-900 outline-none focus:border-amber-500"
                 />
               </div>
             </div>
@@ -833,7 +833,7 @@ function CustomerBookingSection({
               <div
                 className={`rounded-xl border p-3.5 text-xs font-bold ${
                   feedback.type === 'ok'
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                     : 'border-red-200 bg-red-50 text-red-700'
                 }`}
               >
@@ -845,7 +845,7 @@ function CustomerBookingSection({
               type="button"
               onClick={() => void handleBook()}
               disabled={submitting || !selectedSlot}
-              className="btn-gold w-full disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-amber-700 disabled:opacity-50"
             >
               {submitting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -860,8 +860,8 @@ function CustomerBookingSection({
 
       {/* Customer's bookings list */}
       {bookings.length > 0 && (
-        <div className="rounded-[24px] border border-[#e9e2d8] bg-white p-5 shadow-sm">
-          <h4 className="mb-3 flex items-center gap-2 font-bold text-stone-900">
+        <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+          <h4 className="mb-3 flex items-center gap-2 font-extrabold text-stone-900">
             <Ticket className="h-4 w-4 text-amber-600" />
             حجوزاتي ({bookings.length})
           </h4>
@@ -875,7 +875,7 @@ function CustomerBookingSection({
               return (
                 <div
                   key={b.id}
-                  className="flex flex-col justify-between gap-3 rounded-xl border border-stone-200 bg-[#faf8f5] p-3.5 sm:flex-row sm:items-center"
+                  className="flex flex-col justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50 p-3.5 sm:flex-row sm:items-center"
                 >
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -1045,18 +1045,18 @@ function HairConsultation({ customer, shopId }: { customer: Customer; shopId: st
 
   if (step === 'intro') {
     return (
-      <div className="card border-amber-200 p-5">
+      <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-stone-950">
+          <div className="grid h-12 w-12 place-items-center rounded-xl bg-amber-50 text-amber-600 ring-1 ring-amber-200">
             <Camera className="h-6 w-6" />
           </div>
           <div>
-            <h3 className="font-bold text-stone-900">{t('consult.title')}</h3>
+            <h3 className="font-extrabold text-stone-900">{t('consult.title')}</h3>
             <p className="text-xs text-stone-500">{t('consult.subtitle')}</p>
           </div>
         </div>
         <p className="mt-3 text-sm leading-relaxed text-stone-600">{t('consult.intro')}</p>
-        <button onClick={() => setStep('hair')} className="btn-gold mt-4 w-full">
+        <button onClick={() => setStep('hair')} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-amber-700">
           <Sparkles className="h-4 w-4" /> {t('consult.start')}
         </button>
       </div>
@@ -1097,10 +1097,10 @@ function HairConsultation({ customer, shopId }: { customer: Customer; shopId: st
   }
 
   return (
-    <div className="card overflow-hidden border-amber-200">
-      <div className="bg-gradient-to-br from-amber-400 to-amber-600 p-4 text-stone-950">
+    <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+      <div className="border-b border-stone-200 bg-stone-900 p-4 text-white">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5" /><span className="font-bold">{t('consult.result')}</span>
+          <Sparkles className="h-5 w-5 text-amber-400" /><span className="font-extrabold">{t('consult.result')}</span>
         </div>
       </div>
       <div className="p-5">
@@ -1108,9 +1108,9 @@ function HairConsultation({ customer, shopId }: { customer: Customer; shopId: st
           <>
             <h3 className="font-display text-2xl font-extrabold text-stone-900">{L ? result.name_ar : result.name_en}</h3>
             <p className="mt-2 text-sm leading-relaxed text-stone-600">{L ? result.desc_ar : result.desc_en}</p>
-            <div className="mt-4 rounded-xl bg-stone-50 p-3">
+            <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-3">
               <p className="text-xs font-bold text-stone-500">{t('consult.summary')}</p>
-              <p className="mt-1 text-xs text-stone-600">
+              <p className="mt-1 text-xs font-bold text-stone-700">
                 {L ? `شعر ${hair === 'straight' ? 'أملس' : hair === 'wavy' ? 'مموج' : hair === 'curly' ? 'مجعد' : 'كيرلي'}` : `Hair: ${hair}`}
                 {' • '}
                 {L ? `وجه ${face === 'oval' ? 'بيضاوي' : face === 'round' ? 'دائري' : face === 'square' ? 'مربع' : 'طويل'}` : `Face: ${face}`}
@@ -1118,10 +1118,10 @@ function HairConsultation({ customer, shopId }: { customer: Customer; shopId: st
                 {L ? `أسلوب ${style === 'classic' ? 'كلاسيكي' : style === 'modern' ? 'عصري' : style === 'bold' ? 'جريء' : 'سهل'}` : `Style: ${style}`}
               </p>
             </div>
-            <div className="mt-4 flex items-center gap-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-700">
-              <Info className="h-3.5 w-3.5 shrink-0" /> {t('consult.disclaimer')}
+            <div className="mt-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">
+              <Info className="h-3.5 w-3.5 shrink-0 text-amber-600" /> {t('consult.disclaimer')}
             </div>
-            <button onClick={reset} className="btn-ghost mt-4 w-full">
+            <button onClick={reset} className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-stone-200 bg-stone-50 px-4 py-2.5 text-sm font-bold text-stone-700 transition hover:bg-stone-100">
               <ChevronLeft className="h-4 w-4" /> {t('consult.newConsult')}
             </button>
             <SmartHairPhotoAssistant
@@ -1147,19 +1147,19 @@ function ConsultationStep<T extends string>({
   t: (k: string) => string;
 }) {
   return (
-    <div className="card p-5">
+    <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-center gap-3">
         <div className="grid h-10 w-10 place-items-center rounded-xl bg-stone-900 text-amber-400">{icon}</div>
-        <h3 className="font-bold text-stone-900">{title}</h3>
+        <h3 className="font-extrabold text-stone-900">{title}</h3>
       </div>
       <div className="grid grid-cols-2 gap-3">
         {options.map((o) => (
           <button key={o.value} onClick={() => onSelect(o.value)}
-            className={`flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition ${
-              selected === o.value ? 'border-amber-500 bg-amber-50' : 'border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50'
+            className={`flex flex-col items-center gap-2 rounded-xl border p-4 transition ${
+              selected === o.value ? 'border-amber-600 bg-amber-50 text-amber-900' : 'border-stone-200 bg-stone-50 text-stone-800 hover:bg-stone-100'
             }`}>
             <span className="text-2xl">{o.emoji}</span>
-            <span className="text-sm font-bold text-stone-800">{o.label}</span>
+            <span className="text-sm font-bold">{o.label}</span>
           </button>
         ))}
       </div>
@@ -1183,41 +1183,41 @@ function ReferralWidget({ customerName }: { customerName: string }) {
   };
 
   return (
-    <div className="card overflow-hidden border-emerald-200">
-      <div className="flex items-center gap-3 bg-gradient-to-br from-emerald-600 to-emerald-700 p-4 text-emerald-50">
-        <div className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-400/20">
-          <Gift className="h-5 w-5 text-emerald-200" />
+    <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+      <div className="flex items-center gap-3 border-b border-stone-200 bg-stone-50 p-4">
+        <div className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 text-emerald-700">
+          <Gift className="h-5 w-5" />
         </div>
         <div>
-          <p className="font-bold">{t('referral.title')}</p>
-          <p className="text-xs text-emerald-100">{t('referral.desc')}</p>
+          <p className="font-extrabold text-stone-900">{t('referral.title')}</p>
+          <p className="text-xs text-stone-500">{t('referral.desc')}</p>
         </div>
       </div>
-      <div className="p-4 space-y-3">
+      <div className="space-y-3 p-4">
         <div className="flex items-center gap-2">
-          <div className="flex-1 rounded-xl border-2 border-dashed border-stone-300 bg-stone-50 px-4 py-3 text-center font-display text-lg font-extrabold tracking-wider text-stone-800" dir="ltr">
+          <div className="flex-1 rounded-xl border border-dashed border-stone-300 bg-stone-50 px-4 py-3 text-center font-display text-lg font-extrabold tracking-wider text-stone-900" dir="ltr">
             {code}
           </div>
-          <button onClick={copy} className="btn-primary shrink-0">
-            {copied ? <><CheckCircle2 className="h-4 w-4" /> {t('referral.copied')}</> : <><Copy className="h-4 w-4" /> {t('referral.copy')}</>}
+          <button onClick={copy} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-stone-900 px-4 py-3 text-xs font-bold text-white transition hover:bg-stone-700">
+            {copied ? <><CheckCircle2 className="h-4 w-4 text-emerald-400" /> {t('referral.copied')}</> : <><Copy className="h-4 w-4" /> {t('referral.copy')}</>}
           </button>
         </div>
         <p className="text-xs text-stone-500">{t('referral.share')}</p>
         <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-xl bg-stone-50 p-3 text-center">
+          <div className="rounded-xl border border-stone-200/80 bg-stone-50 p-3 text-center">
             <Users className="mx-auto h-4 w-4 text-stone-400" />
             <p className="mt-1 font-display text-xl font-extrabold text-stone-900">0</p>
             <p className="text-[10px] font-bold text-stone-500">{t('referral.invited')}</p>
           </div>
-          <div className="rounded-xl bg-stone-50 p-3 text-center">
-            <CheckCircle2 className="mx-auto h-4 w-4 text-stone-400" />
+          <div className="rounded-xl border border-stone-200/80 bg-stone-50 p-3 text-center">
+            <CheckCircle2 className="mx-auto h-4 w-4 text-emerald-600" />
             <p className="mt-1 font-display text-xl font-extrabold text-stone-900">0</p>
             <p className="text-[10px] font-bold text-stone-500">{t('referral.joined')}</p>
           </div>
-          <div className="rounded-xl bg-amber-50 p-3 text-center">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-center">
             <Gift className="mx-auto h-4 w-4 text-amber-600" />
             <p className="mt-1 font-display text-xl font-extrabold text-amber-900">0</p>
-            <p className="text-[10px] font-bold text-amber-600">{t('referral.earned')}</p>
+            <p className="text-[10px] font-bold text-amber-700">{t('referral.earned')}</p>
           </div>
         </div>
       </div>
@@ -1233,17 +1233,17 @@ function OffersWidget({ totalVisits, active, daysLeft }: { totalVisits: number; 
   if (active && daysLeft <= 7) {
     offers.push({
       icon: Tag, title: t('offers.renew'), desc: t('offers.renewDesc'),
-      color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200',
+      color: 'text-amber-700', bg: 'bg-amber-50/70 border-amber-200',
     });
   }
   offers.push({
     icon: Gift, title: t('offers.refer'), desc: t('offers.referDesc'),
-    color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200',
+    color: 'text-emerald-700', bg: 'bg-emerald-50/70 border-emerald-200',
   });
   if (totalVisits >= 10 && totalVisits < 20) {
     offers.push({
       icon: Zap, title: t('offers.vip'), desc: t('offers.vipDesc'),
-      color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200',
+      color: 'text-amber-700', bg: 'bg-stone-50 border-stone-200',
     });
   }
 
@@ -1251,17 +1251,17 @@ function OffersWidget({ totalVisits, active, daysLeft }: { totalVisits: number; 
 
   return (
     <div className="space-y-3">
-      <h3 className="font-bold text-stone-900">{t('offers.title')}</h3>
+      <h3 className="font-extrabold text-stone-900">{t('offers.title')}</h3>
       {offers.map((o, i) => (
-        <div key={i} className={`card flex items-start gap-3 border-2 p-4 ${o.bg}`}>
-          <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white ${o.color}`}>
+        <div key={i} className={`flex items-start gap-3 rounded-2xl border p-4 shadow-sm ${o.bg}`}>
+          <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-stone-200 bg-white ${o.color}`}>
             <o.icon className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="badge bg-amber-500 text-stone-950">{t('offers.badge')}</span>
+              <span className="rounded-full bg-amber-600 px-2.5 py-0.5 text-[11px] font-bold text-white">{t('offers.badge')}</span>
             </div>
-            <p className="mt-1.5 font-bold text-stone-900">{o.title}</p>
+            <p className="mt-1.5 font-extrabold text-stone-900">{o.title}</p>
             <p className="text-xs text-stone-600">{o.desc}</p>
           </div>
         </div>
@@ -1328,7 +1328,7 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="btn-primary mt-4 w-full"
+          className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-stone-900 px-5 py-3 text-sm font-bold text-white transition hover:bg-stone-700"
         >
           إعادة المحاولة
         </button>
@@ -1355,41 +1355,41 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
   const serviceItems = plans.filter((p) => p.item_type === 'service');
 
   const loyaltyLevel =
-    totalVisits >= 20 ? { label: t('cust.level.gold'), icon: Crown, tone: 'text-amber-500', bg: 'bg-amber-50' } :
-    totalVisits >= 10 ? { label: t('cust.level.silver'), icon: Medal, tone: 'text-slate-500', bg: 'bg-slate-50' } :
-    totalVisits >= 5 ? { label: t('cust.level.bronze'), icon: Award, tone: 'text-orange-600', bg: 'bg-orange-50' } :
-    { label: t('cust.level.new'), icon: User, tone: 'text-stone-500', bg: 'bg-stone-50' };
+    totalVisits >= 20 ? { label: t('cust.level.gold'), icon: Crown, tone: 'text-amber-600', bg: 'bg-amber-50' } :
+    totalVisits >= 10 ? { label: t('cust.level.silver'), icon: Medal, tone: 'text-stone-700', bg: 'bg-stone-100' } :
+    totalVisits >= 5 ? { label: t('cust.level.bronze'), icon: Award, tone: 'text-amber-700', bg: 'bg-amber-50/70' } :
+    { label: t('cust.level.new'), icon: User, tone: 'text-stone-600', bg: 'bg-stone-100' };
   const LoyaltyIcon = loyaltyLevel.icon;
 
   return (
-    <div id="customer-top" className="customer-page animate-fade-in mx-auto min-h-screen max-w-6xl bg-[#f7f4ef] px-4 pb-28 pt-5 sm:px-6 lg:px-8">
+    <div id="customer-top" className="customer-page animate-fade-in mx-auto min-h-screen max-w-6xl bg-stone-50 px-4 pb-28 pt-5 sm:px-6 lg:px-8">
       <div className="mb-5 flex items-center justify-between">
-        <button onClick={onLogout} className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2.5 text-xs font-bold text-stone-700 shadow-sm transition hover:bg-stone-50">
+        <button onClick={onLogout} className="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-xs font-bold text-stone-700 shadow-sm transition hover:bg-stone-100">
           <LogOut className="h-4 w-4" /> {t('cust.logout')}
         </button>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-2 text-xs text-stone-500">
-          <Lock className="h-3.5 w-3.5" /> {t('cust.secure')}
+        <span className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3 py-2 text-xs font-bold text-stone-500 shadow-sm">
+          <Lock className="h-3.5 w-3.5 text-amber-600" /> {t('cust.secure')}
         </span>
       </div>
 
       {/* Header card */}
-      <div className="overflow-hidden rounded-[28px] border border-[#e9e2d8] bg-white shadow-[0_12px_35px_rgba(48,38,28,0.06)]">
-        <div className="relative flex items-center gap-4 bg-[#eee6db] px-5 py-6 text-stone-900 sm:px-7">
-          <div className="grid h-[68px] w-[68px] shrink-0 place-items-center overflow-hidden rounded-[22px] border-4 border-white bg-white font-display text-2xl font-extrabold text-stone-800 shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+        <div className="relative flex items-center gap-4 border-b border-stone-200 bg-stone-50 px-5 py-6 text-stone-900 sm:px-7">
+          <div className="grid h-[68px] w-[68px] shrink-0 place-items-center overflow-hidden rounded-2xl border border-stone-200 bg-white font-display text-2xl font-extrabold text-stone-900 shadow-sm">
             {shop?.logo_url ? (
-              <img src={shop.logo_url} alt={shop.shop_name || shopName || 'Shop logo'} className="h-full w-full object-cover" />
+              <img src={shop.logo_url} alt={shop.shop_name || shopName || 'Shop logo'} className="h-full w-full object-contain p-1.5" />
             ) : (
               (shopName || customer.name).charAt(0)
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="mb-1 text-[11px] font-bold tracking-wide text-stone-500">{L ? 'أهلاً بيك في' : 'WELCOME TO'}</p>
-            <h2 className="truncate font-display text-2xl font-extrabold">{customer.name}</h2>
-            <p className="mt-1 text-sm text-stone-600">
+            <p className="mb-1 text-[11px] font-bold tracking-wide text-amber-700">{L ? 'أهلاً بيك في' : 'WELCOME TO'}</p>
+            <h2 className="truncate font-display text-2xl font-extrabold text-stone-900">{customer.name}</h2>
+            <p className="mt-1 text-sm text-stone-500">
               {shop?.shop_name || shopName ? `${shop?.shop_name || shopName} • ` : ''}{t('cust.customerSince')} {formatDate(customer.created_at)}
             </p>
             {shop && (
-              <p className="mt-2 inline-flex rounded-full bg-white/70 px-3 py-1.5 text-xs font-bold text-stone-800">
+              <p className="mt-2 inline-flex rounded-lg bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 ring-1 ring-amber-200">
                 {lang === 'ar' ? 'سعر الحلاقة العادية:' : 'Regular haircut:'} {formatPrice(Number(shop.regular_haircut_price ?? 50))}
               </p>
             )}
@@ -1398,18 +1398,18 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
 
         {/* Subscription status */}
         <div className="bg-white p-4 sm:p-5">
-          <div className={`rounded-[22px] border p-4 ${active ? 'border-emerald-200 bg-[#f3faf5]' : 'border-[#eee9e2] bg-[#faf8f5]'}`}>
+          <div className={`rounded-xl border p-4 ${active ? 'border-emerald-200 bg-emerald-50/60' : 'border-stone-200 bg-stone-50'}`}>
             <div className="flex items-center gap-2">
-              {active ? <CheckCircle2 className="h-6 w-6 text-emerald-600" /> : <XCircle className="h-6 w-6 text-stone-400" />}
+              {active ? <CheckCircle2 className="h-6 w-6 text-emerald-700" /> : <XCircle className="h-6 w-6 text-stone-400" />}
               <div>
-                <p className="font-bold text-stone-900">{active ? t('cust.subActive') : t('cust.subInactive')}</p>
+                <p className="font-extrabold text-stone-900">{active ? t('cust.subActive') : t('cust.subInactive')}</p>
                 <p className="text-xs text-stone-500">
                   {active ? `${sub?.plan?.name ?? ''} — ${t('cust.subEnds')} ${formatDate(sub?.end_date ?? '')}` : t('cust.subAskBarber')}
                 </p>
               </div>
             </div>
             {active && sub?.plan?.description && (
-              <p className="mt-2.5 whitespace-pre-line rounded-xl bg-white/80 p-3 text-xs leading-relaxed text-stone-700">
+              <p className="mt-2.5 whitespace-pre-line rounded-xl border border-stone-200/80 bg-white p-3 text-xs leading-relaxed text-stone-700">
                 {sub.plan.description}
               </p>
             )}
@@ -1420,13 +1420,13 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
                     <span>{t('cust.used')}</span><span>{sub.haircuts_used} / {sub.plan?.haircut_count}</span>
                   </div>
                   <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-stone-200">
-                    <div className="h-full rounded-full bg-gradient-to-l from-emerald-500 to-emerald-600 transition-all duration-500"
+                    <div className="h-full rounded-full bg-emerald-600 transition-all duration-500"
                       style={{ width: `${Math.min(100, (sub.haircuts_used / (sub.plan?.haircut_count ?? 1)) * 100)}%` }} />
                   </div>
                   <p className="mt-2 text-xs font-bold text-emerald-700">{remaining} {t('cust.remainingIn')}</p>
                 </div>
-                <div className={`mt-3 flex items-center gap-1.5 rounded-lg p-2.5 text-xs ${
-                  daysLeft <= 3 ? 'bg-red-50 text-red-700' : daysLeft <= 7 ? 'bg-orange-50 text-orange-700' : 'bg-emerald-50 text-emerald-700'
+                <div className={`mt-3 flex items-center gap-1.5 rounded-xl p-2.5 text-xs font-bold ${
+                  daysLeft <= 3 ? 'bg-red-50 text-red-700' : daysLeft <= 7 ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-700'
                 }`}>
                   {daysLeft <= 3 ? <XCircle className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
                   {daysLeft > 0 ? `${t('cust.expiresIn')} ${daysLeft} ${t('cust.days')}` : t('cust.expired')}
@@ -1458,14 +1458,14 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
           <OffersWidget totalVisits={totalVisits} active={active} daysLeft={daysLeft} />
 
           {/* Loyalty */}
-          <div id="loyalty" className="rounded-[26px] border border-[#e9e2d8] bg-white p-5 shadow-[0_8px_24px_rgba(48,38,28,0.04)]">
+          <div id="loyalty" className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className={`grid h-12 w-12 place-items-center rounded-xl ${loyaltyLevel.bg}`}>
+                <div className={`grid h-12 w-12 place-items-center rounded-xl border border-stone-200/80 ${loyaltyLevel.bg}`}>
                   <LoyaltyIcon className={`h-6 w-6 ${loyaltyLevel.tone}`} />
                 </div>
                 <div>
-                  <p className="font-bold text-stone-900">{t('cust.loyalty')}: {loyaltyLevel.label}</p>
+                  <p className="font-extrabold text-stone-900">{t('cust.loyalty')}: {loyaltyLevel.label}</p>
                   <p className="text-xs text-stone-500">{t('cust.totalVisits')} {totalVisits} {t('cust.visits')}</p>
                 </div>
               </div>
@@ -1484,10 +1484,10 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
                 const reached = totalVisits >= lvl.min;
                 return (
                   <div key={lvl.label}
-                    className={`rounded-lg py-2 text-center text-[11px] font-bold transition ${
-                      reached ? 'bg-amber-500 text-stone-950' : 'bg-stone-100 text-stone-400'
+                    className={`rounded-xl py-2 text-center text-[11px] font-bold transition ${
+                      reached ? 'bg-stone-900 text-amber-400' : 'bg-stone-100 text-stone-400'
                     }`}>
-                    {lvl.label}{i < 3 && <span className="mr-1 text-stone-300">›</span>}
+                    {lvl.label}{i < 3 && <span className="mr-1 text-stone-400">›</span>}
                   </div>
                 );
               })}
@@ -1496,17 +1496,17 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
 
           {/* Stats */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-[20px] border border-[#e9e2d8] bg-white p-3 text-center shadow-sm">
-              <CalendarCheck className="mx-auto h-5 w-5 text-emerald-500" />
+            <div className="rounded-2xl border border-stone-200 bg-white p-4 text-center shadow-sm">
+              <CalendarCheck className="mx-auto h-5 w-5 text-emerald-700" />
               <p className="mt-1 font-display text-xl font-extrabold text-stone-900">{subscriptionVisits}</p>
               <p className="text-[11px] font-bold text-stone-500">{t('cust.subVisits')}</p>
             </div>
-            <div className="card p-3 text-center">
+            <div className="rounded-2xl border border-stone-200 bg-white p-4 text-center shadow-sm">
               <Scissors className="mx-auto h-5 w-5 text-amber-600" />
               <p className="mt-1 font-display text-xl font-extrabold text-stone-900">{visits.length - subscriptionVisits}</p>
               <p className="text-[11px] font-bold text-stone-500">{t('cust.regVisits')}</p>
             </div>
-            <div className="card p-3 text-center">
+            <div className="rounded-2xl border border-stone-200 bg-white p-4 text-center shadow-sm">
               <Coins className="mx-auto h-5 w-5 text-amber-600" />
               <p className="mt-1 font-display text-xl font-extrabold text-stone-900">{formatPrice(totalPaid)}</p>
               <p className="text-[11px] font-bold text-stone-500">{t('cust.totalPaid')}</p>
@@ -1515,19 +1515,19 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
 
           {/* Plans & Services with full description */}
           {packageItems.length > 0 && (
-            <div id="plans" className="rounded-[24px] border border-[#e9e2d8] bg-white p-5 shadow-sm">
-              <h3 className="mb-3 font-bold text-stone-900">{t('cust.plansTitle')}</h3>
+            <div id="plans" className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+              <h3 className="mb-3 font-extrabold text-stone-900">{t('cust.plansTitle')}</h3>
               <div className="space-y-2.5">
                 {packageItems.map((p) => (
                   <div key={p.id} className="rounded-xl border border-stone-200 bg-stone-50 p-3.5">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-bold text-stone-800">{p.name}</p>
+                        <p className="font-extrabold text-stone-900">{p.name}</p>
                         <p className="mt-0.5 text-xs text-stone-500">
                           {p.haircut_count} {t('cust.haircuts')} • {p.duration_days} {t('home.days')}
                         </p>
                       </div>
-                      <span className="shrink-0 font-bold text-amber-600">{formatPrice(p.price)}</span>
+                      <span className="shrink-0 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-extrabold text-amber-800 ring-1 ring-amber-200">{formatPrice(p.price)}</span>
                     </div>
                     {p.description && (
                       <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-stone-600">
@@ -1541,16 +1541,16 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
           )}
 
           {serviceItems.length > 0 && (
-            <div id="services" className="rounded-[24px] border border-[#e9e2d8] bg-white p-5 shadow-sm">
-              <h3 className="mb-3 font-bold text-stone-900">
+            <div id="services" className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm">
+              <h3 className="mb-3 font-extrabold text-stone-900">
                 {L ? 'الخدمات العادية المتاحة' : 'Available Services'}
               </h3>
               <div className="space-y-2.5">
                 {serviceItems.map((s) => (
                   <div key={s.id} className="rounded-xl border border-stone-200 bg-stone-50 p-3.5">
                     <div className="flex items-start justify-between gap-3">
-                      <p className="font-bold text-stone-800">{s.name}</p>
-                      <span className="shrink-0 font-bold text-amber-600">{formatPrice(s.price)}</span>
+                      <p className="font-extrabold text-stone-900">{s.name}</p>
+                      <span className="shrink-0 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-extrabold text-amber-800 ring-1 ring-amber-200">{formatPrice(s.price)}</span>
                     </div>
                     {s.description && (
                       <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-stone-600">
@@ -1572,26 +1572,26 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
           <div id="visit-history" className="scroll-mt-6">
             <h3 className="mb-3 font-display text-lg font-extrabold text-stone-900">{t('cust.history')}</h3>
             {visits.length === 0 ? (
-              <div className="rounded-[22px] border border-[#e9e2d8] bg-white p-6 text-center text-sm text-stone-500">{t('cust.noVisits')}</div>
+              <div className="rounded-2xl border border-stone-200 bg-white p-6 text-center text-sm text-stone-500 shadow-sm">{t('cust.noVisits')}</div>
             ) : (
               <div className="space-y-2">
                 {visits.map((v) => (
-                  <div key={v.id} className="flex items-center gap-3 rounded-[20px] border border-[#e9e2d8] bg-white p-3 shadow-sm">
-                    <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${
-                      v.payment_type === 'subscription' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-700'
+                  <div key={v.id} className="flex items-center gap-3 rounded-2xl border border-stone-200 bg-white p-3.5 shadow-sm">
+                    <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${
+                      v.payment_type === 'subscription' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200'
                     }`}>
                       {v.payment_type === 'subscription' ? <CheckCircle2 className="h-4 w-4" /> : <Coins className="h-4 w-4" />}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-stone-800">{v.haircut_type ?? t('cust.haircut')}</p>
+                      <p className="text-sm font-extrabold text-stone-900">{v.haircut_type ?? t('cust.haircut')}</p>
                       <p className="flex items-center gap-1 text-xs text-stone-500">
                         <Clock className="h-3 w-3" /> {formatDateTime(v.visit_date)}
                       </p>
                     </div>
                     {v.payment_type === 'subscription' ? (
-                      <span className="badge bg-emerald-100 text-emerald-700">{t('cust.subscription')}</span>
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-700">{t('cust.subscription')}</span>
                     ) : (
-                      <span className="font-bold text-amber-700">{formatPrice(Number(v.charge_amount))}</span>
+                      <span className="font-extrabold text-amber-700">{formatPrice(Number(v.charge_amount))}</span>
                     )}
                   </div>
                 ))}
@@ -1601,19 +1601,19 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
         </aside>
       </div>
 
-      <nav aria-label={L ? 'تنقل صفحة العميل' : 'Customer navigation'} className="fixed inset-x-0 bottom-0 z-40 border-t border-[#e8e1d7] bg-white/95 px-3 pb-[max(env(safe-area-inset-bottom),10px)] pt-2 shadow-[0_-8px_28px_rgba(40,32,24,0.08)] backdrop-blur-xl md:hidden">
+      <nav aria-label={L ? 'تنقل صفحة العميل' : 'Customer navigation'} className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-white/95 px-3 pb-[max(env(safe-area-inset-bottom),10px)] pt-2 shadow-sm backdrop-blur-xl md:hidden">
         <div className="mx-auto grid max-w-md grid-cols-4 gap-1">
-          <button type="button" onClick={() => document.getElementById('customer-top')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-stone-700">
-            <Store className="h-5 w-5" />{L ? 'الرئيسية' : 'Home'}
+          <button type="button" onClick={() => document.getElementById('customer-top')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-stone-700 transition hover:bg-stone-100">
+            <Store className="h-5 w-5 text-stone-800" />{L ? 'الرئيسية' : 'Home'}
           </button>
-          <button type="button" onClick={() => document.getElementById('customer-booking')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-stone-700">
-            <Calendar className="h-5 w-5" />{L ? 'الحجز' : 'Book'}
+          <button type="button" onClick={() => document.getElementById('customer-booking')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-stone-700 transition hover:bg-stone-100">
+            <Calendar className="h-5 w-5 text-amber-600" />{L ? 'الحجز' : 'Book'}
           </button>
-          <button type="button" onClick={() => document.getElementById('visit-history')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-stone-700">
-            <CalendarCheck className="h-5 w-5" />{L ? 'زياراتي' : 'Visits'}
+          <button type="button" onClick={() => document.getElementById('visit-history')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-stone-700 transition hover:bg-stone-100">
+            <CalendarCheck className="h-5 w-5 text-stone-800" />{L ? 'زياراتي' : 'Visits'}
           </button>
-          <button type="button" onClick={() => document.getElementById('rewards')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-stone-700">
-            <Gift className="h-5 w-5" />{L ? 'المكافآت' : 'Rewards'}
+          <button type="button" onClick={() => document.getElementById('rewards')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-stone-700 transition hover:bg-stone-100">
+            <Gift className="h-5 w-5 text-amber-600" />{L ? 'المكافآت' : 'Rewards'}
           </button>
         </div>
       </nav>
