@@ -1,62 +1,35 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Search,
   Scissors,
   CalendarPlus,
-  Award,
   Phone,
   Clock,
   Coins,
   Loader2,
   Users,
-  TrendingUp,
-  Receipt,
-  Info,
-  Ban,
-  ShieldAlert,
-  Building2,
-  Wallet,
   CalendarClock,
-  AlertTriangle,
   ArrowUpRight,
   Sparkles,
-  Zap,
-  FileText,
-  Lock,
-  ShieldCheck,
-  Settings,
-  BarChart3,
   Layers,
-  ChevronDown,
-  ChevronUp,
-  Calendar,
-  PlusCircle,
-  ShoppingBag,
-  BellRing,
-  Volume2,
-  Ticket,
-  GitBranch,
-  UserCheck,
-  Armchair,
   CheckCircle2,
   XCircle,
-  UserPlus,
-  Star,
   Gift,
   Crown,
   History,
   MapPin,
   ArrowLeft,
   Home,
+  UserCheck,
+  Ticket,
 } from 'lucide-react';
 import Modal from '@/components/Modal';
 import {
-  getCustomerByPhone,
-  getActiveSubscription,
-  getVisitsByCustomer,
+  getShopActiveSubscription,
+  getShopVisitsByCustomer,
+  getCustomerBookings,
   getPlans,
   createSubscription,
-  recordVisit,
   formatPrice,
   formatDate,
   formatDateTime,
@@ -64,79 +37,20 @@ import {
   type Subscription,
   type Visit,
   type Plan,
+  type Booking,
 } from '@/lib/api';
 import { getShopById } from '@/lib/shopApi';
-import { REGULAR_HAIRCUT_PRICE, COMPANY_FEE_PER_VISIT, SYSTEM_NAME, supabase } from '@/lib/supabase';
+import { REGULAR_HAIRCUT_PRICE, SYSTEM_NAME, supabase } from '@/lib/supabase';
 
 const BRAND_NAME = 'ulmi';
-const CONTRACT_VERSION = 'v2.0-ulmi';
 
 type Tab = 'home' | 'plans' | 'visits' | 'profile';
-type PaymentMethod = 'cash' | 'instapay' | 'vodafone_cash' | 'card' | 'unknown';
-
-type BranchItem = {
-  id: string;
-  shop_id: string;
-  name: string;
-  address?: string | null;
-  phone?: string | null;
-  is_active?: boolean;
-};
-
-type BarberChairItem = {
-  id: string;
-  shop_id: string;
-  branch_id?: string | null;
-  name: string;
-  chair_number?: number | string | null;
-  chair_name?: string | null;
-  specialty?: string | null;
-  is_active?: boolean;
-};
-
-type Booking = {
-  id: string;
-  shop_id: string;
-  branch_id?: string | null;
-  branch_name?: string | null;
-  barber_id?: string | null;
-  barber_name?: string | null;
-  chair_id?: string | null;
-  chair_number?: number | string | null;
-  chair_name?: string | null;
-  duration_minutes?: number | null;
-  customer_id: string | null;
-  customer_name: string | null;
-  customer_phone: string | null;
-  booking_code: string;
-  service_name: string;
-  start_at: string;
-  status: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
-  auto_confirmed?: boolean;
-  notes?: string | null;
-  created_at?: string;
-};
-
-type ChairLiveState = {
-  key: string;
-  branchId: string;
-  branchName: string;
-  barberId: string;
-  barberName: string;
-  chairLabel: string;
-  occupied: boolean;
-  occupancyMode: 'now' | 'upcoming' | 'free';
-  activeBooking?: Booking;
-  nextBooking?: Booking;
-};
 
 type ShopInfo = {
   id: string;
   shop_name: string;
   owner_name: string;
   logo_url?: string | null;
-  phone?: string | null;
-  address?: string | null;
   regular_haircut_price?: number;
 };
 
@@ -144,61 +58,23 @@ function normalizeShopId(shopId: string): string {
   return String(shopId || '').trim();
 }
 
-async function getShopBranchesAndBarbers(shopId: string): Promise<{
-  branches: BranchItem[];
-  barbers: BarberChairItem[];
-}> {
+async function getCustomerByPhone(shopId: string, phone: string): Promise<Customer | null> {
   const cleanId = normalizeShopId(shopId);
-  if (!cleanId) return { branches: [], barbers: [] };
+  const cleanPhone = String(phone || '').trim();
+  if (!cleanId || !cleanPhone) return null;
 
-  let branches: BranchItem[] = [];
-  let barbers: BarberChairItem[] = [];
-
-  try {
-    const { data, error } = await supabase
-      .from('branches')
-      .select('*')
-      .eq('shop_id', cleanId)
-      .order('name', { ascending: true });
-    if (!error && Array.isArray(data)) {
-      branches = data as BranchItem[];
-    }
-  } catch {
-    // تجاهل إذا لم يكن جدول الفروع موجودًا
-  }
-
-  for (const tableName of ['barbers', 'chairs', 'shop_barbers', 'shop_chairs']) {
-    try {
-      const { data, error } = await supabase
-        .from(tableName)
-        .select('*')
-        .eq('shop_id', cleanId);
-      if (!error && Array.isArray(data) && data.length > 0) {
-        barbers = data as BarberChairItem[];
-        break;
-      }
-    } catch {
-      // تجربة الجدول التالي
-    }
-  }
-
-  return { branches, barbers };
-}
-
-async function getShopBookings(shopId: string): Promise<Booking[]> {
-  const cleanId = normalizeShopId(shopId);
-  if (!cleanId) return [];
   const { data, error } = await supabase
-    .from('bookings')
+    .from('customers')
     .select('*')
     .eq('shop_id', cleanId)
-    .order('start_at', { ascending: false });
+    .eq('phone', cleanPhone)
+    .maybeSingle();
 
   if (error) {
-    console.error('Failed loading bookings:', error);
-    return [];
+    console.error('Failed to fetch customer by phone:', error);
+    return null;
   }
-  return (data ?? []) as Booking[];
+  return (data ?? null) as Customer | null;
 }
 
 function isSameLocalDay(isoDate: string, refDate: Date): boolean {
@@ -281,7 +157,7 @@ function UlmiWordmark({
 }
 
 /* ============================================================
-   Main Customer Page Component
+   Main Customer Page
    ============================================================ */
 export default function CustomerPage({
   shopId,
@@ -292,13 +168,11 @@ export default function CustomerPage({
 }) {
   const cleanShopId = useMemo(() => normalizeShopId(shopId), [shopId]);
 
-  // Core state
   const [tab, setTab] = useState<Tab>('home');
   const [shopInfo, setShopInfo] = useState<ShopInfo | null>(null);
   const [regularHaircutPrice, setRegularHaircutPrice] = useState(REGULAR_HAIRCUT_PRICE);
   const [loadingShop, setLoadingShop] = useState(true);
 
-  // Customer session state
   const [phone, setPhone] = useState<string>(() => {
     try {
       return localStorage.getItem(`ulmi_customer_phone_${cleanShopId}`) || '';
@@ -310,18 +184,14 @@ export default function CustomerPage({
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
 
-  // Customer data
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [branches, setBranches] = useState<BranchItem[]>([]);
-  const [barbers, setBarbers] = useState<BarberChairItem[]>([]);
 
   const [dataLoading, setDataLoading] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
 
-  // Modals
   const [bookingOpen, setBookingOpen] = useState(false);
   const [subscribeOpen, setSubscribeOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
@@ -334,20 +204,7 @@ export default function CustomerPage({
     setLoadingShop(true);
     (async () => {
       try {
-        const [shop, price] = await Promise.all([
-          getShopById(cleanShopId),
-          Promise.resolve(null).then(async () => {
-            try {
-              const api = await import('@/lib/api');
-              if (typeof (api as any).getShopRegularHaircutPrice === 'function') {
-                return await (api as any).getShopRegularHaircutPrice(cleanShopId);
-              }
-            } catch {
-              // ignore
-            }
-            return null;
-          }),
-        ]);
+        const shop = await getShopById(cleanShopId);
         if (!active) return;
         if (shop) {
           setShopInfo({
@@ -355,15 +212,10 @@ export default function CustomerPage({
             shop_name: shop.shop_name,
             owner_name: shop.owner_name,
             logo_url: shop.logo_url ?? null,
-            phone: (shop as any).phone ?? null,
-            address: (shop as any).address ?? null,
-            regular_haircut_price: (shop as any).regular_haircut_price,
+            regular_haircut_price: Number((shop as any).regular_haircut_price ?? REGULAR_HAIRCUT_PRICE),
           });
-          const resolvedPrice =
-            typeof price === 'number'
-              ? price
-              : Number((shop as any).regular_haircut_price ?? REGULAR_HAIRCUT_PRICE);
-          setRegularHaircutPrice(resolvedPrice || REGULAR_HAIRCUT_PRICE);
+          const price = Number((shop as any).regular_haircut_price ?? REGULAR_HAIRCUT_PRICE);
+          setRegularHaircutPrice(Number.isFinite(price) && price >= 0 ? price : REGULAR_HAIRCUT_PRICE);
         }
       } catch (e) {
         console.error('Failed to load shop info:', e);
@@ -385,11 +237,7 @@ export default function CustomerPage({
       try {
         const c = await getCustomerByPhone(cleanShopId, phone);
         if (!active) return;
-        if (c) {
-          setCustomer(c);
-        } else {
-          setCustomer(null);
-        }
+        setCustomer(c);
       } catch (e) {
         console.error('Auto login failed:', e);
       } finally {
@@ -413,20 +261,17 @@ export default function CustomerPage({
     setDataLoading(true);
     (async () => {
       try {
-        const [sub, v, planList, meta, allBookings] = await Promise.all([
-          getActiveSubscription(customer.id),
-          getVisitsByCustomer(customer.id),
+        const [sub, v, planList, bk] = await Promise.all([
+          getShopActiveSubscription(cleanShopId, customer.id),
+          getShopVisitsByCustomer(cleanShopId, customer.id),
           getPlans(cleanShopId),
-          getShopBranchesAndBarbers(cleanShopId),
-          getShopBookings(cleanShopId),
+          getCustomerBookings(cleanShopId, customer.id),
         ]);
         if (!active) return;
         setSubscription(sub);
         setVisits(v);
         setPlans(planList);
-        setBranches(meta.branches);
-        setBarbers(meta.barbers);
-        setBookings(allBookings.filter((b) => b.customer_id === customer.id));
+        setBookings(bk);
       } catch (e) {
         console.error('Failed to load customer data:', e);
       } finally {
@@ -453,8 +298,12 @@ export default function CustomerPage({
         },
         () => {
           void (async () => {
-            const all = await getShopBookings(cleanShopId);
-            setBookings(all.filter((b) => b.customer_id === customer.id));
+            try {
+              const bk = await getCustomerBookings(cleanShopId, customer.id);
+              setBookings(bk);
+            } catch {
+              // ignore
+            }
           })();
         }
       )
@@ -464,7 +313,7 @@ export default function CustomerPage({
     };
   }, [customer, cleanShopId]);
 
-  /* ---------- Login handler ---------- */
+  /* ---------- Login ---------- */
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = phone.trim();
@@ -518,6 +367,7 @@ export default function CustomerPage({
   const remainingHaircuts = activeSub
     ? Math.max(0, (activeSub.plan?.haircut_count ?? 0) - activeSub.haircuts_used)
     : 0;
+
   const upcomingBookings = useMemo(
     () =>
       bookings
@@ -596,11 +446,7 @@ export default function CustomerPage({
             </button>
 
             {onBack && (
-              <button
-                type="button"
-                onClick={onBack}
-                className="btn-ghost w-full"
-              >
+              <button type="button" onClick={onBack} className="btn-ghost w-full">
                 <ArrowLeft className="h-4 w-4" />
                 <span>رجوع</span>
               </button>
@@ -615,10 +461,9 @@ export default function CustomerPage({
     );
   }
 
-  /* ---------- Main customer dashboard ---------- */
+  /* ---------- Main dashboard ---------- */
   return (
     <div className="animate-fade-in mx-auto max-w-5xl space-y-5 px-4 py-6 sm:px-6">
-      {/* Header */}
       <header className="card border-stone-200 bg-white p-4 sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-3">
@@ -667,7 +512,6 @@ export default function CustomerPage({
         </div>
       </header>
 
-      {/* Tabs */}
       <nav
         aria-label="أقسام بوابة العميل"
         className="flex gap-1.5 overflow-x-auto rounded-2xl border border-stone-200 bg-stone-50/80 p-1.5"
@@ -696,7 +540,6 @@ export default function CustomerPage({
         })}
       </nav>
 
-      {/* Content */}
       <main className="min-w-0">
         {tab === 'home' && (
           <HomeTab
@@ -741,19 +584,14 @@ export default function CustomerPage({
           />
         )}
 
-        {tab === 'profile' && (
-          <ProfileTab customer={customer} onLogout={handleLogout} />
-        )}
+        {tab === 'profile' && <ProfileTab customer={customer} onLogout={handleLogout} />}
       </main>
 
-      {/* Booking Modal */}
       <BookingModal
         open={bookingOpen}
         onClose={() => setBookingOpen(false)}
         shopId={cleanShopId}
         customer={customer}
-        branches={branches}
-        barbers={barbers}
         regularHaircutPrice={regularHaircutPrice}
         onCreated={() => {
           setBookingOpen(false);
@@ -761,7 +599,6 @@ export default function CustomerPage({
         }}
       />
 
-      {/* Subscribe Modal */}
       <SubscribeModal
         open={subscribeOpen}
         onClose={() => setSubscribeOpen(false)}
@@ -814,7 +651,6 @@ function HomeTab({
 
   return (
     <div className="space-y-5">
-      {/* Welcome banner */}
       <div className="card border-stone-200 bg-stone-900 p-5 text-white sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -846,7 +682,6 @@ function HomeTab({
         </div>
       </div>
 
-      {/* Quick stats */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="card flex items-center justify-between p-4">
           <div>
@@ -915,7 +750,6 @@ function HomeTab({
         </div>
       </div>
 
-      {/* Next booking */}
       {nextBooking && (
         <div className="card border-stone-300 bg-white p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -950,7 +784,6 @@ function HomeTab({
         </div>
       )}
 
-      {/* Quick actions */}
       <div className="grid gap-3 sm:grid-cols-2">
         <button
           onClick={onGoPlans}
@@ -1209,12 +1042,6 @@ function VisitsTab({
                             {b.branch_name}
                           </span>
                         )}
-                        {b.barber_name && (
-                          <span className="inline-flex items-center gap-1">
-                            <UserCheck className="h-3 w-3" />
-                            {b.barber_name}
-                          </span>
-                        )}
                       </p>
                     </div>
                   </div>
@@ -1238,7 +1065,7 @@ function VisitsTab({
                   <div key={v.id} className="card flex flex-wrap items-center justify-between gap-3 p-4">
                     <div>
                       <p className="text-sm font-extrabold text-stone-900">
-                        {v.haircut_type || v.service_name || 'حلاقة'}
+                        {v.haircut_type || 'حلاقة'}
                       </p>
                       <p className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-stone-600">
                         <span className="inline-flex items-center gap-1">
@@ -1366,8 +1193,6 @@ function BookingModal({
   onClose,
   shopId,
   customer,
-  branches,
-  barbers,
   regularHaircutPrice,
   onCreated,
 }: {
@@ -1375,14 +1200,10 @@ function BookingModal({
   onClose: () => void;
   shopId: string;
   customer: Customer;
-  branches: BranchItem[];
-  barbers: BarberChairItem[];
   regularHaircutPrice: number;
   onCreated: () => void;
 }) {
   const [serviceName, setServiceName] = useState('حلاقة عامة');
-  const [branchId, setBranchId] = useState('');
-  const [barberId, setBarberId] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [time, setTime] = useState('12:00');
   const [notes, setNotes] = useState('');
@@ -1393,15 +1214,13 @@ function BookingModal({
   useEffect(() => {
     if (!open) return;
     setServiceName('حلاقة عامة');
-    setBranchId(branches[0]?.id ?? '');
-    setBarberId('');
     setDate(new Date().toISOString().slice(0, 10));
     setTime('12:00');
     setNotes('');
     setErr('');
     setOk(false);
     setSaving(false);
-  }, [open, branches]);
+  }, [open]);
 
   const submit = async () => {
     setSaving(true);
@@ -1412,23 +1231,17 @@ function BookingModal({
         throw new Error('التاريخ أو الوقت غير صالح');
       }
       const bookingCode = `BK-${Date.now().toString(36).toUpperCase().slice(-6)}`;
-      const chosenBranch = branches.find((b) => b.id === branchId);
-      const chosenBarber = barbers.find((b) => b.id === barberId);
+      const endAt = new Date(startAt.getTime() + 60 * 60000);
 
       const { error } = await supabase.from('bookings').insert({
         shop_id: shopId,
-        branch_id: chosenBranch?.id ?? null,
-        branch_name: chosenBranch?.name ?? null,
-        barber_id: chosenBarber?.id ?? null,
-        barber_name: chosenBarber?.name ?? null,
-        chair_name: chosenBarber?.chair_name ?? null,
-        chair_number: chosenBarber?.chair_number ?? null,
         customer_id: customer.id,
         customer_name: customer.name,
         customer_phone: customer.phone,
         booking_code: bookingCode,
         service_name: serviceName.trim() || 'حلاقة عامة',
         start_at: startAt.toISOString(),
+        end_at: endAt.toISOString(),
         status: 'pending',
         notes: notes.trim() || null,
       });
@@ -1472,44 +1285,6 @@ function BookingModal({
               placeholder="مثال: حلاقة عامة"
             />
           </div>
-
-          {branches.length > 0 && (
-            <div>
-              <label className="label">الفرع</label>
-              <select
-                value={branchId}
-                onChange={(e) => {
-                  setBranchId(e.target.value);
-                  setBarberId('');
-                }}
-                className="input"
-              >
-                <option value="">الفرع الرئيسي</option>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {barbers.filter((b) => !branchId || !b.branch_id || b.branch_id === branchId).length > 0 && (
-            <div>
-              <label className="label">الحلاق / الكرسي (اختياري)</label>
-              <select value={barberId} onChange={(e) => setBarberId(e.target.value)} className="input">
-                <option value="">أي حلاق متاح</option>
-                {barbers
-                  .filter((b) => !branchId || !b.branch_id || b.branch_id === branchId)
-                  .map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                      {b.chair_name || b.chair_number ? ` — ${b.chair_name || `كرسي ${b.chair_number}`}` : ''}
-                    </option>
-                  ))}
-              </select>
-            </div>
-          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -1614,10 +1389,7 @@ function SubscribeModal({
     setSaving(true);
     setErr('');
     try {
-      await createSubscription(customer.id, selectedPlan, {
-        shopId,
-        paymentMethod: 'cash',
-      });
+      await createSubscription(customer.id, selectedPlan.id, shopId, 'cash');
       setOk(true);
       onSubscribed();
     } catch (e) {
