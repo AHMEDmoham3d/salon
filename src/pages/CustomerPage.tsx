@@ -38,7 +38,6 @@ import {
   getAvailableBookingSlots,
   evaluateCustomerBookingTrust,
   createCustomerBooking,
-  getCustomerBookings,
   updateBookingStatus,
   formatPrice,
   formatDate,
@@ -334,11 +333,17 @@ function CustomerBookingSection({
 
   const loadBookingsAndTrust = useCallback(async () => {
     try {
-      const [userBookings, trustInfo] = await Promise.all([
-        getCustomerBookings(shopId, customer.id),
+      const [bookingsRes, trustInfo] = await Promise.all([
+        supabase
+          .from('bookings')
+          .select('*')
+          .eq('shop_id', shopId)
+          .eq('customer_id', customer.id)
+          .order('start_at', { ascending: false }),
         evaluateCustomerBookingTrust(shopId, customer.id),
       ]);
-      setBookings(userBookings as CustomerBookingRow[]);
+      if (bookingsRes.error) throw bookingsRes.error;
+      setBookings((bookingsRes.data ?? []) as CustomerBookingRow[]);
       setTrust(trustInfo);
     } catch (e) {
       console.error('Failed loading bookings/trust:', e);
