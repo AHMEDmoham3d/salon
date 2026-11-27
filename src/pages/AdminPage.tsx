@@ -40,6 +40,9 @@ import {
   BellRing,
   Volume2,
   Ticket,
+  GitBranch,
+  UserCheck,
+  Armchair,
 } from 'lucide-react';
 import Modal from '@/components/Modal';
 import {
@@ -82,9 +85,37 @@ type Tab = 'overview' | 'bookings' | 'customers' | 'visits' | 'subscriptions' | 
 type PaymentMethod = 'cash' | 'instapay' | 'vodafone_cash' | 'card' | 'unknown';
 type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
 
+type BranchItem = {
+  id: string;
+  shop_id: string;
+  name: string;
+  address?: string | null;
+  phone?: string | null;
+  is_active?: boolean;
+};
+
+type BarberChairItem = {
+  id: string;
+  shop_id: string;
+  branch_id?: string | null;
+  name: string;
+  chair_number?: number | string | null;
+  chair_name?: string | null;
+  specialty?: string | null;
+  is_active?: boolean;
+};
+
 type Booking = {
   id: string;
   shop_id: string;
+  branch_id?: string | null;
+  branch_name?: string | null;
+  barber_id?: string | null;
+  barber_name?: string | null;
+  chair_id?: string | null;
+  chair_number?: number | string | null;
+  chair_name?: string | null;
+  duration_minutes?: number | null;
   customer_id: string | null;
   customer_name: string | null;
   customer_phone: string | null;
@@ -95,6 +126,19 @@ type Booking = {
   auto_confirmed?: boolean;
   notes?: string | null;
   created_at?: string;
+};
+
+type ChairLiveState = {
+  key: string;
+  branchId: string;
+  branchName: string;
+  barberId: string;
+  barberName: string;
+  chairLabel: string;
+  occupied: boolean;
+  occupancyMode: 'now' | 'upcoming' | 'free';
+  activeBooking?: Booking;
+  nextBooking?: Booking;
 };
 
 type LedgerTx = {
@@ -191,6 +235,47 @@ async function getShopBookings(shopId: string): Promise<Booking[]> {
   return (data ?? []) as Booking[];
 }
 
+async function getShopBranchesAndBarbers(shopId: string): Promise<{
+  branches: BranchItem[];
+  barbers: BarberChairItem[];
+}> {
+  const cleanId = normalizeShopId(shopId);
+  if (!cleanId) return { branches: [], barbers: [] };
+
+  let branches: BranchItem[] = [];
+  let barbers: BarberChairItem[] = [];
+
+  try {
+    const { data, error } = await supabase
+      .from('branches')
+      .select('*')
+      .eq('shop_id', cleanId)
+      .order('name', { ascending: true });
+    if (!error && Array.isArray(data)) {
+      branches = data as BranchItem[];
+    }
+  } catch {
+    // تجاهل إذا لم يكن جدول الفروع موجودًا
+  }
+
+  for (const tableName of ['barbers', 'chairs', 'shop_barbers', 'shop_chairs']) {
+    try {
+      const { data, error } = await supabase
+        .from(tableName)
+        .select('*')
+        .eq('shop_id', cleanId);
+      if (!error && Array.isArray(data) && data.length > 0) {
+        barbers = data as BarberChairItem[];
+        break;
+      }
+    } catch {
+      // تجربة الجدول التالي
+    }
+  }
+
+  return { branches, barbers };
+}
+
 async function updateBookingStatus(bookingId: string, status: BookingStatus): Promise<void> {
   const { error } = await supabase
     .from('bookings')
@@ -199,6 +284,35 @@ async function updateBookingStatus(bookingId: string, status: BookingStatus): Pr
 
   if (error) {
     throw new Error(error.message || 'تعذر تحديث حالة الحجز');
+  }
+}
+
+async function assignBookingBranchAndBarber(
+  bookingId: string,
+  payload: {
+    branchId?: string | null;
+    branchName?: string | null;
+    barberId?: string | null;
+    barberName?: string | null;
+    chairNumber?: number | string | null;
+    chairName?: string | null;
+  }
+): Promise<void> {
+  const updateBody: Record<string, unknown> = {};
+  if ('branchId' in payload) updateBody.branch_id = payload.branchId || null;
+  if ('branchName' in payload) updateBody.branch_name = payload.branchName || null;
+  if ('barberId' in payload) updateBody.barber_id = payload.barberId || null;
+  if ('barberName' in payload) updateBody.barber_name = payload.barberName || null;
+  if ('chairNumber' in payload) updateBody.chair_number = payload.chairNumber ?? null;
+  if ('chairName' in payload) updateBody.chair_name = payload.chairName || null;
+
+  const { error } = await supabase
+    .from('bookings')
+    .update(updateBody)
+    .eq('id', bookingId);
+
+  if (error) {
+    throw new Error(error.message || 'تعذر تحديث الفرع أو الحلاق/الكرسي للحجز');
   }
 }
 
@@ -214,11 +328,20 @@ async function completeBookingAsVisit(
   if (!booking.customer_id) {
     throw new Error('هذا الحجز غير مرتبط بعميل مسجل في النظام.');
   }
+  const extraMeta = [
+    booking.branch_name ? `فرع: ${booking.branch_name}` : '',
+    booking.barber_name ? `حلاق: ${booking.barber_name}` : '',
+    booking.chair_name || booking.chair_number ? `كرسي: ${booking.chair_name || booking.chair_number}` : '',
+    booking.notes || '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
   await recordVisit(booking.customer_id, {
     haircutType: booking.service_name || 'حلاقة عامة',
     serviceName: booking.service_name || 'حلاقة عامة',
     customCharge: Number(opts.customCharge || 0),
-    notes: `تحويل من حجز ${booking.booking_code}${booking.notes ? ` — ${booking.notes}` : ''}`,
+    notes: `تحويل من حجز ${booking.booking_code}${extraMeta ? ` — ${extraMeta}` : ''}`,
     forcePaid: opts.forcePaid,
     paymentMethod: opts.paymentMethod as 'cash' | 'instapay' | 'vodafone_cash' | 'card',
     shopId: opts.shopId,
@@ -735,6 +858,8 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
   const [tab, setTab] = useState<Tab>('overview');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [branches, setBranches] = useState<BranchItem[]>([]);
+  const [barbers, setBarbers] = useState<BarberChairItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [addOpen, setAddOpen] = useState(false);
@@ -757,6 +882,9 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
     customerName: string;
     customerPhone?: string | null;
     serviceName: string;
+    branchName?: string | null;
+    barberName?: string | null;
+    chairLabel?: string | null;
     startAt: string;
     status: string;
   } | null>(null);
@@ -771,8 +899,13 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
 
   const loadBookings = useCallback(async () => {
     try {
-      const list = await getShopBookings(cleanShopId);
+      const [list, meta] = await Promise.all([
+        getShopBookings(cleanShopId),
+        getShopBranchesAndBarbers(cleanShopId),
+      ]);
       setBookings(list);
+      setBranches(meta.branches);
+      setBarbers(meta.barbers);
       if (!bookingsHydratedRef.current) {
         knownBookingIdsRef.current = new Set(list.map((b) => b.id));
         bookingsHydratedRef.current = true;
@@ -814,12 +947,16 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
             if (id) knownBookingIdsRef.current.add(id);
 
             playBookingAlertSound();
+            const chairVal = row.chair_name ? String(row.chair_name) : row.chair_number ? `كرسي ${String(row.chair_number)}` : null;
             setLiveAlert({
               id: id || String(Date.now()),
               bookingCode: String(row.booking_code ?? 'BK-NEW'),
               customerName: String(row.customer_name ?? 'عميل'),
               customerPhone: row.customer_phone ? String(row.customer_phone) : null,
               serviceName: String(row.service_name ?? 'حلاقة'),
+              branchName: row.branch_name ? String(row.branch_name) : null,
+              barberName: row.barber_name ? String(row.barber_name) : null,
+              chairLabel: chairVal,
               startAt: String(row.start_at ?? new Date().toISOString()),
               status: String(row.status ?? 'pending'),
             });
@@ -972,6 +1109,9 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
               </div>
               <p className="mt-1 text-xs text-stone-300">
                 {liveAlert.serviceName} · الموعد: {formatDateTime(liveAlert.startAt)}
+                {liveAlert.branchName ? ` · فرع: ${liveAlert.branchName}` : ''}
+                {liveAlert.barberName ? ` · حلاق: ${liveAlert.barberName}` : ''}
+                {liveAlert.chairLabel ? ` · ${liveAlert.chairLabel}` : ''}
                 {liveAlert.customerPhone ? ` · هاتف: ${liveAlert.customerPhone}` : ''}
               </p>
             </div>
@@ -1225,6 +1365,8 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
             shopId={cleanShopId}
             customers={customers}
             bookings={bookings}
+            branches={branches}
+            barbers={barbers}
             regularHaircutPrice={regularHaircutPrice}
             isContractSigned={isContractSigned}
             onRequireContract={() => openContractModal(true)}
@@ -1358,11 +1500,13 @@ export function AdminDashboard({ shopId, onLogout }: { shopId: string; onLogout:
   );
 }
 
-/* ---------- Bookings Tab (Full Customer Details + Actions + Visit Conversion) ---------- */
+/* ---------- Bookings Tab (Branches, Barbers/Chairs, Live Chair Occupancy & Visit Conversion) ---------- */
 function BookingsTab({
   shopId,
   customers,
   bookings,
+  branches,
+  barbers,
   regularHaircutPrice,
   isContractSigned,
   onRequireContract,
@@ -1372,12 +1516,17 @@ function BookingsTab({
   shopId: string;
   customers: Customer[];
   bookings: Booking[];
+  branches: BranchItem[];
+  barbers: BarberChairItem[];
   regularHaircutPrice: number;
   isContractSigned: boolean;
   onRequireContract: () => void;
   onRefreshBookings: () => void;
   onMutated: () => void;
 }) {
+  const [branchFilter, setBranchFilter] = useState<string>('all');
+  const [barberFilter, setBarberFilter] = useState<string>('all');
+  const [occupancyFilter, setOccupancyFilter] = useState<'all' | 'occupied' | 'free'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | Booking['status']>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
@@ -1386,15 +1535,219 @@ function BookingsTab({
   const [extraCharge, setExtraCharge] = useState<number>(regularHaircutPrice);
   const [forcePaid, setForcePaid] = useState(false);
 
+  const [assignTarget, setAssignTarget] = useState<Booking | null>(null);
+  const [assignBranchId, setAssignBranchId] = useState<string>('');
+  const [assignBarberId, setAssignBarberId] = useState<string>('');
+  const [assignChairLabel, setAssignChairLabel] = useState<string>('');
+
   const customerById = useMemo(
     () => new Map(customers.map((c) => [c.id, c])),
     [customers]
   );
 
+  const branchById = useMemo(
+    () => new Map(branches.map((br) => [br.id, br])),
+    [branches]
+  );
+
+  const barberById = useMemo(
+    () => new Map(barbers.map((ba) => [ba.id, ba])),
+    [barbers]
+  );
+
+  const getBookingBranchLabel = useCallback(
+    (b: Booking) => {
+      if (b.branch_name) return b.branch_name;
+      if (b.branch_id && branchById.get(b.branch_id)?.name) return branchById.get(b.branch_id)!.name;
+      return 'الفرع الرئيسي';
+    },
+    [branchById]
+  );
+
+  const getBookingBarberLabel = useCallback(
+    (b: Booking) => {
+      if (b.barber_name) return b.barber_name;
+      if (b.barber_id && barberById.get(b.barber_id)?.name) return barberById.get(b.barber_id)!.name;
+      return 'غير محدد';
+    },
+    [barberById]
+  );
+
+  const getBookingChairLabel = useCallback(
+    (b: Booking) => {
+      if (b.chair_name) return b.chair_name;
+      if (b.chair_number !== undefined && b.chair_number !== null && String(b.chair_number).trim() !== '') {
+        return `كرسي ${b.chair_number}`;
+      }
+      if (b.barber_id) {
+        const ba = barberById.get(b.barber_id);
+        if (ba?.chair_name) return ba.chair_name;
+        if (ba?.chair_number !== undefined && ba?.chair_number !== null && String(ba.chair_number).trim() !== '') {
+          return `كرسي ${ba.chair_number}`;
+        }
+      }
+      return 'كرسي عام';
+    },
+    [barberById]
+  );
+
+  const branchOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const br of branches) {
+      map.set(br.id, br.name);
+    }
+    for (const b of bookings) {
+      const key = b.branch_id || getBookingBranchLabel(b);
+      if (!map.has(key)) map.set(key, getBookingBranchLabel(b));
+    }
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [branches, bookings, getBookingBranchLabel]);
+
+  const barberOptions = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; branchId: string; chairLabel: string }>();
+    for (const ba of barbers) {
+      const ch = ba.chair_name || (ba.chair_number ? `كرسي ${ba.chair_number}` : 'كرسي');
+      map.set(ba.id, {
+        id: ba.id,
+        name: ba.name,
+        branchId: ba.branch_id || 'main',
+        chairLabel: ch,
+      });
+    }
+    for (const b of bookings) {
+      const barberName = getBookingBarberLabel(b);
+      if (barberName === 'غير محدد') continue;
+      const key = b.barber_id || barberName;
+      if (!map.has(key)) {
+        map.set(key, {
+          id: key,
+          name: barberName,
+          branchId: b.branch_id || getBookingBranchLabel(b),
+          chairLabel: getBookingChairLabel(b),
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [barbers, bookings, getBookingBarberLabel, getBookingBranchLabel, getBookingChairLabel]);
+
+  const liveChairs = useMemo<ChairLiveState[]>(() => {
+    const nowMs = Date.now();
+    const activeBookings = bookings.filter((b) => b.status === 'pending' || b.status === 'confirmed');
+    const slotMap = new Map<string, ChairLiveState>();
+
+    const ensureSlot = (
+      branchId: string,
+      branchName: string,
+      barberId: string,
+      barberName: string,
+      chairLabel: string
+    ): ChairLiveState => {
+      const key = `${branchId}::${barberId}::${chairLabel}`;
+      let slot = slotMap.get(key);
+      if (!slot) {
+        slot = {
+          key,
+          branchId,
+          branchName,
+          barberId,
+          barberName,
+          chairLabel,
+          occupied: false,
+          occupancyMode: 'free',
+        };
+        slotMap.set(key, slot);
+      }
+      return slot;
+    };
+
+    for (const ba of barbers) {
+      const bId = ba.branch_id || (branches[0]?.id ?? 'main');
+      const bName = branchById.get(bId)?.name || branches[0]?.name || 'الفرع الرئيسي';
+      const chLabel = ba.chair_name || (ba.chair_number ? `كرسي ${ba.chair_number}` : 'كرسي');
+      ensureSlot(bId, bName, ba.id, ba.name, chLabel);
+    }
+
+    for (const b of activeBookings) {
+      const bId = b.branch_id || getBookingBranchLabel(b);
+      const bName = getBookingBranchLabel(b);
+      const baName = getBookingBarberLabel(b);
+      const baId = b.barber_id || baName;
+      const chLabel = getBookingChairLabel(b);
+      const slot = ensureSlot(bId, bName, baId, baName, chLabel);
+
+      const startMs = new Date(b.start_at).getTime();
+      const durationMs = Math.max(20, Number(b.duration_minutes || 35)) * 60000;
+      const endMs = startMs + durationMs;
+
+      const isCurrentlyOnChair =
+        (!Number.isNaN(startMs) && startMs <= nowMs && nowMs <= endMs) ||
+        (b.status === 'confirmed' && !Number.isNaN(startMs) && Math.abs(nowMs - startMs) <= 20 * 60000);
+
+      if (isCurrentlyOnChair) {
+        slot.occupied = true;
+        slot.occupancyMode = 'now';
+        slot.activeBooking = b;
+      } else if (!slot.activeBooking) {
+        const existingNextMs = slot.nextBooking ? new Date(slot.nextBooking.start_at).getTime() : Infinity;
+        if (!Number.isNaN(startMs) && startMs > nowMs && startMs < existingNextMs) {
+          slot.nextBooking = b;
+          if (!slot.occupied) {
+            slot.occupancyMode = 'upcoming';
+          }
+        }
+      }
+    }
+
+    return Array.from(slotMap.values()).filter((slot) => {
+      if (branchFilter !== 'all' && slot.branchId !== branchFilter && slot.branchName !== branchFilter) {
+        return false;
+      }
+      if (barberFilter !== 'all' && slot.barberId !== barberFilter && slot.barberName !== barberFilter) {
+        return false;
+      }
+      if (occupancyFilter === 'occupied' && !slot.occupied) return false;
+      if (occupancyFilter === 'free' && slot.occupied) return false;
+      return true;
+    });
+  }, [
+    bookings,
+    barbers,
+    branches,
+    branchById,
+    getBookingBranchLabel,
+    getBookingBarberLabel,
+    getBookingChairLabel,
+    branchFilter,
+    barberFilter,
+    occupancyFilter,
+  ]);
+
   const filtered = useMemo(() => {
-    if (statusFilter === 'all') return bookings;
-    return bookings.filter((b) => b.status === statusFilter);
-  }, [bookings, statusFilter]);
+    return bookings.filter((b) => {
+      if (statusFilter !== 'all' && b.status !== statusFilter) return false;
+      const bBranchId = b.branch_id || getBookingBranchLabel(b);
+      const bBranchName = getBookingBranchLabel(b);
+      if (branchFilter !== 'all' && bBranchId !== branchFilter && bBranchName !== branchFilter) return false;
+
+      const bBarberId = b.barber_id || getBookingBarberLabel(b);
+      const bBarberName = getBookingBarberLabel(b);
+      if (barberFilter !== 'all' && bBarberId !== barberFilter && bBarberName !== barberFilter) return false;
+
+      if (occupancyFilter !== 'all') {
+        const nowMs = Date.now();
+        const startMs = new Date(b.start_at).getTime();
+        const durationMs = Math.max(20, Number(b.duration_minutes || 35)) * 60000;
+        const isActiveOnChair =
+          (b.status === 'pending' || b.status === 'confirmed') &&
+          !Number.isNaN(startMs) &&
+          startMs <= nowMs &&
+          nowMs <= startMs + durationMs;
+        if (occupancyFilter === 'occupied' && !isActiveOnChair) return false;
+        if (occupancyFilter === 'free' && isActiveOnChair) return false;
+      }
+      return true;
+    });
+  }, [bookings, statusFilter, branchFilter, barberFilter, occupancyFilter, getBookingBranchLabel, getBookingBarberLabel]);
 
   const handleStatusChange = async (booking: Booking, nextStatus: 'confirmed' | 'cancelled' | 'no_show') => {
     if (!isContractSigned) {
@@ -1414,6 +1767,54 @@ function BookingsTab({
       setMessage({
         type: 'err',
         text: e instanceof Error ? e.message : 'تعذر تحديث حالة الحجز.',
+      });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const openAssignModal = (booking: Booking) => {
+    if (!isContractSigned) {
+      onRequireContract();
+      return;
+    }
+    setAssignTarget(booking);
+    setAssignBranchId(booking.branch_id || branches[0]?.id || '');
+    setAssignBarberId(booking.barber_id || '');
+    setAssignChairLabel(
+      booking.chair_name || (booking.chair_number ? String(booking.chair_number) : '')
+    );
+  };
+
+  const handleSaveAssignment = async () => {
+    if (!assignTarget) return;
+    setBusyId(assignTarget.id);
+    setMessage(null);
+    try {
+      const chosenBranch = branchById.get(assignBranchId);
+      const chosenBarber = barberById.get(assignBarberId);
+      const trimmedChair = assignChairLabel.trim();
+      const chairNumMatch = trimmedChair.match(/(\d+)/);
+
+      await assignBookingBranchAndBarber(assignTarget.id, {
+        branchId: chosenBranch?.id || assignBranchId || null,
+        branchName: chosenBranch?.name || assignTarget.branch_name || null,
+        barberId: chosenBarber?.id || assignBarberId || null,
+        barberName: chosenBarber?.name || assignTarget.barber_name || null,
+        chairName: trimmedChair || chosenBarber?.chair_name || null,
+        chairNumber: chairNumMatch ? Number(chairNumMatch[1]) : chosenBarber?.chair_number ?? null,
+      });
+
+      setAssignTarget(null);
+      onRefreshBookings();
+      setMessage({
+        type: 'ok',
+        text: `تم تحديث الفرع والحلاق/الكرسي للحجز ${assignTarget.booking_code}.`,
+      });
+    } catch (e) {
+      setMessage({
+        type: 'err',
+        text: e instanceof Error ? e.message : 'تعذر حفظ التعيين.',
       });
     } finally {
       setBusyId(null);
@@ -1468,13 +1869,16 @@ function BookingsTab({
     no_show: bookings.filter((b) => b.status === 'no_show').length,
   };
 
+  const occupiedChairsCount = liveChairs.filter((c) => c.occupied).length;
+  const freeChairsCount = liveChairs.filter((c) => !c.occupied).length;
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-display text-lg font-extrabold text-stone-900">إدارة حجوزات العملاء</h2>
+          <h2 className="font-display text-lg font-extrabold text-stone-900">إدارة حجوزات العملاء والفروع والكراسي</h2>
           <p className="text-xs text-stone-500">
-            تظهر هنا الحجوزات الجديدة فورًا مع بيانات العميل الكاملة وإمكانية التأكيد أو التحويل إلى زيارة
+            متابعة الفروع، الحلاقين والكراسي، إشغال الكرسي المباشر، وتأكيد أو تحويل الحجز إلى زيارة
           </p>
         </div>
 
@@ -1503,6 +1907,136 @@ function BookingsTab({
         </div>
       </div>
 
+      <div className="card grid gap-3 bg-stone-50/70 p-4 sm:grid-cols-3">
+        <div>
+          <label className="label flex items-center gap-1.5">
+            <GitBranch className="h-3.5 w-3.5 text-stone-600" />
+            <span>الفرع</span>
+          </label>
+          <select
+            value={branchFilter}
+            onChange={(e) => {
+              setBranchFilter(e.target.value);
+              setBarberFilter('all');
+            }}
+            className="input bg-white"
+          >
+            <option value="all">كل الفروع ({branchOptions.length})</option>
+            {branchOptions.map((br) => (
+              <option key={br.id} value={br.id}>
+                {br.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="label flex items-center gap-1.5">
+            <UserCheck className="h-3.5 w-3.5 text-stone-600" />
+            <span>الحلاق / الكرسي</span>
+          </label>
+          <select
+            value={barberFilter}
+            onChange={(e) => setBarberFilter(e.target.value)}
+            className="input bg-white"
+          >
+            <option value="all">كل الحلاقين والكراسي</option>
+            {barberOptions
+              .filter((ba) => branchFilter === 'all' || ba.branchId === branchFilter || ba.branchId === 'main')
+              .map((ba) => (
+                <option key={ba.id} value={ba.id}>
+                  {ba.name} ({ba.chairLabel})
+                </option>
+              ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="label flex items-center gap-1.5">
+            <Armchair className="h-3.5 w-3.5 text-stone-600" />
+            <span>حالة الكرسي المباشرة</span>
+          </label>
+          <select
+            value={occupancyFilter}
+            onChange={(e) => setOccupancyFilter(e.target.value as 'all' | 'occupied' | 'free')}
+            className="input bg-white"
+          >
+            <option value="all">الكل (مشغول ومتاح)</option>
+            <option value="occupied">مشغول الآن ({occupiedChairsCount})</option>
+            <option value="free">متاح الآن ({freeChairsCount})</option>
+          </select>
+        </div>
+      </div>
+
+      {liveChairs.length > 0 && (
+        <section className="card space-y-3 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Armchair className="h-4 w-4 text-stone-800" />
+              <h3 className="text-sm font-extrabold text-stone-900">إشغال الكراسي المباشر</h3>
+            </div>
+            <div className="flex items-center gap-2 text-[11px] font-bold">
+              <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-red-700 ring-1 ring-red-200">
+                مشغول: {occupiedChairsCount}
+              </span>
+              <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-emerald-700 ring-1 ring-emerald-200">
+                متاح: {freeChairsCount}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {liveChairs.map((slot) => (
+              <div
+                key={slot.key}
+                className={`rounded-xl border p-3.5 transition ${
+                  slot.occupied
+                    ? 'border-red-200 bg-red-50/50'
+                    : 'border-emerald-200 bg-emerald-50/40'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-extrabold text-stone-900">
+                      {slot.barberName} · <span className="text-stone-700">{slot.chairLabel}</span>
+                    </p>
+                    <p className="mt-0.5 text-[11px] font-bold text-stone-500">{slot.branchName}</p>
+                  </div>
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-[11px] font-extrabold ${
+                      slot.occupied
+                        ? 'bg-red-600 text-white'
+                        : 'bg-emerald-700 text-white'
+                    }`}
+                  >
+                    {slot.occupied ? 'مشغول الآن' : 'متاح الآن'}
+                  </span>
+                </div>
+
+                {slot.activeBooking ? (
+                  <div className="mt-2.5 rounded-lg border border-red-200/80 bg-white p-2.5 text-xs">
+                    <p className="font-extrabold text-stone-900">
+                      العميل الحالي: {slot.activeBooking.customer_name || 'عميل'}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-stone-600">
+                      {slot.activeBooking.service_name} · كود: {slot.activeBooking.booking_code}
+                    </p>
+                  </div>
+                ) : slot.nextBooking ? (
+                  <p className="mt-2.5 text-[11px] font-bold text-stone-600">
+                    الموعد القادم: {slot.nextBooking.customer_name || 'عميل'} ({formatDateTime(slot.nextBooking.start_at)})
+                  </p>
+                ) : (
+                  <p className="mt-2.5 text-[11px] font-bold text-emerald-800">
+                    جاهز لاستقبال العملاء مباشرة
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {message && (
         <div
           className={`rounded-xl border p-3.5 text-xs font-bold ${
@@ -1518,8 +2052,8 @@ function BookingsTab({
       {filtered.length === 0 ? (
         <div className="card p-10 text-center">
           <Ticket className="mx-auto h-10 w-10 text-stone-300" />
-          <p className="mt-3 font-bold text-stone-700">لا توجد حجوزات في هذا القسم</p>
-          <p className="text-xs text-stone-500">عندما يحجز عميل موعدًا من صفحته سيظهر هنا تلقائيًا</p>
+          <p className="mt-3 font-bold text-stone-700">لا توجد حجوزات مطابقة للفلاتر الحالية</p>
+          <p className="text-xs text-stone-500">جرّب تغيير الفلتر أو عندما يحجز عميل موعدًا سيظهر هنا تلقائيًا</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -1528,6 +2062,9 @@ function BookingsTab({
             const cust = b.customer_id ? customerById.get(b.customer_id) : undefined;
             const customerName = b.customer_name || cust?.name || 'عميل';
             const customerPhone = b.customer_phone || cust?.phone || 'غير مسجل';
+            const branchLabel = getBookingBranchLabel(b);
+            const barberLabel = getBookingBarberLabel(b);
+            const chairLabel = getBookingChairLabel(b);
             const isBusy = busyId === b.id;
 
             return (
@@ -1551,7 +2088,13 @@ function BookingsTab({
                     )}
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-stone-600">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-stone-600">
+                    <span className="rounded-md border border-stone-200 bg-stone-50 px-2 py-0.5 font-bold text-stone-800">
+                      {branchLabel}
+                    </span>
+                    <span className="rounded-md border border-stone-200 bg-stone-50 px-2 py-0.5 font-bold text-stone-800">
+                      {barberLabel} · {chairLabel}
+                    </span>
                     <span className="inline-flex items-center gap-1 font-bold text-stone-800">
                       <Phone className="h-3.5 w-3.5 text-stone-400" />
                       <span dir="ltr">{customerPhone}</span>
@@ -1571,6 +2114,16 @@ function BookingsTab({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={isBusy}
+                    onClick={() => openAssignModal(b)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs font-bold text-stone-800 transition hover:bg-stone-100 disabled:opacity-50"
+                  >
+                    <Armchair className="h-3.5 w-3.5 text-stone-600" />
+                    تعيين فرع / كرسي
+                  </button>
+
                   {(b.status === 'pending' || b.status === 'confirmed') && (
                     <>
                       {b.status === 'pending' && (
@@ -1623,6 +2176,85 @@ function BookingsTab({
       )}
 
       <Modal
+        open={!!assignTarget}
+        onClose={() => setAssignTarget(null)}
+        title={`تعيين الفرع والحلاق / الكرسي — ${assignTarget?.booking_code ?? ''}`}
+        maxWidth="max-w-md"
+      >
+        {assignTarget && (
+          <div className="space-y-4">
+            <div>
+              <label className="label">الفرع</label>
+              <select
+                value={assignBranchId}
+                onChange={(e) => setAssignBranchId(e.target.value)}
+                className="input"
+              >
+                <option value="">الفرع الرئيسي</option>
+                {branchOptions.map((br) => (
+                  <option key={br.id} value={br.id}>
+                    {br.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="label">الحلاق</label>
+              <select
+                value={assignBarberId}
+                onChange={(e) => {
+                  const nextId = e.target.value;
+                  setAssignBarberId(nextId);
+                  const found = barberOptions.find((x) => x.id === nextId);
+                  if (found && !assignChairLabel.trim()) {
+                    setAssignChairLabel(found.chairLabel);
+                  }
+                }}
+                className="input"
+              >
+                <option value="">اختر الحلاق (اختياري)</option>
+                {barberOptions.map((ba) => (
+                  <option key={ba.id} value={ba.id}>
+                    {ba.name} ({ba.chairLabel})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="label">اسم أو رقم الكرسي</label>
+              <input
+                value={assignChairLabel}
+                onChange={(e) => setAssignChairLabel(e.target.value)}
+                className="input"
+                placeholder="مثال: كرسي 1 أو الكرسي VIP"
+              />
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                disabled={busyId === assignTarget.id}
+                onClick={() => void handleSaveAssignment()}
+                className="btn-primary flex-1"
+              >
+                {busyId === assignTarget.id ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4" />
+                )}
+                حفظ التعيين
+              </button>
+              <button type="button" onClick={() => setAssignTarget(null)} className="btn-ghost">
+                إلغاء
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
         open={!!completeTarget}
         onClose={() => setCompleteTarget(null)}
         title={`تحويل الحجز ${completeTarget?.booking_code ?? ''} إلى زيارة`}
@@ -1632,7 +2264,9 @@ function BookingsTab({
           <div className="space-y-4">
             <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 text-xs text-stone-700">
               <p className="font-extrabold text-stone-900">العميل: {completeTarget.customer_name || 'عميل'}</p>
-              <p className="mt-0.5">الخدمة: {completeTarget.service_name}</p>
+              <p className="mt-0.5">
+                الخدمة: {completeTarget.service_name} · {getBookingBranchLabel(completeTarget)} · {getBookingBarberLabel(completeTarget)} ({getBookingChairLabel(completeTarget)})
+              </p>
             </div>
 
             <div>

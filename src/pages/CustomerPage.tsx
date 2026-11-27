@@ -49,9 +49,9 @@ import {
   type Visit,
   type Plan,
   type Booking,
-  type BookingSlot,
   type CustomerBookingTrust,
 } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { getAllShops, getShopById, type Shop } from '@/lib/shopApi';
 import { useI18n } from '@/lib/i18n';
 import WhatsAppConsentPanel from '@/components/WhatsAppConsentPanel';
@@ -203,7 +203,35 @@ function ShopSelect({ onLogin }: { onLogin: (c: Customer, shopId: string, shopNa
   );
 }
 
-/* ---------- Customer booking widget ---------- */
+/* ---------- Customer booking widget (Multi-branch & Multi-barber aware) ---------- */
+type ShopBranchOption = {
+  id: string;
+  name: string;
+  address: string | null;
+};
+
+type BarberOption = {
+  id: string;
+  branch_id: string | null;
+  name: string;
+  chair_label: string | null;
+  is_active: boolean;
+  is_available_for_booking: boolean;
+};
+
+type SmartSlot = {
+  start_at: string;
+  end_at: string;
+  label: string;
+  available: boolean;
+  freeChairsCount: number;
+};
+
+type CustomerBookingRow = Booking & {
+  branch_id?: string | null;
+  barber_id?: string | null;
+};
+
 function getUpcomingDates(count = 7): { value: string; label: string }[] {
   const list: { value: string; label: string }[] = [];
   const base = new Date();
@@ -255,16 +283,54 @@ function CustomerBookingSection({
 }) {
   const dates = getUpcomingDates(7);
   const [selectedDate, setSelectedDate] = useState<string>(dates[0].value);
-  const [slots, setSlots] = useState<BookingSlot[]>([]);
+  const [branches, setBranches] = useState<ShopBranchOption[]>([]);
+  const [barbers, setBarbers] = useState<BarberOption[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
+  const [selectedBarberId, setSelectedBarberId] = useState<string>('any');
+
+  const [slots, setSlots] = useState<SmartSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<string>('');
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
   const [notes, setNotes] = useState('');
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookings, setBookings] = useState<CustomerBookingRow[]>([]);
   const [trust, setTrust] = useState<CustomerBookingTrust | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  const loadBranchesAndBarbers = useCallback(async () => {
+    try {
+      const [brRes, barbRes] = await Promise.all([
+        supabase
+          .from('shop_branches')
+          .select('id, name, address')
+          .eq('shop_id', shopId)
+          .eq('is_active', true)
+          .order('created_at', { ascending: true }),
+        supabase
+          .from('barbers')
+          .select('id, branch_id, name, chair_label, is_active, is_available_for_booking')
+          .eq('shop_id', shopId)
+          .eq('is_active', true)
+          .order('created_at', { ascending: true }),
+      ]);
+
+      const activeBranches = (brRes.data ?? []) as ShopBranchOption[];
+      const activeBarbers = (barbRes.data ?? []) as BarberOption[];
+
+      setBranches(activeBranches);
+      setBarbers(activeBarbers);
+
+      if (activeBranches.length > 0) {
+        setSelectedBranchId((prev) =>
+          activeBranches.some((b) => b.id === prev) ? prev : activeBranches[0].id
+        );
+      }
+    } catch (e) {
+      console.error('Failed loading branches/barbers:', e);
+    }
+  }, [shopId]);
 
   const loadBookingsAndTrust = useCallback(async () => {
     try {
@@ -272,40 +338,119 @@ function CustomerBookingSection({
         getCustomerBookings(shopId, customer.id),
         evaluateCustomerBookingTrust(shopId, customer.id),
       ]);
-      setBookings(userBookings);
+      setBookings(userBookings as CustomerBookingRow[]);
       setTrust(trustInfo);
     } catch (e) {
       console.error('Failed loading bookings/trust:', e);
     }
   }, [shopId, customer.id]);
 
-  const loadSlots = useCallback(async (dateStr: string) => {
-    setLoadingSlots(true);
-    try {
-      const daySlots = await getAvailableBookingSlots(shopId, dateStr, {
-        startHour: 11,
-        endHour: 23,
-        slotMinutes: 60,
-      });
-      setSlots(daySlots);
-      const firstAvail = daySlots.find((s) => s.available);
-      setSelectedSlot((prev) =>
-        daySlots.some((s) => s.start_at === prev && s.available)
-          ? prev
-          : firstAvail?.start_at ?? ''
-      );
-    } catch (e) {
-      console.error('Failed loading slots:', e);
-      setSlots([]);
-      setSelectedSlot('');
-    } finally {
-      setLoadingSlots(false);
-    }
-  }, [shopId]);
+  const branchBarbers = barbers.filter(
+    (b) =>
+      b.is_active &&
+      b.is_available_for_booking &&
+      (!selectedBranchId || !b.branch_id || b.branch_id === selectedBranchId)
+  );
+
+  const loadSlots = useCallback(
+    async (dateStr: string) => {
+      setLoadingSlots(true);
+      try {
+        const dayStart = new Date(`${dateStr}T00:00:00`);
+        const dayEnd = new Date(`${dateStr}T23:59:59`);
+
+        let query = supabase
+          .from('bookings')
+          .select('id, barber_id, branch_id, start_at, end_at, status')
+          .eq('shop_id', shopId)
+          .in('status', ['pending', 'confirmed'])
+          .lt('start_at', dayEnd.toISOString())
+          .gt('end_at', dayStart.toISOString());
+
+        if (selectedBranchId) {
+          query = query.eq('branch_id', selectedBranchId);
+        }
+
+        const { data: dayBookings, error } = await query;
+        if (error) throw error;
+
+        const activeBookings = dayBookings ?? [];
+        const candidateBarbers =
+          selectedBarberId !== 'any'
+            ? branchBarbers.filter((b) => b.id === selectedBarberId)
+            : branchBarbers;
+
+        const now = new Date();
+        const generated: SmartSlot[] = [];
+
+        for (let hour = 11; hour < 23; hour += 1) {
+          const slotStart = new Date(`${dateStr}T${String(hour).padStart(2, '0')}:00:00`);
+          const slotEnd = new Date(slotStart.getTime() + 60 * 60000);
+          const isPast = slotStart.getTime() <= now.getTime();
+
+          let freeChairsCount = 0;
+
+          if (!isPast && candidateBarbers.length > 0) {
+            for (const barber of candidateBarbers) {
+              const isBarberBusy = activeBookings.some((bk) => {
+                const sameBarber =
+                  bk.barber_id === barber.id ||
+                  (!bk.barber_id && candidateBarbers.length === 1);
+                if (!sameBarber) return false;
+                return (
+                  new Date(bk.start_at).getTime() < slotEnd.getTime() &&
+                  new Date(bk.end_at).getTime() > slotStart.getTime()
+                );
+              });
+              if (!isBarberBusy) freeChairsCount += 1;
+            }
+          }
+
+          const label = slotStart.toLocaleTimeString('ar-EG', {
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+
+          generated.push({
+            start_at: slotStart.toISOString(),
+            end_at: slotEnd.toISOString(),
+            label,
+            available: !isPast && freeChairsCount > 0,
+            freeChairsCount,
+          });
+        }
+
+        setSlots(generated);
+        const firstAvail = generated.find((s) => s.available);
+        setSelectedSlot((prev) =>
+          generated.some((s) => s.start_at === prev && s.available)
+            ? prev
+            : firstAvail?.start_at ?? ''
+        );
+      } catch (e) {
+        console.error('Failed loading smart slots:', e);
+        const fallback = await getAvailableBookingSlots(shopId, dateStr, {
+          startHour: 11,
+          endHour: 23,
+          slotMinutes: 60,
+        });
+        setSlots(
+          fallback.map((s) => ({
+            ...s,
+            freeChairsCount: s.available ? 1 : 0,
+          }))
+        );
+      } finally {
+        setLoadingSlots(false);
+      }
+    },
+    [shopId, selectedBranchId, selectedBarberId, branchBarbers]
+  );
 
   useEffect(() => {
+    void loadBranchesAndBarbers();
     void loadBookingsAndTrust();
-  }, [loadBookingsAndTrust]);
+  }, [loadBranchesAndBarbers, loadBookingsAndTrust]);
 
   useEffect(() => {
     void loadSlots(selectedDate);
@@ -322,9 +467,20 @@ function CustomerBookingSection({
     ? `حلاقة ضمن باقة (${activeSub.plan.name})`
     : 'حلاقة عادية';
 
+  const barberMap = new Map(barbers.map((b) => [b.id, b]));
+  const branchMap = new Map(branches.map((b) => [b.id, b]));
+
   const handleBook = async () => {
     if (!selectedSlot) {
       setFeedback({ type: 'err', text: 'اختر ميعادًا متاحًا أولًا.' });
+      return;
+    }
+
+    if (branchBarbers.length === 0) {
+      setFeedback({
+        type: 'err',
+        text: 'لا يوجد حلاقون متاحون حاليًا في هذا الفرع.',
+      });
       return;
     }
 
@@ -332,26 +488,66 @@ function CustomerBookingSection({
     setFeedback(null);
 
     try {
+      const startIso = selectedSlot;
+      const endIso = new Date(new Date(startIso).getTime() + 60 * 60000).toISOString();
+      const targetBranchId = selectedBranchId || branches[0]?.id || null;
+      const requestedBarberId = selectedBarberId === 'any' ? null : selectedBarberId;
+
+      const { data: assignedBarberId, error: assignErr } = await supabase.rpc(
+        'assign_available_barber',
+        {
+          p_shop_id: shopId,
+          p_branch_id: targetBranchId,
+          p_barber_id: requestedBarberId,
+          p_start_at: startIso,
+          p_end_at: endIso,
+        }
+      );
+
+      if (assignErr) {
+        throw new Error(assignErr.message || 'الموعد اكتمل للتو، اختر موعدًا آخر.');
+      }
+
       const created = await createCustomerBooking({
         shopId,
         customer,
         serviceName,
         planId: chosenPlan?.id ?? activeSub?.plan_id ?? null,
-        startAt: selectedSlot,
+        startAt: startIso,
         durationMinutes: 60,
         notes,
       });
+
+      if (created?.id) {
+        await supabase
+          .from('bookings')
+          .update({
+            branch_id: targetBranchId,
+            barber_id: assignedBarberId,
+          })
+          .eq('id', created.id);
+      }
+
+      const assignedBarber = assignedBarberId ? barberMap.get(String(assignedBarberId)) : null;
+      const assignedBranch = targetBranchId ? branchMap.get(targetBranchId) : null;
 
       setNotes('');
       await Promise.all([loadSlots(selectedDate), loadBookingsAndTrust()]);
       onBookingChanged();
 
+      const placeSummary = [
+        assignedBranch ? `الفرع: ${assignedBranch.name}` : null,
+        assignedBarber ? `الحلاق: ${assignedBarber.name}` : null,
+      ]
+        .filter(Boolean)
+        .join(' — ');
+
       setFeedback({
         type: 'ok',
         text:
           created.status === 'confirmed'
-            ? `تم تأكيد حجزك تلقائيًا! رقم حجزك: ${created.booking_code} — الموعد: ${formatDateTime(created.start_at)}`
-            : `تم إرسال طلب حجزك برقم ${created.booking_code} وهو بانتظار تأكيد المحل، والموعد محجوز مؤقتًا باسمك.`,
+            ? `تم تأكيد حجزك تلقائيًا! رقم حجزك: ${created.booking_code} — الموعد: ${formatDateTime(created.start_at)}${placeSummary ? ` (${placeSummary})` : ''}`
+            : `تم إرسال طلب حجزك برقم ${created.booking_code} وهو بانتظار تأكيد المحل${placeSummary ? ` (${placeSummary})` : ''}.`,
       });
     } catch (e) {
       setFeedback({
@@ -363,7 +559,7 @@ function CustomerBookingSection({
     }
   };
 
-  const handleCancelBooking = async (booking: Booking) => {
+  const handleCancelBooking = async (booking: CustomerBookingRow) => {
     setCancellingId(booking.id);
     setFeedback(null);
     try {
@@ -422,7 +618,84 @@ function CustomerBookingSection({
           </div>
         ) : (
           <div className="mt-5 space-y-5">
-            {/* Step 1: Date */}
+            {branches.length > 1 && (
+              <div>
+                <label className="mb-2 block text-xs font-extrabold text-stone-700">
+                  اختر الفرع
+                </label>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {branches.map((br) => {
+                    const activeBranch = selectedBranchId === br.id;
+                    return (
+                      <button
+                        key={br.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedBranchId(br.id);
+                          setSelectedBarberId('any');
+                        }}
+                        className={`rounded-xl border p-3 text-right transition ${
+                          activeBranch
+                            ? 'border-stone-900 bg-stone-900 text-white'
+                            : 'border-stone-200 bg-[#faf8f5] text-stone-800 hover:bg-stone-100'
+                        }`}
+                      >
+                        <p className="text-xs font-extrabold">{br.name}</p>
+                        {br.address && (
+                          <p
+                            className={`mt-0.5 text-[11px] ${
+                              activeBranch ? 'text-stone-300' : 'text-stone-500'
+                            }`}
+                          >
+                            {br.address}
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {branchBarbers.length > 1 && (
+              <div>
+                <label className="mb-2 block text-xs font-extrabold text-stone-700">
+                  اختر الحلاق / الكرسي
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBarberId('any')}
+                    className={`rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
+                      selectedBarberId === 'any'
+                        ? 'border-stone-900 bg-stone-900 text-white'
+                        : 'border-stone-200 bg-[#faf8f5] text-stone-700 hover:bg-stone-100'
+                    }`}
+                  >
+                    أقرب حلاق متاح ({branchBarbers.length})
+                  </button>
+                  {branchBarbers.map((barber) => {
+                    const activeBarber = selectedBarberId === barber.id;
+                    return (
+                      <button
+                        key={barber.id}
+                        type="button"
+                        onClick={() => setSelectedBarberId(barber.id)}
+                        className={`rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
+                          activeBarber
+                            ? 'border-stone-900 bg-stone-900 text-white'
+                            : 'border-stone-200 bg-[#faf8f5] text-stone-700 hover:bg-stone-100'
+                        }`}
+                      >
+                        {barber.name}
+                        {barber.chair_label ? ` (${barber.chair_label})` : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="mb-2 block text-xs font-extrabold text-stone-700">
                 1. اختر اليوم
@@ -448,16 +721,19 @@ function CustomerBookingSection({
               </div>
             </div>
 
-            {/* Step 2: Time slot */}
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <label className="text-xs font-extrabold text-stone-700">
-                  2. اختر الوقت المتاح (المواعيد المحجوزة غير متاحة)
+                  2. اختر الوقت المتاح (المواعيد المحجوزة بالكامل مغلقة)
                 </label>
                 {loadingSlots && <Loader2 className="h-4 w-4 animate-spin text-stone-400" />}
               </div>
 
-              {loadingSlots ? (
+              {branchBarbers.length === 0 ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center text-xs font-bold text-amber-800">
+                  جميع الحلاقين في إجازة حاليًا. يرجى المحاولة لاحقًا أو اختيار فرع آخر.
+                </div>
+              ) : loadingSlots ? (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {[1, 2, 3, 4].map((n) => (
                     <div key={n} className="h-11 animate-shimmer rounded-xl" />
@@ -465,7 +741,7 @@ function CustomerBookingSection({
                 </div>
               ) : slots.every((s) => !s.available) ? (
                 <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 text-center text-xs font-bold text-stone-500">
-                  لا توجد مواعيد متاحة في هذا اليوم. جرّب يومًا آخر.
+                  جميع الكراسي محجوزة في هذا اليوم. جرّب يومًا آخر.
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
@@ -485,7 +761,16 @@ function CustomerBookingSection({
                             : 'border-stone-200 bg-white text-stone-800 hover:border-amber-400 hover:bg-amber-50/50'
                         }`}
                       >
-                        {slot.label}
+                        <div>{slot.label}</div>
+                        {slot.available && branchBarbers.length > 1 && selectedBarberId === 'any' && (
+                          <div
+                            className={`mt-0.5 text-[10px] ${
+                              isSelected ? 'text-stone-900' : 'text-emerald-700'
+                            }`}
+                          >
+                            متاح {slot.freeChairsCount} كرسي
+                          </div>
+                        )}
                       </button>
                     );
                   })}
@@ -493,7 +778,6 @@ function CustomerBookingSection({
               )}
             </div>
 
-            {/* Step 3: Service / Plan + Notes */}
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-xs font-extrabold text-stone-700">
@@ -570,6 +854,9 @@ function CustomerBookingSection({
             {bookings.map((b) => {
               const badge = bookingStatusBadge(b.status);
               const canCancel = b.status === 'pending' || b.status === 'confirmed';
+              const bBranch = b.branch_id ? branchMap.get(b.branch_id) : null;
+              const bBarber = b.barber_id ? barberMap.get(b.barber_id) : null;
+
               return (
                 <div
                   key={b.id}
@@ -589,6 +876,8 @@ function CustomerBookingSection({
                     </div>
                     <p className="mt-1 text-xs text-stone-600">
                       الموعد: {formatDateTime(b.start_at)}
+                      {bBranch && branches.length > 1 ? ` · الفرع: ${bBranch.name}` : ''}
+                      {bBarber ? ` · الحلاق: ${bBarber.name}` : ''}
                     </p>
                     {b.notes && (
                       <p className="mt-1 text-xs text-stone-500">ملاحظة: {b.notes}</p>
