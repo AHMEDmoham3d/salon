@@ -83,60 +83,7 @@ function bookingStatusMeta(status: Booking['status']): { label: string; cls: str
   }
 }
 
-function UlmiWordmark({
-  variant = 'light',
-  size = 'md',
-}: {
-  variant?: 'light' | 'dark';
-  size?: 'sm' | 'md' | 'lg';
-}) {
-  const dims =
-    size === 'sm'
-      ? { width: 58, height: 22 }
-      : size === 'lg'
-      ? { width: 96, height: 36 }
-      : { width: 74, height: 28 };
-  const fill = variant === 'dark' ? '#FFFFFF' : '#09090B';
 
-  return (
-    <svg
-      width={dims.width}
-      height={dims.height}
-      viewBox="0 0 240 86"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      role="img"
-      aria-label={BRAND_NAME}
-      className="inline-block shrink-0 select-none"
-    >
-      <path
-        d="M14 38V56C14 68.7025 24.2975 79 37 79C49.7025 79 60 68.7025 60 56V38"
-        stroke={fill}
-        strokeWidth="22"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M60 38V68" stroke={fill} strokeWidth="22" strokeLinecap="round" />
-      <path d="M84 15V68" stroke={fill} strokeWidth="22" strokeLinecap="round" />
-      <path
-        d="M108 68V52C108 43.1634 115.163 36 124 36C132.837 36 140 43.1634 140 52V68"
-        stroke={fill}
-        strokeWidth="22"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M140 68V52C140 43.1634 147.163 36 156 36C164.837 36 172 43.1634 172 52V68"
-        stroke={fill}
-        strokeWidth="22"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M214 38V68" stroke={fill} strokeWidth="22" strokeLinecap="round" />
-      <circle cx="214" cy="15" r="11" fill={fill} />
-    </svg>
-  );
-}
 
 /* ============================================================
    Main Customer Page
