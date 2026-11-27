@@ -35,9 +35,6 @@ import {
   getActiveSubscription,
   getVisitsByCustomer,
   getPlans,
-  getAvailableBookingSlots,
-  createCustomerBooking,
-  updateBookingStatus,
   formatPrice,
   formatDate,
   formatDateTime,
@@ -46,13 +43,32 @@ import {
   type Subscription,
   type Visit,
   type Plan,
-  type Booking,
 } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { getAllShops, getShopById, type Shop } from '@/lib/shopApi';
 import { useI18n } from '@/lib/i18n';
 import WhatsAppConsentPanel from '@/components/WhatsAppConsentPanel';
 import SmartHairPhotoAssistant from '@/components/SmartHairPhotoAssistant';
+
+type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
+
+type Booking = {
+  id: string;
+  shop_id: string;
+  customer_id: string | null;
+  customer_name: string;
+  customer_phone: string | null;
+  service_name: string;
+  plan_id: string | null;
+  start_at: string;
+  end_at: string;
+  status: BookingStatus;
+  booking_code: string;
+  notes: string | null;
+  branch_id?: string | null;
+  barber_id?: string | null;
+  created_at?: string;
+};
 
 type CustomerBookingTrust = {
   canBook: boolean;
@@ -107,6 +123,50 @@ async function evaluateCustomerBookingTrust(
   } catch {
     return { canBook: true, isTrusted: true, trustBadge: 'عميل موثوق', blockReason: null };
   }
+}
+
+async function createCustomerBooking(params: {
+  shopId: string;
+  customer: Customer;
+  serviceName: string;
+  planId?: string | null;
+  startAt: string;
+  durationMinutes?: number;
+  notes?: string;
+}): Promise<Booking> {
+  const durationMinutes = params.durationMinutes ?? 60;
+  const endAt = new Date(new Date(params.startAt).getTime() + durationMinutes * 60000).toISOString();
+  const bookingCode = `BK-${Math.floor(100000 + Math.random() * 900000)}`;
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .insert({
+      shop_id: params.shopId,
+      customer_id: params.customer.id,
+      customer_name: params.customer.name,
+      customer_phone: params.customer.phone ?? null,
+      service_name: params.serviceName,
+      plan_id: params.planId ?? null,
+      start_at: params.startAt,
+      end_at: endAt,
+      status: 'confirmed',
+      booking_code: bookingCode,
+      notes: params.notes?.trim() ? params.notes.trim() : null,
+    })
+    .select('*')
+    .single();
+
+  if (error) throw error;
+  return data as Booking;
+}
+
+async function updateBookingStatus(bookingId: string, status: BookingStatus): Promise<void> {
+  const { error } = await supabase
+    .from('bookings')
+    .update({ status })
+    .eq('id', bookingId);
+
+  if (error) throw error;
 }
 
 export default function CustomerPage() {
@@ -498,21 +558,7 @@ function CustomerBookingSection({
         );
       } catch (e) {
         console.error('Failed loading smart slots:', e);
-        try {
-          const fallback = await getAvailableBookingSlots(shopId, dateStr, {
-            startHour: 11,
-            endHour: 23,
-            slotMinutes: 60,
-          });
-          setSlots(
-            fallback.map((s) => ({
-              ...s,
-              freeChairsCount: s.available ? 1 : 0,
-            }))
-          );
-        } catch {
-          setSlots([]);
-        }
+        setSlots([]);
       } finally {
         setLoadingSlots(false);
       }
