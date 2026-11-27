@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Scissors,
   Award,
@@ -345,11 +345,15 @@ function CustomerBookingSection({
     }
   }, [shopId, customer.id]);
 
-  const branchBarbers = barbers.filter(
-    (b) =>
-      b.is_active &&
-      b.is_available_for_booking &&
-      (!selectedBranchId || !b.branch_id || b.branch_id === selectedBranchId)
+  const branchBarbers = useMemo(
+    () =>
+      barbers.filter(
+        (b) =>
+          b.is_active &&
+          b.is_available_for_booking &&
+          (!selectedBranchId || !b.branch_id || b.branch_id === selectedBranchId)
+      ),
+    [barbers, selectedBranchId]
   );
 
   const loadSlots = useCallback(
@@ -375,10 +379,17 @@ function CustomerBookingSection({
         if (error) throw error;
 
         const activeBookings = dayBookings ?? [];
+        const currentBranchBarbers = barbers.filter(
+          (b) =>
+            b.is_active &&
+            b.is_available_for_booking &&
+            (!selectedBranchId || !b.branch_id || b.branch_id === selectedBranchId)
+        );
+
         const candidateBarbers =
           selectedBarberId !== 'any'
-            ? branchBarbers.filter((b) => b.id === selectedBarberId)
-            : branchBarbers;
+            ? currentBranchBarbers.filter((b) => b.id === selectedBarberId)
+            : currentBranchBarbers;
 
         const now = new Date();
         const generated: SmartSlot[] = [];
@@ -429,22 +440,26 @@ function CustomerBookingSection({
         );
       } catch (e) {
         console.error('Failed loading smart slots:', e);
-        const fallback = await getAvailableBookingSlots(shopId, dateStr, {
-          startHour: 11,
-          endHour: 23,
-          slotMinutes: 60,
-        });
-        setSlots(
-          fallback.map((s) => ({
-            ...s,
-            freeChairsCount: s.available ? 1 : 0,
-          }))
-        );
+        try {
+          const fallback = await getAvailableBookingSlots(shopId, dateStr, {
+            startHour: 11,
+            endHour: 23,
+            slotMinutes: 60,
+          });
+          setSlots(
+            fallback.map((s) => ({
+              ...s,
+              freeChairsCount: s.available ? 1 : 0,
+            }))
+          );
+        } catch {
+          setSlots([]);
+        }
       } finally {
         setLoadingSlots(false);
       }
     },
-    [shopId, selectedBranchId, selectedBarberId, branchBarbers]
+    [shopId, selectedBranchId, selectedBarberId, barbers]
   );
 
   useEffect(() => {
