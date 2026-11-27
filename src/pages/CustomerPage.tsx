@@ -29,6 +29,9 @@ import {
   Calendar,
   Ticket,
   ShieldCheck,
+  Layers,
+  GitBranch,
+  UserCheck,
 } from 'lucide-react';
 import {
   findCustomerInShops,
@@ -51,6 +54,7 @@ import WhatsAppConsentPanel from '@/components/WhatsAppConsentPanel';
 import SmartHairPhotoAssistant from '@/components/SmartHairPhotoAssistant';
 
 type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
+type CustomerTab = 'overview' | 'booking' | 'consultation' | 'history' | 'rewards';
 
 type Booking = {
   id: string;
@@ -101,7 +105,8 @@ async function evaluateCustomerBookingTrust(
         canBook: false,
         isTrusted: false,
         trustBadge: 'الحجز المباشر موقوف',
-        blockReason: 'تم إيقاف الحجز الإلكتروني مؤقتًا بسبب تكرار عدم الحضور في المواعيد السابقة. يرجى التواصل مع المحل مباشرة.',
+        blockReason:
+          'تم إيقاف الحجز الإلكتروني مؤقتًا بسبب تكرار عدم الحضور في المواعيد السابقة. يرجى التواصل مع المحل مباشرة.',
       };
     }
 
@@ -161,10 +166,7 @@ async function createCustomerBooking(params: {
 }
 
 async function updateBookingStatus(bookingId: string, status: BookingStatus): Promise<void> {
-  const { error } = await supabase
-    .from('bookings')
-    .update({ status })
-    .eq('id', bookingId);
+  const { error } = await supabase.from('bookings').update({ status }).eq('id', bookingId);
 
   if (error) throw error;
 }
@@ -184,35 +186,56 @@ export default function CustomerPage() {
         setShopId(savedShopId);
         if (savedShopName) setShopName(savedShopName);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   const handleLogin = (c: Customer, sid: string, sname: string) => {
-    setCustomer(c); setShopId(sid); setShopName(sname);
+    setCustomer(c);
+    setShopId(sid);
+    setShopName(sname);
     try {
       sessionStorage.setItem('barber_customer', JSON.stringify(c));
       sessionStorage.setItem('barber_shop_id', sid);
       sessionStorage.setItem('barber_shop_name', sname);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   };
 
   const handleLogout = () => {
-    setCustomer(null); setShopId(null); setShopName(null);
+    setCustomer(null);
+    setShopId(null);
+    setShopName(null);
     try {
       sessionStorage.removeItem('barber_customer');
       sessionStorage.removeItem('barber_shop_id');
       sessionStorage.removeItem('barber_shop_name');
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   };
 
   if (customer && shopId) {
-    return <CustomerDetail customer={customer} shopId={shopId} shopName={shopName} onLogout={handleLogout} />;
+    return (
+      <CustomerDetail
+        customer={customer}
+        shopId={shopId}
+        shopName={shopName}
+        onLogout={handleLogout}
+      />
+    );
   }
   return <ShopSelect onLogin={handleLogin} />;
 }
 
 /* ---------- Smart login ---------- */
-function ShopSelect({ onLogin }: { onLogin: (c: Customer, shopId: string, shopName: string) => void }) {
+function ShopSelect({
+  onLogin,
+}: {
+  onLogin: (c: Customer, shopId: string, shopName: string) => void;
+}) {
   const { t } = useI18n();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -226,45 +249,75 @@ function ShopSelect({ onLogin }: { onLogin: (c: Customer, shopId: string, shopNa
       setMatches(null);
       return;
     }
-    setLoading(true); setError(''); setMatches(null);
+    setLoading(true);
+    setError('');
+    setMatches(null);
     try {
       const shops = await getAllShops();
       const approved = shops.filter((s) => s.status === 'approved');
-      if (approved.length === 0) { setError(t('cust.errorNoShops')); return; }
-      const results = await findCustomerInShops(name, phone, approved.map((s) => ({ id: s.id, shop_name: s.shop_name })));
-      if (results.length === 0) { setError(t('cust.errorNotFound')); return; }
-      if (results.every((r) => r.blocked)) { setError(t('cust.errorBlocked')); return; }
+      if (approved.length === 0) {
+        setError(t('cust.errorNoShops'));
+        return;
+      }
+      const results = await findCustomerInShops(
+        name,
+        phone,
+        approved.map((s) => ({ id: s.id, shop_name: s.shop_name }))
+      );
+      if (results.length === 0) {
+        setError(t('cust.errorNotFound'));
+        return;
+      }
+      if (results.every((r) => r.blocked)) {
+        setError(t('cust.errorBlocked'));
+        return;
+      }
       const unblocked = results.filter((r) => !r.blocked);
-      if (unblocked.length === 1) { onLogin(unblocked[0].customer, unblocked[0].shop_id, unblocked[0].shop_name); return; }
+      if (unblocked.length === 1) {
+        onLogin(unblocked[0].customer, unblocked[0].shop_id, unblocked[0].shop_name);
+        return;
+      }
       setMatches(unblocked);
-    } catch { setError(t('cust.errorGeneric')); } finally { setLoading(false); }
+    } catch {
+      setError(t('cust.errorGeneric'));
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (matches && matches.length > 1) {
     return (
       <div className="animate-fade-in mx-auto flex min-h-[calc(100vh-64px)] max-w-md flex-col justify-center px-4 py-10 sm:px-6">
         <div className="text-center">
-          <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-neutral-950 text-white shadow-sm">
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-stone-900 text-white shadow-sm">
             <Store className="h-8 w-8" />
           </div>
-          <h1 className="mt-5 font-display text-3xl font-extrabold text-neutral-950">{t('cust.welcome')} {name.trim()}</h1>
-          <p className="mt-2 text-sm text-neutral-600">{t('cust.multiShop')}</p>
+          <h1 className="mt-5 font-display text-2xl font-extrabold text-stone-900 sm:text-3xl">
+            {t('cust.welcome')} {name.trim()}
+          </h1>
+          <p className="mt-2 text-sm text-stone-500">{t('cust.multiShop')}</p>
         </div>
-        <div className="mt-8 space-y-2 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+        <div className="card mt-7 space-y-2.5 border-stone-200/90 bg-white p-4">
           {matches.map((m) => (
-            <button key={m.shop_id} onClick={() => onLogin(m.customer, m.shop_id, m.shop_name)}
-              className="flex w-full items-center gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-right transition hover:border-neutral-400 hover:bg-neutral-100">
-              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-neutral-900 font-display text-lg font-extrabold text-white">
+            <button
+              key={m.shop_id}
+              onClick={() => onLogin(m.customer, m.shop_id, m.shop_name)}
+              className="flex w-full items-center gap-3.5 rounded-2xl border border-stone-200 bg-stone-50/70 p-4 text-right transition hover:border-stone-300 hover:bg-stone-100/80"
+            >
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-stone-900 font-display text-lg font-extrabold text-white">
                 {m.shop_name.charAt(0)}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate font-bold text-neutral-950">{m.shop_name}</p>
-                <p className="text-xs text-neutral-500">{t('cust.shopHint')}</p>
+                <p className="truncate font-extrabold text-stone-900">{m.shop_name}</p>
+                <p className="mt-0.5 text-xs text-stone-500">{t('cust.shopHint')}</p>
               </div>
-              <ArrowRight className="h-5 w-5 text-neutral-500" />
+              <ArrowRight className="h-5 w-5 text-stone-400" />
             </button>
           ))}
-          <button onClick={() => setMatches(null)} className="w-full rounded-lg py-2.5 text-sm font-bold text-neutral-600 transition hover:bg-neutral-100">
+          <button
+            onClick={() => setMatches(null)}
+            className="w-full rounded-xl py-2.5 text-xs font-extrabold text-stone-500 transition hover:bg-stone-100 hover:text-stone-800"
+          >
             {t('cust.back')}
           </button>
         </div>
@@ -275,40 +328,55 @@ function ShopSelect({ onLogin }: { onLogin: (c: Customer, shopId: string, shopNa
   return (
     <div className="animate-fade-in mx-auto flex min-h-[calc(100vh-64px)] max-w-md flex-col justify-center px-4 py-10 sm:px-6">
       <div className="text-center">
-        <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-neutral-950 text-white shadow-sm">
+        <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-stone-900 text-white shadow-sm">
           <User className="h-8 w-8" />
         </div>
-        <h1 className="mt-5 font-display text-3xl font-extrabold text-neutral-950">{t('cust.title')}</h1>
-        <p className="mt-2 text-sm text-neutral-600">{t('cust.subtitle')}</p>
+        <h1 className="mt-5 font-display text-2xl font-extrabold text-stone-900 sm:text-3xl">
+          {t('cust.title')}
+        </h1>
+        <p className="mt-2 text-sm text-stone-500">{t('cust.subtitle')}</p>
       </div>
-      <div className="mt-8 space-y-4 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+      <div className="card mt-7 space-y-4 border-stone-200/90 bg-white p-6">
         <div>
-          <label className="label text-neutral-800">{t('cust.fullName')}</label>
+          <label className="label">{t('cust.fullName')}</label>
           <div className="relative">
-            <User className="absolute right-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-neutral-400" />
-            <input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()}
-              placeholder={t('cust.namePlaceholder')} className="input border-neutral-300 bg-white pr-11 text-neutral-950" />
+            <User className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && submit()}
+              placeholder={t('cust.namePlaceholder')}
+              className="input bg-stone-50/50 pr-10 focus:bg-white"
+            />
           </div>
         </div>
         <div>
-          <label className="label text-neutral-800">{t('cust.phone')}</label>
+          <label className="label">{t('cust.phone')}</label>
           <div className="relative">
-            <Phone className="absolute right-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-neutral-400" />
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()}
-              placeholder="01xxxxxxxxx" className="input border-neutral-300 bg-white pr-11 text-neutral-950" dir="ltr" />
+            <Phone className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+            <input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && submit()}
+              placeholder="01xxxxxxxxx"
+              className="input bg-stone-50/50 pr-10 focus:bg-white"
+              dir="ltr"
+            />
           </div>
         </div>
         {error && (
-          <div className="flex items-start gap-2 rounded-xl border border-neutral-300 bg-neutral-100 p-3 text-sm font-bold text-neutral-900">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /><span>{error}</span>
+          <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-700">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{error}</span>
           </div>
         )}
-        <button onClick={submit} disabled={loading} className="w-full rounded-xl bg-neutral-950 px-4 py-3 text-sm font-bold text-white transition hover:bg-neutral-800 disabled:opacity-50">
-          {loading ? <Loader2 className="mr-2 inline h-4 w-4 animate-spin" /> : <Lock className="mr-2 inline h-4 w-4" />}
+        <button onClick={submit} disabled={loading} className="btn-primary w-full">
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
           {loading ? t('cust.searching') : t('cust.login')}
         </button>
-        <div className="flex items-start gap-2 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-xs text-neutral-700">
-          <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-neutral-800" /><span>{t('cust.smartHint')}</span>
+        <div className="flex items-start gap-2 rounded-xl border border-stone-200 bg-stone-50 p-3 text-xs text-stone-600">
+          <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-stone-700" />
+          <span>{t('cust.smartHint')}</span>
         </div>
       </div>
     </div>
@@ -356,10 +424,22 @@ function getUpcomingDates(count = 7): { value: string; label: string }[] {
     const isoDate = `${yyyy}-${mm}-${dd}`;
     const label =
       i === 0
-        ? `اليوم (${new Intl.DateTimeFormat('ar-EG', { weekday: 'short', day: 'numeric', month: 'short' }).format(d)})`
+        ? `اليوم (${new Intl.DateTimeFormat('ar-EG', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+          }).format(d)})`
         : i === 1
-        ? `غدًا (${new Intl.DateTimeFormat('ar-EG', { weekday: 'short', day: 'numeric', month: 'short' }).format(d)})`
-        : new Intl.DateTimeFormat('ar-EG', { weekday: 'short', day: 'numeric', month: 'short' }).format(d);
+        ? `غدًا (${new Intl.DateTimeFormat('ar-EG', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+          }).format(d)})`
+        : new Intl.DateTimeFormat('ar-EG', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+          }).format(d);
     list.push({ value: isoDate, label });
   }
   return list;
@@ -368,15 +448,15 @@ function getUpcomingDates(count = 7): { value: string; label: string }[] {
 function bookingStatusBadge(status: Booking['status']): { label: string; cls: string } {
   switch (status) {
     case 'confirmed':
-      return { label: 'مؤكد', cls: 'bg-neutral-900 text-white' };
+      return { label: 'مؤكد', cls: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' };
     case 'pending':
-      return { label: 'بانتظار تأكيد المحل', cls: 'bg-neutral-200 text-neutral-900' };
+      return { label: 'بانتظار تأكيد المحل', cls: 'bg-amber-50 text-amber-800 ring-1 ring-amber-200' };
     case 'completed':
-      return { label: 'تم الحضور والزيارة', cls: 'bg-neutral-800 text-white' };
+      return { label: 'تم الحضور والزيارة', cls: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' };
     case 'cancelled':
-      return { label: 'ملغي', cls: 'bg-neutral-100 text-neutral-500 border border-neutral-200' };
+      return { label: 'ملغي', cls: 'bg-stone-100 text-stone-600' };
     case 'no_show':
-      return { label: 'لم يحضر بالموعد', cls: 'bg-neutral-200 text-neutral-800' };
+      return { label: 'لم يحضر بالموعد', cls: 'bg-red-50 text-red-700 ring-1 ring-red-200' };
   }
 }
 
@@ -665,8 +745,12 @@ function CustomerBookingSection({
         type: 'ok',
         text:
           created.status === 'confirmed'
-            ? `تم تأكيد حجزك تلقائيًا! رقم حجزك: ${created.booking_code} — الموعد: ${formatDateTime(created.start_at)}${placeSummary ? ` (${placeSummary})` : ''}`
-            : `تم إرسال طلب حجزك برقم ${created.booking_code} وهو بانتظار تأكيد المحل${placeSummary ? ` (${placeSummary})` : ''}.`,
+            ? `تم تأكيد حجزك تلقائيًا! رقم حجزك: ${created.booking_code} — الموعد: ${formatDateTime(
+                created.start_at
+              )}${placeSummary ? ` (${placeSummary})` : ''}`
+            : `تم إرسال طلب حجزك برقم ${created.booking_code} وهو بانتظار تأكيد المحل${
+                placeSummary ? ` (${placeSummary})` : ''
+              }.`,
       });
     } catch (e) {
       setFeedback({
@@ -700,18 +784,18 @@ function CustomerBookingSection({
   };
 
   return (
-    <div id="customer-booking" className="mt-6 scroll-mt-6 space-y-5">
-      <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
+    <div id="customer-booking" className="scroll-mt-6 space-y-5">
+      <div className="card border-stone-200/90 bg-white p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-stone-100 pb-4">
           <div className="flex items-center gap-3">
-            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-neutral-950 text-white">
-              <Calendar className="h-6 w-6" />
+            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-stone-900 text-white">
+              <Calendar className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="font-display text-xl font-extrabold text-neutral-950">
+              <h3 className="font-display text-lg font-extrabold text-stone-900">
                 احجز موعدك الآن
               </h3>
-              <p className="text-xs text-neutral-500">
+              <p className="text-xs text-stone-500">
                 اختر اليوم والوقت المتاح واحصل على رقم حجز خاص بك فورًا
               </p>
             </div>
@@ -719,10 +803,10 @@ function CustomerBookingSection({
 
           {trust && (
             <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold ${
                 trust.isTrusted
-                  ? 'bg-neutral-900 text-white'
-                  : 'bg-neutral-200 text-neutral-900'
+                  ? 'border border-emerald-200 bg-emerald-50 text-emerald-800'
+                  : 'border border-amber-200 bg-amber-50 text-amber-800'
               }`}
             >
               <ShieldCheck className="h-3.5 w-3.5" />
@@ -732,17 +816,18 @@ function CustomerBookingSection({
         </div>
 
         {trust && !trust.canBook ? (
-          <div className="mt-4 rounded-xl border border-neutral-300 bg-neutral-100 p-4 text-sm font-bold text-neutral-900">
+          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700">
             {trust.blockReason}
           </div>
         ) : (
           <div className="mt-5 space-y-5">
             {branches.length > 1 && (
               <div>
-                <label className="mb-2 block text-xs font-extrabold text-neutral-800">
-                  اختر الفرع
+                <label className="label flex items-center gap-1.5">
+                  <GitBranch className="h-3.5 w-3.5 text-stone-600" />
+                  <span>اختر الفرع</span>
                 </label>
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid gap-2.5 sm:grid-cols-2">
                   {branches.map((br) => {
                     const activeBranch = selectedBranchId === br.id;
                     return (
@@ -753,17 +838,17 @@ function CustomerBookingSection({
                           setSelectedBranchId(br.id);
                           setSelectedBarberId('any');
                         }}
-                        className={`rounded-xl border p-3 text-right transition ${
+                        className={`rounded-xl border p-3.5 text-right transition ${
                           activeBranch
-                            ? 'border-neutral-950 bg-neutral-950 text-white'
-                            : 'border-neutral-200 bg-neutral-50 text-neutral-800 hover:bg-neutral-100'
+                            ? 'border-stone-900 bg-stone-900 text-white shadow-2xs'
+                            : 'border-stone-200 bg-stone-50/70 text-stone-800 hover:border-stone-300 hover:bg-white'
                         }`}
                       >
                         <p className="text-xs font-extrabold">{br.name}</p>
                         {br.address && (
                           <p
                             className={`mt-0.5 text-[11px] ${
-                              activeBranch ? 'text-neutral-300' : 'text-neutral-500'
+                              activeBranch ? 'text-stone-300' : 'text-stone-500'
                             }`}
                           >
                             {br.address}
@@ -778,8 +863,9 @@ function CustomerBookingSection({
 
             {branchBarbers.length > 1 && (
               <div>
-                <label className="mb-2 block text-xs font-extrabold text-neutral-800">
-                  اختر الحلاق / الكرسي
+                <label className="label flex items-center gap-1.5">
+                  <UserCheck className="h-3.5 w-3.5 text-stone-600" />
+                  <span>اختر الحلاق / الكرسي</span>
                 </label>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -787,8 +873,8 @@ function CustomerBookingSection({
                     onClick={() => setSelectedBarberId('any')}
                     className={`rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
                       selectedBarberId === 'any'
-                        ? 'border-neutral-950 bg-neutral-950 text-white'
-                        : 'border-neutral-200 bg-neutral-50 text-neutral-800 hover:bg-neutral-100'
+                        ? 'border-stone-900 bg-stone-900 text-white'
+                        : 'border-stone-200 bg-stone-50/70 text-stone-700 hover:bg-white'
                     }`}
                   >
                     أقرب حلاق متاح ({branchBarbers.length})
@@ -802,8 +888,8 @@ function CustomerBookingSection({
                         onClick={() => setSelectedBarberId(barber.id)}
                         className={`rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
                           activeBarber
-                            ? 'border-neutral-950 bg-neutral-950 text-white'
-                            : 'border-neutral-200 bg-neutral-50 text-neutral-800 hover:bg-neutral-100'
+                            ? 'border-stone-900 bg-stone-900 text-white'
+                            : 'border-stone-200 bg-stone-50/70 text-stone-700 hover:bg-white'
                         }`}
                       >
                         {barber.name}
@@ -816,9 +902,7 @@ function CustomerBookingSection({
             )}
 
             <div>
-              <label className="mb-2 block text-xs font-extrabold text-neutral-800">
-                1. اختر اليوم
-              </label>
+              <label className="label">1. اختر اليوم</label>
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {dates.map((d) => {
                   const activeDay = selectedDate === d.value;
@@ -829,8 +913,8 @@ function CustomerBookingSection({
                       onClick={() => setSelectedDate(d.value)}
                       className={`shrink-0 rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
                         activeDay
-                          ? 'border-neutral-950 bg-neutral-950 text-white'
-                          : 'border-neutral-200 bg-neutral-50 text-neutral-800 hover:bg-neutral-100'
+                          ? 'border-stone-900 bg-stone-900 text-white shadow-2xs'
+                          : 'border-stone-200 bg-stone-50/70 text-stone-700 hover:border-stone-300 hover:bg-white'
                       }`}
                     >
                       {d.label}
@@ -842,24 +926,24 @@ function CustomerBookingSection({
 
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <label className="text-xs font-extrabold text-neutral-800">
+                <label className="label mb-0">
                   2. اختر الوقت المتاح (المواعيد المحجوزة بالكامل مغلقة)
                 </label>
-                {loadingSlots && <Loader2 className="h-4 w-4 animate-spin text-neutral-500" />}
+                {loadingSlots && <Loader2 className="h-4 w-4 animate-spin text-stone-400" />}
               </div>
 
               {branchBarbers.length === 0 ? (
-                <div className="rounded-xl border border-neutral-200 bg-neutral-100 p-4 text-center text-xs font-bold text-neutral-800">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center text-xs font-bold text-amber-800">
                   جميع الحلاقين في إجازة حاليًا. يرجى المحاولة لاحقًا أو اختيار فرع آخر.
                 </div>
               ) : loadingSlots ? (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {[1, 2, 3, 4].map((n) => (
-                    <div key={n} className="h-11 animate-pulse rounded-xl bg-neutral-200" />
+                    <div key={n} className="h-11 animate-shimmer rounded-xl" />
                   ))}
                 </div>
               ) : slots.every((s) => !s.available) ? (
-                <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-center text-xs font-bold text-neutral-500">
+                <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 text-center text-xs font-bold text-stone-500">
                   جميع الكراسي محجوزة في هذا اليوم. جرّب يومًا آخر.
                 </div>
               ) : (
@@ -874,22 +958,24 @@ function CustomerBookingSection({
                         onClick={() => setSelectedSlot(slot.start_at)}
                         className={`rounded-xl border px-3 py-2.5 text-center text-xs font-bold transition ${
                           !slot.available
-                            ? 'cursor-not-allowed border-neutral-200 bg-neutral-100 text-neutral-400 line-through'
+                            ? 'cursor-not-allowed border-stone-200 bg-stone-100 text-stone-400 line-through'
                             : isSelected
-                            ? 'border-neutral-950 bg-neutral-950 text-white shadow-sm'
-                            : 'border-neutral-200 bg-white text-neutral-900 hover:border-neutral-400 hover:bg-neutral-50'
+                            ? 'border-stone-900 bg-stone-900 text-white shadow-2xs'
+                            : 'border-stone-200 bg-white text-stone-800 hover:border-stone-300 hover:bg-stone-50'
                         }`}
                       >
                         <div>{slot.label}</div>
-                        {slot.available && branchBarbers.length > 1 && selectedBarberId === 'any' && (
-                          <div
-                            className={`mt-0.5 text-[10px] ${
-                              isSelected ? 'text-neutral-300' : 'text-neutral-600'
-                            }`}
-                          >
-                            متاح {slot.freeChairsCount} كرسي
-                          </div>
-                        )}
+                        {slot.available &&
+                          branchBarbers.length > 1 &&
+                          selectedBarberId === 'any' && (
+                            <div
+                              className={`mt-0.5 text-[10px] ${
+                                isSelected ? 'text-emerald-300' : 'text-emerald-700'
+                              }`}
+                            >
+                              متاح {slot.freeChairsCount} كرسي
+                            </div>
+                          )}
                       </button>
                     );
                   })}
@@ -899,13 +985,11 @@ function CustomerBookingSection({
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className="mb-1.5 block text-xs font-extrabold text-neutral-800">
-                  3. الخدمة أو الباقة
-                </label>
+                <label className="label">3. الخدمة أو الباقة</label>
                 <select
                   value={selectedPlanId}
                   onChange={(e) => setSelectedPlanId(e.target.value)}
-                  className="input border-neutral-300 bg-white text-neutral-950"
+                  className="input bg-white"
                 >
                   <option value="">
                     {hasSub && activeSub?.plan
@@ -921,14 +1005,12 @@ function CustomerBookingSection({
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-extrabold text-neutral-800">
-                  ملاحظات للحلاق (اختياري)
-                </label>
+                <label className="label">ملاحظات للحلاق (اختياري)</label>
                 <input
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="مثال: تدرج متوسط + تهذيب لحية"
-                  className="input border-neutral-300 bg-white text-neutral-950"
+                  className="input bg-white"
                 />
               </div>
             </div>
@@ -937,8 +1019,8 @@ function CustomerBookingSection({
               <div
                 className={`rounded-xl border p-3.5 text-xs font-bold ${
                   feedback.type === 'ok'
-                    ? 'border-neutral-300 bg-neutral-100 text-neutral-950'
-                    : 'border-neutral-400 bg-neutral-200 text-neutral-950'
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                    : 'border-red-200 bg-red-50 text-red-700'
                 }`}
               >
                 {feedback.text}
@@ -949,12 +1031,12 @@ function CustomerBookingSection({
               type="button"
               onClick={() => void handleBook()}
               disabled={submitting || !selectedSlot}
-              className="w-full rounded-xl bg-neutral-950 px-4 py-3 text-sm font-bold text-white transition hover:bg-neutral-800 disabled:opacity-50"
+              className="btn-primary w-full disabled:opacity-50"
             >
               {submitting ? (
-                <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Ticket className="mr-2 inline h-4 w-4" />
+                <Ticket className="h-4 w-4" />
               )}
               {submitting ? 'جارٍ تأكيد الحجز...' : 'تأكيد الحجز وإصدار رقم الحجز'}
             </button>
@@ -964,11 +1046,13 @@ function CustomerBookingSection({
 
       {/* Customer's bookings list */}
       {bookings.length > 0 && (
-        <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-          <h4 className="mb-3 flex items-center gap-2 font-bold text-neutral-950">
-            <Ticket className="h-4 w-4 text-neutral-800" />
-            حجوزاتي ({bookings.length})
-          </h4>
+        <div className="card border-stone-200/90 bg-white p-5">
+          <div className="mb-3.5 flex items-center justify-between">
+            <h4 className="flex items-center gap-2 font-display text-base font-extrabold text-stone-900">
+              <Ticket className="h-4 w-4 text-stone-700" />
+              حجوزاتي ({bookings.length})
+            </h4>
+          </div>
           <div className="space-y-2.5">
             {bookings.map((b) => {
               const badge = bookingStatusBadge(b.status);
@@ -979,27 +1063,27 @@ function CustomerBookingSection({
               return (
                 <div
                   key={b.id}
-                  className="flex flex-col justify-between gap-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3.5 sm:flex-row sm:items-center"
+                  className="flex flex-col justify-between gap-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-4 sm:flex-row sm:items-center"
                 >
-                  <div>
+                  <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-lg bg-neutral-950 px-2.5 py-0.5 font-mono text-xs font-extrabold text-white">
+                      <span className="rounded-lg bg-stone-900 px-2.5 py-0.5 font-mono text-xs font-extrabold text-amber-400">
                         {b.booking_code}
                       </span>
-                      <span className="text-sm font-extrabold text-neutral-950">
+                      <span className="text-sm font-extrabold text-stone-900">
                         {b.service_name}
                       </span>
                       <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${badge.cls}`}>
                         {badge.label}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-neutral-600">
+                    <p className="text-xs text-stone-600">
                       الموعد: {formatDateTime(b.start_at)}
                       {bBranch && branches.length > 1 ? ` · الفرع: ${bBranch.name}` : ''}
                       {bBarber ? ` · الحلاق: ${bBarber.name}` : ''}
                     </p>
                     {b.notes && (
-                      <p className="mt-1 text-xs text-neutral-500">ملاحظة: {b.notes}</p>
+                      <p className="text-xs text-stone-500">ملاحظة: {b.notes}</p>
                     )}
                   </div>
 
@@ -1008,7 +1092,7 @@ function CustomerBookingSection({
                       type="button"
                       disabled={cancellingId === b.id}
                       onClick={() => void handleCancelBooking(b)}
-                      className="inline-flex shrink-0 items-center justify-center gap-1 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-xs font-bold text-neutral-900 hover:bg-neutral-100 disabled:opacity-50"
+                      className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-white px-3.5 py-2 text-xs font-bold text-red-700 transition hover:bg-red-50 disabled:opacity-50"
                     >
                       {cancellingId === b.id && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                       إلغاء الحجز
@@ -1029,109 +1113,432 @@ type HairType = 'straight' | 'wavy' | 'curly' | 'coily';
 type FaceShape = 'oval' | 'round' | 'square' | 'long';
 type StylePref = 'classic' | 'modern' | 'bold' | 'low-maintenance';
 
-const HAIR_CONSULTATION: Record<HairType, Record<FaceShape, Record<StylePref, { name_ar: string; name_en: string; desc_ar: string; desc_en: string }>>> = {
+const HAIR_CONSULTATION: Record<
+  HairType,
+  Record<FaceShape, Record<StylePref, { name_ar: string; name_en: string; desc_ar: string; desc_en: string }>>
+> = {
   straight: {
     oval: {
-      classic: { name_ar: 'كروب كلاسيكي', name_en: 'Classic Crop', desc_ar: 'قصة متساوية من الجوانب مع تعتيق خفيف', desc_en: 'Even sides with a subtle fade' },
-      modern: { name_ar: 'قصة البومر', name_en: 'Pompadour', desc_ar: 'تدرج عصري مع خط أنيق', desc_en: 'Modern taper with a clean line' },
-      bold: { name_ar: 'سكين فايد', name_en: 'Skin Fade', desc_ar: 'تدرج حاد بالماكينة مع خط حاد', desc_en: 'Sharp clipper fade with a hard line' },
-      'low-maintenance': { name_ar: 'قصة عسكرية', name_en: 'Buzz Cut', desc_ar: 'قصيرة من الجوانب ووسطي', desc_en: 'Short sides and top — easy daily' },
+      classic: {
+        name_ar: 'كروب كلاسيكي',
+        name_en: 'Classic Crop',
+        desc_ar: 'قصة متساوية من الجوانب مع تعتيق خفيف',
+        desc_en: 'Even sides with a subtle fade',
+      },
+      modern: {
+        name_ar: 'قصة البومر',
+        name_en: 'Pompadour',
+        desc_ar: 'تدرج عصري مع خط أنيق',
+        desc_en: 'Modern taper with a clean line',
+      },
+      bold: {
+        name_ar: 'سكين فايد',
+        name_en: 'Skin Fade',
+        desc_ar: 'تدرج حاد بالماكينة مع خط حاد',
+        desc_en: 'Sharp clipper fade with a hard line',
+      },
+      'low-maintenance': {
+        name_ar: 'قصة عسكرية',
+        name_en: 'Buzz Cut',
+        desc_ar: 'قصيرة من الجوانب ووسطي',
+        desc_en: 'Short sides and top — easy daily',
+      },
     },
     round: {
-      classic: { name_ar: 'قصة جانبية', name_en: 'Side Part', desc_ar: 'تفريط جانبي يطيل الوجه', desc_en: 'Side part that elongates the face' },
-      modern: { name_ar: 'كيف بمقدمة', name_en: 'Quiff', desc_ar: 'مقدمة منسدلة لتطويل الوجه', desc_en: 'Front quiff to lengthen the face' },
-      bold: { name_ar: 'فوك هوك', name_en: 'Faux Hawk', desc_ar: 'شعر منتصب للأعلى', desc_en: 'Hair styled upward for height' },
-      'low-maintenance': { name_ar: 'قصة بسيطة بمقدمة', name_en: 'Short with Bangs', desc_ar: 'تدرج خفيف مع مقدمة قصيرة', desc_en: 'Light taper with short bangs' },
+      classic: {
+        name_ar: 'قصة جانبية',
+        name_en: 'Side Part',
+        desc_ar: 'تفريط جانبي يطيل الوجه',
+        desc_en: 'Side part that elongates the face',
+      },
+      modern: {
+        name_ar: 'كيف بمقدمة',
+        name_en: 'Quiff',
+        desc_ar: 'مقدمة منسدلة لتطويل الوجه',
+        desc_en: 'Front quiff to lengthen the face',
+      },
+      bold: {
+        name_ar: 'فوك هوك',
+        name_en: 'Faux Hawk',
+        desc_ar: 'شعر منتصب للأعلى',
+        desc_en: 'Hair styled upward for height',
+      },
+      'low-maintenance': {
+        name_ar: 'قصة بسيطة بمقدمة',
+        name_en: 'Short with Bangs',
+        desc_ar: 'تدرج خفيف مع مقدمة قصيرة',
+        desc_en: 'Light taper with short bangs',
+      },
     },
     square: {
-      classic: { name_ar: 'قصة كلاسيكية بمقدمة', name_en: 'Classic with Bangs', desc_ar: 'تخفيف زوايا الوجه المربع', desc_en: 'Soften square jaw angles' },
-      modern: { name_ar: 'تدرج عصري', name_en: 'Modern Taper', desc_ar: 'تدرج يلطفف زوايا الفك', desc_en: 'Taper that softens the jaw' },
-      bold: { name_ar: 'بازل كات', name_en: 'Buzz Cut', desc_ar: 'قصة حادة تعزز الملامح', desc_en: 'Sharp cut that enhances features' },
-      'low-maintenance': { name_ar: 'قصة قصيرة', name_en: 'Short Cut', desc_ar: 'قصيرة ومتساوية', desc_en: 'Short and even — no maintenance' },
+      classic: {
+        name_ar: 'قصة كلاسيكية بمقدمة',
+        name_en: 'Classic with Bangs',
+        desc_ar: 'تخفيف زوايا الوجه المربع',
+        desc_en: 'Soften square jaw angles',
+      },
+      modern: {
+        name_ar: 'تدرج عصري',
+        name_en: 'Modern Taper',
+        desc_ar: 'تدرج يلطفف زوايا الفك',
+        desc_en: 'Taper that softens the jaw',
+      },
+      bold: {
+        name_ar: 'بازل كات',
+        name_en: 'Buzz Cut',
+        desc_ar: 'قصة حادة تعزز الملامح',
+        desc_en: 'Sharp cut that enhances features',
+      },
+      'low-maintenance': {
+        name_ar: 'قصة قصيرة',
+        name_en: 'Short Cut',
+        desc_ar: 'قصيرة ومتساوية',
+        desc_en: 'Short and even — no maintenance',
+      },
     },
     long: {
-      classic: { name_ar: 'قصة بمقدمة جانبية', name_en: 'Side Sweep', desc_ar: 'مقدمة جانبية تقصر الوجه', desc_en: 'Side bangs to shorten the face' },
-      modern: { name_ar: 'ميد فايد', name_en: 'Mid Fade', desc_ar: 'تدرج متوسط يوازن الوجه', desc_en: 'Mid fade to balance the face' },
-      bold: { name_ar: 'تشارليز', name_en: 'Charles', desc_ar: 'مقدمة منسدلة جانبياً', desc_en: 'Side-swept front with sharp taper' },
-      'low-maintenance': { name_ar: 'قصة كوت', name_en: 'Crop Cut', desc_ar: 'قصيرة بتدرج بسيط', desc_en: 'Short with simple taper' },
+      classic: {
+        name_ar: 'قصة بمقدمة جانبية',
+        name_en: 'Side Sweep',
+        desc_ar: 'مقدمة جانبية تقصر الوجه',
+        desc_en: 'Side bangs to shorten the face',
+      },
+      modern: {
+        name_ar: 'ميد فايد',
+        name_en: 'Mid Fade',
+        desc_ar: 'تدرج متوسط يوازن الوجه',
+        desc_en: 'Mid fade to balance the face',
+      },
+      bold: {
+        name_ar: 'تشارليز',
+        name_en: 'Charles',
+        desc_ar: 'مقدمة منسدلة جانبياً',
+        desc_en: 'Side-swept front with sharp taper',
+      },
+      'low-maintenance': {
+        name_ar: 'قصة كوت',
+        name_en: 'Crop Cut',
+        desc_ar: 'قصيرة بتدرج بسيط',
+        desc_en: 'Short with simple taper',
+      },
     },
   },
   wavy: {
     oval: {
-      classic: { name_ar: 'قصة كلاسيكية للأمواج', name_en: 'Classic Wavy', desc_ar: 'تدرج يحافظ على تمايل الشعر', desc_en: 'Taper that keeps natural waves' },
-      modern: { name_ar: 'تكسشر كات', name_en: 'Texture Cut', desc_ar: 'يبرز تموجات الشعر', desc_en: 'Enhances natural texture' },
-      bold: { name_ar: 'كيف مع مواج', name_en: 'Wavy Quiff', desc_ar: 'تدرج مع الحفاظ على الموج', desc_en: 'Taper keeping the wave bold' },
-      'low-maintenance': { name_ar: 'قصة قصيرة للأمواج', name_en: 'Short Wavy', desc_ar: 'تستفيد من الموج الطبيعي', desc_en: 'Uses natural wave, no styling' },
+      classic: {
+        name_ar: 'قصة كلاسيكية للأمواج',
+        name_en: 'Classic Wavy',
+        desc_ar: 'تدرج يحافظ على تمايل الشعر',
+        desc_en: 'Taper that keeps natural waves',
+      },
+      modern: {
+        name_ar: 'تكسشر كات',
+        name_en: 'Texture Cut',
+        desc_ar: 'يبرز تموجات الشعر',
+        desc_en: 'Enhances natural texture',
+      },
+      bold: {
+        name_ar: 'كيف مع مواج',
+        name_en: 'Wavy Quiff',
+        desc_ar: 'تدرج مع الحفاظ على الموج',
+        desc_en: 'Taper keeping the wave bold',
+      },
+      'low-maintenance': {
+        name_ar: 'قصة قصيرة للأمواج',
+        name_en: 'Short Wavy',
+        desc_ar: 'تستفيد من الموج الطبيعي',
+        desc_en: 'Uses natural wave, no styling',
+      },
     },
     round: {
-      classic: { name_ar: 'قصة بطول علوي', name_en: 'Top Volume', desc_ar: 'الطول العلوي يطيل الوجه', desc_en: 'Top length elongates the face' },
-      modern: { name_ar: 'كيف موجي', name_en: 'Wavy Quiff', desc_ar: 'تدرج عصري مع موج جانبي', desc_en: 'Modern taper with side wave' },
-      bold: { name_ar: 'موهوك موجي', name_en: 'Wavy Mohawk', desc_ar: 'شعر منتصف يطيل الوجه', desc_en: 'Middle spike to add height' },
-      'low-maintenance': { name_ar: 'قصة قصيرة موجية', name_en: 'Short Wave', desc_ar: 'موج طبيعي بدون مجهود', desc_en: 'Natural wave, no effort' },
+      classic: {
+        name_ar: 'قصة بطول علوي',
+        name_en: 'Top Volume',
+        desc_ar: 'الطول العلوي يطيل الوجه',
+        desc_en: 'Top length elongates the face',
+      },
+      modern: {
+        name_ar: 'كيف موجي',
+        name_en: 'Wavy Quiff',
+        desc_ar: 'تدرج عصري مع موج جانبي',
+        desc_en: 'Modern taper with side wave',
+      },
+      bold: {
+        name_ar: 'موهوك موجي',
+        name_en: 'Wavy Mohawk',
+        desc_ar: 'شعر منتصف يطيل الوجه',
+        desc_en: 'Middle spike to add height',
+      },
+      'low-maintenance': {
+        name_ar: 'قصة قصيرة موجية',
+        name_en: 'Short Wave',
+        desc_ar: 'موج طبيعي بدون مجهود',
+        desc_en: 'Natural wave, no effort',
+      },
     },
     square: {
-      classic: { name_ar: 'قصة متدرجة', name_en: 'Layered Cut', desc_ar: 'تدرج يلطفف زوايا الوجه', desc_en: 'Taper softens jaw angles' },
-      modern: { name_ar: 'تدرج بأمواج', name_en: 'Wavy Taper', desc_ar: 'تدرج عصري مع موج طبيعي', desc_en: 'Modern taper with natural wave' },
-      bold: { name_ar: 'بومر موجي', name_en: 'Wavy Pompadour', desc_ar: 'بومر بموج الشعر', desc_en: 'Pomp with natural wave' },
-      'low-maintenance': { name_ar: 'كروب موجي', name_en: 'Wavy Crop', desc_ar: 'قصة متساوية تستفيد من الموج', desc_en: 'Even cut using the wave' },
+      classic: {
+        name_ar: 'قصة متدرجة',
+        name_en: 'Layered Cut',
+        desc_ar: 'تدرج يلطفف زوايا الوجه',
+        desc_en: 'Taper softens jaw angles',
+      },
+      modern: {
+        name_ar: 'تدرج بأمواج',
+        name_en: 'Wavy Taper',
+        desc_ar: 'تدرج عصري مع موج طبيعي',
+        desc_en: 'Modern taper with natural wave',
+      },
+      bold: {
+        name_ar: 'بومر موجي',
+        name_en: 'Wavy Pompadour',
+        desc_ar: 'بومر بموج الشعر',
+        desc_en: 'Pomp with natural wave',
+      },
+      'low-maintenance': {
+        name_ar: 'كروب موجي',
+        name_en: 'Wavy Crop',
+        desc_ar: 'قصة متساوية تستفيد من الموج',
+        desc_en: 'Even cut using the wave',
+      },
     },
     long: {
-      classic: { name_ar: 'قصة بطول جانبي', name_en: 'Side Volume', desc_ar: 'حجم جانبي يوازن الوجه', desc_en: 'Side volume balances the face' },
-      modern: { name_ar: 'تكسشر بطول', name_en: 'Long Texture', desc_ar: 'تدرج يوازن الوجه الطويل', desc_en: 'Taper to balance long face' },
-      bold: { name_ar: 'كيف موجي طويل', name_en: 'Long Wavy Quiff', desc_ar: 'ارتفاع مع موج يضيف عرضاً', desc_en: 'Height with wave for width' },
-      'low-maintenance': { name_ar: 'قصة قصيرة موجية', name_en: 'Short Wavy', desc_ar: 'بسيطة وموجية بدون تصفيف', desc_en: 'Simple, no styling needed' },
+      classic: {
+        name_ar: 'قصة بطول جانبي',
+        name_en: 'Side Volume',
+        desc_ar: 'حجم جانبي يوازن الوجه',
+        desc_en: 'Side volume balances the face',
+      },
+      modern: {
+        name_ar: 'تكسشر بطول',
+        name_en: 'Long Texture',
+        desc_ar: 'تدرج يوازن الوجه الطويل',
+        desc_en: 'Taper to balance long face',
+      },
+      bold: {
+        name_ar: 'كيف موجي طويل',
+        name_en: 'Long Wavy Quiff',
+        desc_ar: 'ارتفاع مع موج يضيف عرضاً',
+        desc_en: 'Height with wave for width',
+      },
+      'low-maintenance': {
+        name_ar: 'قصة قصيرة موجية',
+        name_en: 'Short Wavy',
+        desc_ar: 'بسيطة وموجية بدون تصفيف',
+        desc_en: 'Simple, no styling needed',
+      },
     },
   },
   curly: {
     oval: {
-      classic: { name_ar: 'قصة كلاسيكية للتجاعيد', name_en: 'Classic Curly', desc_ar: 'تحافظ على شكل التجاعيد', desc_en: 'Keeps the curl shape elegant' },
-      modern: { name_ar: 'تدرج للكيرلي', name_en: 'Curly Taper', desc_ar: 'يبرز التجاعيد بشكل عصري', desc_en: 'Modern curl-enhancing taper' },
-      bold: { name_ar: 'كيرلي فايد', name_en: 'Curly Fade', desc_ar: 'تدرج حاد مع تجاعيد منتصبة', desc_en: 'Sharp fade with upright curls' },
-      'low-maintenance': { name_ar: 'كيرلي قصير', name_en: 'Short Curly', desc_ar: 'قصير يستفيد من التجعد', desc_en: 'Short, uses natural curl' },
+      classic: {
+        name_ar: 'قصة كلاسيكية للتجاعيد',
+        name_en: 'Classic Curly',
+        desc_ar: 'تحافظ على شكل التجاعيد',
+        desc_en: 'Keeps the curl shape elegant',
+      },
+      modern: {
+        name_ar: 'تدرج للكيرلي',
+        name_en: 'Curly Taper',
+        desc_ar: 'يبرز التجاعيد بشكل عصري',
+        desc_en: 'Modern curl-enhancing taper',
+      },
+      bold: {
+        name_ar: 'كيرلي فايد',
+        name_en: 'Curly Fade',
+        desc_ar: 'تدرج حاد مع تجاعيد منتصبة',
+        desc_en: 'Sharp fade with upright curls',
+      },
+      'low-maintenance': {
+        name_ar: 'كيرلي قصير',
+        name_en: 'Short Curly',
+        desc_ar: 'قصير يستفيد من التجعد',
+        desc_en: 'Short, uses natural curl',
+      },
     },
     round: {
-      classic: { name_ar: 'كيرلي بطول علوي', name_en: 'Curly Top', desc_ar: 'الطول العلوي يطيل الوجه', desc_en: 'Top length elongates the face' },
-      modern: { name_ar: 'تدرج كيرلي', name_en: 'Curly Taper', desc_ar: 'تدرج عصري يطيل الوجه', desc_en: 'Modern taper lengthens the face' },
-      bold: { name_ar: 'كيرلي عالي', name_en: 'High Curly', desc_ar: 'تجعد منتصب يطيل الوجه', desc_en: 'Upright curls add height' },
-      'low-maintenance': { name_ar: 'كيرلي بسيط', name_en: 'Easy Curly', desc_ar: 'قصير ومرتب بدون مجهود', desc_en: 'Short and neat, no effort' },
+      classic: {
+        name_ar: 'كيرلي بطول علوي',
+        name_en: 'Curly Top',
+        desc_ar: 'الطول العلوي يطيل الوجه',
+        desc_en: 'Top length elongates the face',
+      },
+      modern: {
+        name_ar: 'تدرج كيرلي',
+        name_en: 'Curly Taper',
+        desc_ar: 'تدرج عصري يطيل الوجه',
+        desc_en: 'Modern taper lengthens the face',
+      },
+      bold: {
+        name_ar: 'كيرلي عالي',
+        name_en: 'High Curly',
+        desc_ar: 'تجعد منتصب يطيل الوجه',
+        desc_en: 'Upright curls add height',
+      },
+      'low-maintenance': {
+        name_ar: 'كيرلي بسيط',
+        name_en: 'Easy Curly',
+        desc_ar: 'قصير ومرتب بدون مجهود',
+        desc_en: 'Short and neat, no effort',
+      },
     },
     square: {
-      classic: { name_ar: 'كيرلي متدرج', name_en: 'Curly Taper', desc_ar: 'تدرج يخفف زوايا الوجه', desc_en: 'Taper softens jaw angles' },
-      modern: { name_ar: 'تكسشر كيرلي', name_en: 'Curly Texture', desc_ar: 'تدرج عصري مع تجعد', desc_en: 'Modern taper with curl' },
-      bold: { name_ar: 'كيرلي بومر', name_en: 'Curly Pomp', desc_ar: 'بومر مع تجعد', desc_en: 'Pomp with curls — strong look' },
-      'low-maintenance': { name_ar: 'كيرلي كوت', name_en: 'Curly Crop', desc_ar: 'قصير ومتساوٍ', desc_en: 'Short and even, easy care' },
+      classic: {
+        name_ar: 'كيرلي متدرج',
+        name_en: 'Curly Taper',
+        desc_ar: 'تدرج يخفف زوايا الوجه',
+        desc_en: 'Taper softens jaw angles',
+      },
+      modern: {
+        name_ar: 'تكسشر كيرلي',
+        name_en: 'Curly Texture',
+        desc_ar: 'تدرج عصري مع تجعد',
+        desc_en: 'Modern taper with curl',
+      },
+      bold: {
+        name_ar: 'كيرلي بومر',
+        name_en: 'Curly Pomp',
+        desc_ar: 'بومر مع تجعد',
+        desc_en: 'Pomp with curls — strong look',
+      },
+      'low-maintenance': {
+        name_ar: 'كيرلي كوت',
+        name_en: 'Curly Crop',
+        desc_ar: 'قصير ومتساوٍ',
+        desc_en: 'Short and even, easy care',
+      },
     },
     long: {
-      classic: { name_ar: 'كيرلي بطول جانبي', name_en: 'Side Curly', desc_ar: 'حجم جانبي يوازن الوجه', desc_en: 'Side volume balances the face' },
-      modern: { name_ar: 'تدرج كيرلي عصري', name_en: 'Modern Curly', desc_ar: 'يضيف عرضاً للوجه الطويل', desc_en: 'Adds width to long face' },
-      bold: { name_ar: 'كيرلي فرو', name_en: 'Curly Fro', desc_ar: 'تجعد منتفش يوازن الوجه', desc_en: 'Full fro balances the face' },
-      'low-maintenance': { name_ar: 'كيرلي قصير', name_en: 'Short Curly', desc_ar: 'بسيط بدون تصفيف', desc_en: 'Simple, no styling' },
+      classic: {
+        name_ar: 'كيرلي بطول جانبي',
+        name_en: 'Side Curly',
+        desc_ar: 'حجم جانبي يوازن الوجه',
+        desc_en: 'Side volume balances the face',
+      },
+      modern: {
+        name_ar: 'تدرج كيرلي عصري',
+        name_en: 'Modern Curly',
+        desc_ar: 'يضيف عرضاً للوجه الطويل',
+        desc_en: 'Adds width to long face',
+      },
+      bold: {
+        name_ar: 'كيرلي فرو',
+        name_en: 'Curly Fro',
+        desc_ar: 'تجعد منتفش يوازن الوجه',
+        desc_en: 'Full fro balances the face',
+      },
+      'low-maintenance': {
+        name_ar: 'كيرلي قصير',
+        name_en: 'Short Curly',
+        desc_ar: 'بسيط بدون تصفيف',
+        desc_en: 'Simple, no styling',
+      },
     },
   },
   coily: {
     oval: {
-      classic: { name_ar: 'قصة كلاسيكية للكيرلي الدقيق', name_en: 'Classic Coily', desc_ar: 'تحافظ على شكل الشعر الأفريقي', desc_en: 'Keeps the afro shape' },
-      modern: { name_ar: 'تدرج تويست', name_en: 'Twist Taper', desc_ar: 'تدرج عصري يحافظ على النسيج', desc_en: 'Modern taper keeping texture' },
-      bold: { name_ar: 'فرو', name_en: 'Fro', desc_ar: 'شعر منتصب بمظهر جريء', desc_en: 'Bold upright afro' },
-      'low-maintenance': { name_ar: 'بز كت', name_en: 'Buzz', desc_ar: 'قصير جداً — بدون عناية', desc_en: 'Very short — no care needed' },
+      classic: {
+        name_ar: 'قصة كلاسيكية للكيرلي الدقيق',
+        name_en: 'Classic Coily',
+        desc_ar: 'تحافظ على شكل الشعر الأفريقي',
+        desc_en: 'Keeps the afro shape',
+      },
+      modern: {
+        name_ar: 'تدرج تويست',
+        name_en: 'Twist Taper',
+        desc_ar: 'تدرج عصري يحافظ على النسيج',
+        desc_en: 'Modern taper keeping texture',
+      },
+      bold: {
+        name_ar: 'فرو',
+        name_en: 'Fro',
+        desc_ar: 'شعر منتصب بمظهر جريء',
+        desc_en: 'Bold upright afro',
+      },
+      'low-maintenance': {
+        name_ar: 'بز كت',
+        name_en: 'Buzz',
+        desc_ar: 'قصير جداً — بدون عناية',
+        desc_en: 'Very short — no care needed',
+      },
     },
     round: {
-      classic: { name_ar: 'قصة بطول علوي', name_en: 'Top Volume', desc_ar: 'الطول يطيل الوجه', desc_en: 'Length elongates the face' },
-      modern: { name_ar: 'تدرج عصري', name_en: 'Modern Taper', desc_ar: 'يضيف ارتفاعاً للوجه', desc_en: 'Adds height to the face' },
-      bold: { name_ar: 'فرو عالي', name_en: 'High Fro', desc_ar: 'ارتفاع مميز يطيل الوجه', desc_en: 'Tall fro elongates the face' },
-      'low-maintenance': { name_ar: 'بز كت قصير', name_en: 'Short Buzz', desc_ar: 'قصير جداً — بدون مجهود', desc_en: 'Very short, no effort' },
+      classic: {
+        name_ar: 'قصة بطول علوي',
+        name_en: 'Top Volume',
+        desc_ar: 'الطول يطيل الوجه',
+        desc_en: 'Length elongates the face',
+      },
+      modern: {
+        name_ar: 'تدرج عصري',
+        name_en: 'Modern Taper',
+        desc_ar: 'يضيف ارتفاعاً للوجه',
+        desc_en: 'Adds height to the face',
+      },
+      bold: {
+        name_ar: 'فرو عالي',
+        name_en: 'High Fro',
+        desc_ar: 'ارتفاع مميز يطيل الوجه',
+        desc_en: 'Tall fro elongates the face',
+      },
+      'low-maintenance': {
+        name_ar: 'بز كت قصير',
+        name_en: 'Short Buzz',
+        desc_ar: 'قصير جداً — بدون مجهود',
+        desc_en: 'Very short, no effort',
+      },
     },
     square: {
-      classic: { name_ar: 'قصة متدرجة', name_en: 'Tapered Cut', desc_ar: 'تدرج يخفف زوايا الوجه', desc_en: 'Taper softens jaw angles' },
-      modern: { name_ar: 'تدرج بأفريقي', name_en: 'Afro Taper', desc_ar: 'أسلوب عصري يحافظ على النسيج', desc_en: 'Modern taper keeping texture' },
-      bold: { name_ar: 'فرو متميز', name_en: 'Bold Fro', desc_ar: 'مظهر قوي يعزز الملامح', desc_en: 'Bold look, strong features' },
-      'low-maintenance': { name_ar: 'بز كت', name_en: 'Buzz', desc_ar: 'قصير ومرتب', desc_en: 'Short and neat' },
+      classic: {
+        name_ar: 'قصة متدرجة',
+        name_en: 'Tapered Cut',
+        desc_ar: 'تدرج يخفف زوايا الوجه',
+        desc_en: 'Taper softens jaw angles',
+      },
+      modern: {
+        name_ar: 'تدرج بأفريقي',
+        name_en: 'Afro Taper',
+        desc_ar: 'أسلوب عصري يحافظ على النسيج',
+        desc_en: 'Modern taper keeping texture',
+      },
+      bold: {
+        name_ar: 'فرو متميز',
+        name_en: 'Bold Fro',
+        desc_ar: 'مظهر قوي يعزز الملامح',
+        desc_en: 'Bold look, strong features',
+      },
+      'low-maintenance': {
+        name_ar: 'بز كت',
+        name_en: 'Buzz',
+        desc_ar: 'قصير ومرتب',
+        desc_en: 'Short and neat',
+      },
     },
     long: {
-      classic: { name_ar: 'قصة بطول جانبي', name_en: 'Side Volume', desc_ar: 'يوازن الوجه الطويل', desc_en: 'Balances long face' },
-      modern: { name_ar: 'تدرج عصري', name_en: 'Modern Taper', desc_ar: 'يضيف عرضاً للوجه', desc_en: 'Adds width to the face' },
-      bold: { name_ar: 'فرو كامل', name_en: 'Full Fro', desc_ar: 'حجم كامل يوازن الوجه', desc_en: 'Full volume balances the face' },
-      'low-maintenance': { name_ar: 'بز كت قصير', name_en: 'Short Buzz', desc_ar: 'بسيط بدون عناية', desc_en: 'Simple, no care' },
+      classic: {
+        name_ar: 'قصة بطول جانبي',
+        name_en: 'Side Volume',
+        desc_ar: 'يوازن الوجه الطويل',
+        desc_en: 'Balances long face',
+      },
+      modern: {
+        name_ar: 'تدرج عصري',
+        name_en: 'Modern Taper',
+        desc_ar: 'يضيف عرضاً للوجه',
+        desc_en: 'Adds width to the face',
+      },
+      bold: {
+        name_ar: 'فرو كامل',
+        name_en: 'Full Fro',
+        desc_ar: 'حجم كامل يوازن الوجه',
+        desc_en: 'Full volume balances the face',
+      },
+      'low-maintenance': {
+        name_ar: 'بز كت قصير',
+        name_en: 'Short Buzz',
+        desc_ar: 'بسيط بدون عناية',
+        desc_en: 'Simple, no care',
+      },
     },
   },
 };
@@ -1144,88 +1551,170 @@ function HairConsultation({ customer, shopId }: { customer: Customer; shopId: st
   const [style, setStyle] = useState<StylePref | null>(null);
 
   const result = hair && face && style ? HAIR_CONSULTATION[hair][face][style] : null;
-  const reset = () => { setHair(null); setFace(null); setStyle(null); setStep('intro'); };
+  const reset = () => {
+    setHair(null);
+    setFace(null);
+    setStyle(null);
+    setStep('intro');
+  };
   const L = lang === 'ar';
 
   if (step === 'intro') {
     return (
-      <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="grid h-12 w-12 place-items-center rounded-xl bg-neutral-950 text-white">
-            <Camera className="h-6 w-6" />
+      <div className="card border-stone-200/90 bg-white p-5 sm:p-6">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <div className="flex items-start gap-3.5">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-stone-900 text-white">
+              <Camera className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-display text-lg font-extrabold text-stone-900">
+                  {t('consult.title')}
+                </h3>
+                <span className="rounded-md bg-stone-100 px-2 py-0.5 text-[10px] font-extrabold text-stone-700">
+                  {L ? 'استشارة ذكية' : 'Smart Style'}
+                </span>
+              </div>
+              <p className="mt-0.5 text-xs text-stone-500">{t('consult.subtitle')}</p>
+              <p className="mt-2.5 text-sm leading-relaxed text-stone-600">{t('consult.intro')}</p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-bold text-neutral-950">{t('consult.title')}</h3>
-            <p className="text-xs text-neutral-500">{t('consult.subtitle')}</p>
-          </div>
+          <button onClick={() => setStep('hair')} className="btn-primary shrink-0 px-5">
+            <Sparkles className="h-4 w-4" /> {t('consult.start')}
+          </button>
         </div>
-        <p className="mt-3 text-sm leading-relaxed text-neutral-600">{t('consult.intro')}</p>
-        <button onClick={() => setStep('hair')} className="mt-4 w-full rounded-xl bg-neutral-950 px-4 py-3 text-sm font-bold text-white transition hover:bg-neutral-800">
-          <Sparkles className="mr-2 inline h-4 w-4" /> {t('consult.start')}
-        </button>
       </div>
     );
   }
 
   if (step === 'hair') {
-    return <ConsultationStep title={t('consult.hairType')} icon={<Scissors className="h-6 w-6" />}
-      options={[
-        { value: 'straight' as HairType, label: t('consult.hairStraight'), emoji: '▬' },
-        { value: 'wavy' as HairType, label: t('consult.hairWavy'), emoji: '〰' },
-        { value: 'curly' as HairType, label: t('consult.hairCurly'), emoji: '◉' },
-        { value: 'coily' as HairType, label: t('consult.hairCoily'), emoji: '✦' },
-      ]}
-      selected={hair} onSelect={(v) => { setHair(v); setStep('face'); }} onBack={reset} t={t} />;
+    return (
+      <ConsultationStep
+        title={t('consult.hairType')}
+        icon={<Scissors className="h-5 w-5" />}
+        options={[
+          { value: 'straight' as HairType, label: t('consult.hairStraight'), emoji: '▬' },
+          { value: 'wavy' as HairType, label: t('consult.hairWavy'), emoji: '〰' },
+          { value: 'curly' as HairType, label: t('consult.hairCurly'), emoji: '◉' },
+          { value: 'coily' as HairType, label: t('consult.hairCoily'), emoji: '✦' },
+        ]}
+        selected={hair}
+        onSelect={(v) => {
+          setHair(v);
+          setStep('face');
+        }}
+        onBack={reset}
+        t={t}
+      />
+    );
   }
 
   if (step === 'face') {
-    return <ConsultationStep title={t('consult.faceShape')} icon={<User className="h-6 w-6" />}
-      options={[
-        { value: 'oval' as FaceShape, label: t('consult.faceOval'), emoji: '⬭' },
-        { value: 'round' as FaceShape, label: t('consult.faceRound'), emoji: '◯' },
-        { value: 'square' as FaceShape, label: t('consult.faceSquare'), emoji: '◻' },
-        { value: 'long' as FaceShape, label: t('consult.faceLong'), emoji: '▯' },
-      ]}
-      selected={face} onSelect={(v) => { setFace(v); setStep('style'); }} onBack={() => setStep('hair')} t={t} />;
+    return (
+      <ConsultationStep
+        title={t('consult.faceShape')}
+        icon={<User className="h-5 w-5" />}
+        options={[
+          { value: 'oval' as FaceShape, label: t('consult.faceOval'), emoji: '⬭' },
+          { value: 'round' as FaceShape, label: t('consult.faceRound'), emoji: '◯' },
+          { value: 'square' as FaceShape, label: t('consult.faceSquare'), emoji: '◻' },
+          { value: 'long' as FaceShape, label: t('consult.faceLong'), emoji: '▯' },
+        ]}
+        selected={face}
+        onSelect={(v) => {
+          setFace(v);
+          setStep('style');
+        }}
+        onBack={() => setStep('hair')}
+        t={t}
+      />
+    );
   }
 
   if (step === 'style') {
-    return <ConsultationStep title={t('consult.stylePref')} icon={<Sparkles className="h-6 w-6" />}
-      options={[
-        { value: 'classic' as StylePref, label: t('consult.styleClassic'), emoji: '◆' },
-        { value: 'modern' as StylePref, label: t('consult.styleModern'), emoji: '★' },
-        { value: 'bold' as StylePref, label: t('consult.styleBold'), emoji: '⚡' },
-        { value: 'low-maintenance' as StylePref, label: t('consult.styleEasy'), emoji: '○' },
-      ]}
-      selected={style} onSelect={(v) => { setStyle(v); setStep('result'); }} onBack={() => setStep('face')} t={t} />;
+    return (
+      <ConsultationStep
+        title={t('consult.stylePref')}
+        icon={<Sparkles className="h-5 w-5" />}
+        options={[
+          { value: 'classic' as StylePref, label: t('consult.styleClassic'), emoji: '◆' },
+          { value: 'modern' as StylePref, label: t('consult.styleModern'), emoji: '★' },
+          { value: 'bold' as StylePref, label: t('consult.styleBold'), emoji: '⚡' },
+          { value: 'low-maintenance' as StylePref, label: t('consult.styleEasy'), emoji: '○' },
+        ]}
+        selected={style}
+        onSelect={(v) => {
+          setStyle(v);
+          setStep('result');
+        }}
+        onBack={() => setStep('face')}
+        t={t}
+      />
+    );
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-      <div className="bg-neutral-950 p-4 text-white">
+    <div className="card overflow-hidden border-stone-200/90 bg-white">
+      <div className="bg-stone-900 px-5 py-4 text-white">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5" /><span className="font-bold">{t('consult.result')}</span>
+          <Sparkles className="h-4 w-4 text-amber-400" />
+          <span className="text-sm font-extrabold">{t('consult.result')}</span>
         </div>
       </div>
-      <div className="p-5">
+      <div className="p-5 sm:p-6">
         {result && (
           <>
-            <h3 className="font-display text-2xl font-extrabold text-neutral-950">{L ? result.name_ar : result.name_en}</h3>
-            <p className="mt-2 text-sm leading-relaxed text-neutral-600">{L ? result.desc_ar : result.desc_en}</p>
-            <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
-              <p className="text-xs font-bold text-neutral-500">{t('consult.summary')}</p>
-              <p className="mt-1 text-xs text-neutral-700">
-                {L ? `شعر ${hair === 'straight' ? 'أملس' : hair === 'wavy' ? 'مموج' : hair === 'curly' ? 'مجعد' : 'كيرلي'}` : `Hair: ${hair}`}
+            <h3 className="font-display text-2xl font-extrabold text-stone-900">
+              {L ? result.name_ar : result.name_en}
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-stone-600">
+              {L ? result.desc_ar : result.desc_en}
+            </p>
+            <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-3.5">
+              <p className="text-xs font-extrabold text-stone-700">{t('consult.summary')}</p>
+              <p className="mt-1 text-xs text-stone-600">
+                {L
+                  ? `شعر ${
+                      hair === 'straight'
+                        ? 'أملس'
+                        : hair === 'wavy'
+                        ? 'مموج'
+                        : hair === 'curly'
+                        ? 'مجعد'
+                        : 'كيرلي'
+                    }`
+                  : `Hair: ${hair}`}
                 {' • '}
-                {L ? `وجه ${face === 'oval' ? 'بيضاوي' : face === 'round' ? 'دائري' : face === 'square' ? 'مربع' : 'طويل'}` : `Face: ${face}`}
+                {L
+                  ? `وجه ${
+                      face === 'oval'
+                        ? 'بيضاوي'
+                        : face === 'round'
+                        ? 'دائري'
+                        : face === 'square'
+                        ? 'مربع'
+                        : 'طويل'
+                    }`
+                  : `Face: ${face}`}
                 {' • '}
-                {L ? `أسلوب ${style === 'classic' ? 'كلاسيكي' : style === 'modern' ? 'عصري' : style === 'bold' ? 'جريء' : 'سهل'}` : `Style: ${style}`}
+                {L
+                  ? `أسلوب ${
+                      style === 'classic'
+                        ? 'كلاسيكي'
+                        : style === 'modern'
+                        ? 'عصري'
+                        : style === 'bold'
+                        ? 'جريء'
+                        : 'سهل'
+                    }`
+                  : `Style: ${style}`}
               </p>
             </div>
-            <div className="mt-4 flex items-center gap-2 rounded-xl border border-neutral-200 bg-neutral-100 p-3 text-xs text-neutral-700">
-              <Info className="h-3.5 w-3.5 shrink-0" /> {t('consult.disclaimer')}
+            <div className="mt-4 flex items-center gap-2 rounded-xl border border-stone-200 bg-stone-50/70 p-3 text-xs text-stone-600">
+              <Info className="h-4 w-4 shrink-0 text-stone-700" /> {t('consult.disclaimer')}
             </div>
-            <button onClick={reset} className="btn-ghost mt-4 w-full border border-neutral-300 text-neutral-900 hover:bg-neutral-100">
+            <button onClick={reset} className="btn-ghost mt-4 w-full">
               <ChevronLeft className="h-4 w-4" /> {t('consult.newConsult')}
             </button>
             <SmartHairPhotoAssistant
@@ -1243,31 +1732,50 @@ function HairConsultation({ customer, shopId }: { customer: Customer; shopId: st
 }
 
 function ConsultationStep<T extends string>({
-  title, icon, options, selected, onSelect, onBack, t,
+  title,
+  icon,
+  options,
+  selected,
+  onSelect,
+  onBack,
+  t,
 }: {
-  title: string; icon: React.ReactNode;
+  title: string;
+  icon: React.ReactNode;
   options: { value: T; label: string; emoji: string }[];
-  selected: T | null; onSelect: (v: T) => void; onBack: () => void;
+  selected: T | null;
+  onSelect: (v: T) => void;
+  onBack: () => void;
   t: (k: string) => string;
 }) {
   return (
-    <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+    <div className="card border-stone-200/90 bg-white p-5 sm:p-6">
       <div className="mb-4 flex items-center gap-3">
-        <div className="grid h-10 w-10 place-items-center rounded-xl bg-neutral-950 text-white">{icon}</div>
-        <h3 className="font-bold text-neutral-950">{title}</h3>
+        <div className="grid h-10 w-10 place-items-center rounded-xl bg-stone-900 text-white">
+          {icon}
+        </div>
+        <h3 className="font-display text-base font-extrabold text-stone-900">{title}</h3>
       </div>
       <div className="grid grid-cols-2 gap-3">
         {options.map((o) => (
-          <button key={o.value} onClick={() => onSelect(o.value)}
-            className={`flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition ${
-              selected === o.value ? 'border-neutral-950 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-900 hover:border-neutral-400 hover:bg-neutral-50'
-            }`}>
+          <button
+            key={o.value}
+            onClick={() => onSelect(o.value)}
+            className={`flex flex-col items-center gap-2 rounded-xl border p-4 transition ${
+              selected === o.value
+                ? 'border-stone-900 bg-stone-900 text-white'
+                : 'border-stone-200 bg-stone-50/70 text-stone-800 hover:border-stone-300 hover:bg-white'
+            }`}
+          >
             <span className="text-2xl">{o.emoji}</span>
             <span className="text-sm font-bold">{o.label}</span>
           </button>
         ))}
       </div>
-      <button onClick={onBack} className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-neutral-600 hover:text-neutral-950">
+      <button
+        onClick={onBack}
+        className="mt-4 inline-flex items-center gap-1.5 text-xs font-extrabold text-stone-500 hover:text-stone-900"
+      >
         <ChevronLeft className="h-4 w-4" /> {t('cust.back')}
       </button>
     </div>
@@ -1278,50 +1786,67 @@ function ConsultationStep<T extends string>({
 function ReferralWidget({ customerName }: { customerName: string }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
-  const code = `BARBER-${customerName.substring(0, 3).toUpperCase()}-${Math.floor(100 + Math.random() * 900)}`;
+  const code = `BARBER-${customerName.substring(0, 3).toUpperCase()}-${Math.floor(
+    100 + Math.random() * 900
+  )}`;
 
   const copy = () => {
-    try { navigator.clipboard.writeText(code); } catch { /* ignore */ }
+    try {
+      navigator.clipboard.writeText(code);
+    } catch {
+      /* ignore */
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-      <div className="flex items-center gap-3 bg-neutral-950 p-4 text-white">
-        <div className="grid h-10 w-10 place-items-center rounded-xl bg-white/10">
-          <Gift className="h-5 w-5 text-white" />
+    <div className="card overflow-hidden border-stone-200/90 bg-white">
+      <div className="flex items-center gap-3 bg-stone-900 p-4 text-white">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/10 text-emerald-400">
+          <Gift className="h-5 w-5" />
         </div>
         <div>
-          <p className="font-bold">{t('referral.title')}</p>
-          <p className="text-xs text-neutral-300">{t('referral.desc')}</p>
+          <p className="font-display text-sm font-extrabold">{t('referral.title')}</p>
+          <p className="text-xs text-stone-300">{t('referral.desc')}</p>
         </div>
       </div>
-      <div className="space-y-3 p-4">
+      <div className="space-y-3.5 p-4">
         <div className="flex items-center gap-2">
-          <div className="flex-1 rounded-xl border-2 border-dashed border-neutral-300 bg-neutral-50 px-4 py-3 text-center font-display text-lg font-extrabold tracking-wider text-neutral-900" dir="ltr">
+          <div
+            className="flex-1 rounded-xl border border-dashed border-stone-300 bg-stone-50 px-3.5 py-2.5 text-center font-display text-base font-extrabold tracking-wider text-stone-900"
+            dir="ltr"
+          >
             {code}
           </div>
-          <button onClick={copy} className="shrink-0 rounded-xl bg-neutral-950 px-4 py-3 text-xs font-bold text-white transition hover:bg-neutral-800">
-            {copied ? <><CheckCircle2 className="mr-1 inline h-4 w-4" /> {t('referral.copied')}</> : <><Copy className="mr-1 inline h-4 w-4" /> {t('referral.copy')}</>}
+          <button onClick={copy} className="btn-primary h-11 shrink-0 px-3.5 text-xs">
+            {copied ? (
+              <>
+                <CheckCircle2 className="h-4 w-4" /> {t('referral.copied')}
+              </>
+            ) : (
+              <>
+                <Copy className="h-4 w-4" /> {t('referral.copy')}
+              </>
+            )}
           </button>
         </div>
-        <p className="text-xs text-neutral-500">{t('referral.share')}</p>
+        <p className="text-xs text-stone-500">{t('referral.share')}</p>
         <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-center">
-            <Users className="mx-auto h-4 w-4 text-neutral-500" />
-            <p className="mt-1 font-display text-xl font-extrabold text-neutral-950">0</p>
-            <p className="text-[10px] font-bold text-neutral-500">{t('referral.invited')}</p>
+          <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3 text-center">
+            <Users className="mx-auto h-4 w-4 text-stone-500" />
+            <p className="mt-1 font-display text-lg font-extrabold text-stone-900">0</p>
+            <p className="text-[10px] font-bold text-stone-500">{t('referral.invited')}</p>
           </div>
-          <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-center">
-            <CheckCircle2 className="mx-auto h-4 w-4 text-neutral-500" />
-            <p className="mt-1 font-display text-xl font-extrabold text-neutral-950">0</p>
-            <p className="text-[10px] font-bold text-neutral-500">{t('referral.joined')}</p>
+          <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3 text-center">
+            <CheckCircle2 className="mx-auto h-4 w-4 text-stone-500" />
+            <p className="mt-1 font-display text-lg font-extrabold text-stone-900">0</p>
+            <p className="text-[10px] font-bold text-stone-500">{t('referral.joined')}</p>
           </div>
-          <div className="rounded-xl border border-neutral-300 bg-neutral-100 p-3 text-center">
-            <Gift className="mx-auto h-4 w-4 text-neutral-800" />
-            <p className="mt-1 font-display text-xl font-extrabold text-neutral-950">0</p>
-            <p className="text-[10px] font-bold text-neutral-600">{t('referral.earned')}</p>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 text-center">
+            <Gift className="mx-auto h-4 w-4 text-emerald-700" />
+            <p className="mt-1 font-display text-lg font-extrabold text-emerald-800">0</p>
+            <p className="text-[10px] font-bold text-emerald-700">{t('referral.earned')}</p>
           </div>
         </div>
       </div>
@@ -1330,24 +1855,41 @@ function ReferralWidget({ customerName }: { customerName: string }) {
 }
 
 /* ---------- Offers widget ---------- */
-function OffersWidget({ totalVisits, active, daysLeft }: { totalVisits: number; active: boolean; daysLeft: number }) {
+function OffersWidget({
+  totalVisits,
+  active,
+  daysLeft,
+}: {
+  totalVisits: number;
+  active: boolean;
+  daysLeft: number;
+}) {
   const { t } = useI18n();
-  const offers: { icon: typeof Tag; title: string; desc: string; color: string; bg: string }[] = [];
+  const offers: { icon: typeof Tag; title: string; desc: string; tone: string; bg: string }[] = [];
 
   if (active && daysLeft <= 7) {
     offers.push({
-      icon: Tag, title: t('offers.renew'), desc: t('offers.renewDesc'),
-      color: 'text-neutral-900', bg: 'bg-neutral-50 border-neutral-300',
+      icon: Tag,
+      title: t('offers.renew'),
+      desc: t('offers.renewDesc'),
+      tone: 'text-amber-800',
+      bg: 'border-amber-200 bg-amber-50/60',
     });
   }
   offers.push({
-    icon: Gift, title: t('offers.refer'), desc: t('offers.referDesc'),
-    color: 'text-neutral-900', bg: 'bg-neutral-50 border-neutral-200',
+    icon: Gift,
+    title: t('offers.refer'),
+    desc: t('offers.referDesc'),
+    tone: 'text-emerald-800',
+    bg: 'border-emerald-200 bg-emerald-50/60',
   });
   if (totalVisits >= 10 && totalVisits < 20) {
     offers.push({
-      icon: Zap, title: t('offers.vip'), desc: t('offers.vipDesc'),
-      color: 'text-neutral-900', bg: 'bg-neutral-100 border-neutral-300',
+      icon: Zap,
+      title: t('offers.vip'),
+      desc: t('offers.vipDesc'),
+      tone: 'text-stone-800',
+      bg: 'border-stone-200 bg-stone-50',
     });
   }
 
@@ -1355,28 +1897,48 @@ function OffersWidget({ totalVisits, active, daysLeft }: { totalVisits: number; 
 
   return (
     <div className="space-y-3">
-      <h3 className="font-bold text-neutral-950">{t('offers.title')}</h3>
-      {offers.map((o, i) => (
-        <div key={i} className={`flex items-start gap-3 rounded-2xl border p-4 shadow-sm ${o.bg}`}>
-          <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-neutral-200 bg-white ${o.color}`}>
-            <o.icon className="h-5 w-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="badge bg-neutral-950 text-white">{t('offers.badge')}</span>
+      <div className="flex items-center justify-between">
+        <h3 className="font-display text-base font-extrabold text-stone-900">
+          {t('offers.title')}
+        </h3>
+        <span className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-0.5 text-[11px] font-bold text-stone-600">
+          {offers.length}
+        </span>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {offers.map((o, i) => (
+          <div key={i} className={`card flex items-start gap-3 p-4 ${o.bg}`}>
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-stone-900 text-white">
+              <o.icon className="h-5 w-5" />
             </div>
-            <p className="mt-1.5 font-bold text-neutral-950">{o.title}</p>
-            <p className="text-xs text-neutral-600">{o.desc}</p>
+            <div className="min-w-0 flex-1">
+              <span className={`inline-block rounded-md bg-white px-2 py-0.5 text-[10px] font-extrabold shadow-2xs ${o.tone}`}>
+                {t('offers.badge')}
+              </span>
+              <p className="mt-1.5 text-sm font-extrabold text-stone-900">{o.title}</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-stone-600">{o.desc}</p>
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
 
-/* ---------- Customer detail ---------- */
-function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Customer; shopId: string; shopName: string | null; onLogout: () => void }) {
+/* ---------- Customer detail (Admin-aligned clean slate layout & navigation) ---------- */
+function CustomerDetail({
+  customer,
+  shopId,
+  shopName,
+  onLogout,
+}: {
+  customer: Customer;
+  shopId: string;
+  shopName: string | null;
+  onLogout: () => void;
+}) {
   const { t, lang } = useI18n();
+  const [tab, setTab] = useState<CustomerTab>('overview');
   const [sub, setSub] = useState<Subscription | null>(null);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -1414,11 +1976,15 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-10">
-        <div className="space-y-4">
-          <div className="h-24 animate-pulse rounded-2xl bg-neutral-200" />
-          <div className="h-48 animate-pulse rounded-2xl bg-neutral-200" />
+      <div className="mx-auto max-w-6xl space-y-5 px-4 py-7 sm:px-6">
+        <div className="h-28 animate-shimmer rounded-2xl" />
+        <div className="h-12 animate-shimmer rounded-2xl" />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((n) => (
+            <div key={n} className="h-24 animate-shimmer rounded-2xl" />
+          ))}
         </div>
+        <div className="h-56 animate-shimmer rounded-2xl" />
       </div>
     );
   }
@@ -1426,20 +1992,20 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
   if (loadError) {
     return (
       <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center px-4 text-center">
-        <div className="rounded-2xl border border-neutral-300 bg-neutral-100 p-5 text-sm font-bold text-neutral-900">
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm font-bold text-red-700">
           تعذر تحميل بيانات حسابك حاليًا. من فضلك حاول مرة أخرى.
         </div>
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="mt-4 w-full rounded-xl bg-neutral-950 px-4 py-3 text-sm font-bold text-white transition hover:bg-neutral-800"
+          className="btn-primary mt-4 w-full"
         >
           إعادة المحاولة
         </button>
         <button
           type="button"
           onClick={onLogout}
-          className="mt-3 text-sm font-bold text-neutral-600 underline"
+          className="mt-3 text-sm font-bold text-stone-500 underline"
         >
           تسجيل الخروج
         </button>
@@ -1448,9 +2014,11 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
   }
 
   const active = sub?.status === 'active';
-  const remaining = sub && sub.plan ? sub.plan.haircut_count - sub.haircuts_used : 0;
+  const remaining = sub && sub.plan ? Math.max(0, sub.plan.haircut_count - sub.haircuts_used) : 0;
   const totalVisits = visits.length;
-  const totalPaid = visits.filter((v) => v.payment_type === 'paid').reduce((s, v) => s + Number(v.charge_amount), 0);
+  const totalPaid = visits
+    .filter((v) => v.payment_type === 'paid')
+    .reduce((s, v) => s + Number(v.charge_amount), 0);
   const subscriptionVisits = visits.filter((v) => v.payment_type === 'subscription').length;
   const daysLeft = sub ? Math.ceil((new Date(sub.end_date).getTime() - Date.now()) / 86400000) : 0;
   const L = lang === 'ar';
@@ -1459,264 +2027,589 @@ function CustomerDetail({ customer, shopId, shopName, onLogout }: { customer: Cu
   const serviceItems = plans.filter((p) => p.item_type === 'service');
 
   const loyaltyLevel =
-    totalVisits >= 20 ? { label: t('cust.level.gold'), icon: Crown, tone: 'text-neutral-950', bg: 'bg-neutral-200' } :
-    totalVisits >= 10 ? { label: t('cust.level.silver'), icon: Medal, tone: 'text-neutral-900', bg: 'bg-neutral-100' } :
-    totalVisits >= 5 ? { label: t('cust.level.bronze'), icon: Award, tone: 'text-neutral-800', bg: 'bg-neutral-100' } :
-    { label: t('cust.level.new'), icon: User, tone: 'text-neutral-700', bg: 'bg-neutral-100' };
+    totalVisits >= 20
+      ? { label: t('cust.level.gold'), icon: Crown, tone: 'text-amber-600', bg: 'bg-amber-50 border-amber-200' }
+      : totalVisits >= 10
+      ? { label: t('cust.level.silver'), icon: Medal, tone: 'text-slate-600', bg: 'bg-slate-50 border-slate-200' }
+      : totalVisits >= 5
+      ? { label: t('cust.level.bronze'), icon: Award, tone: 'text-orange-600', bg: 'bg-orange-50 border-orange-200' }
+      : { label: t('cust.level.new'), icon: User, tone: 'text-stone-700', bg: 'bg-stone-50 border-stone-200' };
   const LoyaltyIcon = loyaltyLevel.icon;
 
+  const tabs: { k: CustomerTab; label: string; icon: typeof Users; badge?: number }[] = [
+    { k: 'overview', label: L ? 'الملخص الرئيسي' : 'Overview', icon: Store },
+    { k: 'booking', label: L ? 'احجز موعدك' : 'Book Appointment', icon: Calendar },
+    { k: 'consultation', label: L ? 'استشارة القصة' : 'Style Consultation', icon: Sparkles },
+    {
+      k: 'history',
+      label: L ? 'سجل الزيارات' : 'Visit History',
+      icon: CalendarCheck,
+      badge: totalVisits > 0 ? totalVisits : undefined,
+    },
+    { k: 'rewards', label: L ? 'الولاء والمكافآت' : 'Loyalty & Rewards', icon: Gift },
+  ];
+
+  const operationalCards = [
+    {
+      label: t('cust.subVisits'),
+      value: subscriptionVisits,
+      icon: CalendarCheck,
+      subText: active ? `${remaining} ${t('cust.remainingIn')}` : t('cust.subInactive'),
+    },
+    {
+      label: t('cust.regVisits'),
+      value: Math.max(0, visits.length - subscriptionVisits),
+      icon: Scissors,
+      subText: `${totalVisits} ${t('cust.visits')}`,
+    },
+    {
+      label: t('cust.loyalty'),
+      value: loyaltyLevel.label,
+      icon: LoyaltyIcon,
+      subText: `${totalVisits} ${t('cust.haircuts')}`,
+    },
+    {
+      label: t('cust.totalPaid'),
+      value: formatPrice(totalPaid),
+      icon: Coins,
+      subText: shop ? `${formatPrice(Number(shop.regular_haircut_price ?? 50))} / حلاقة` : '',
+    },
+  ];
+
   return (
-    <div id="customer-top" className="customer-page animate-fade-in mx-auto min-h-screen max-w-6xl bg-neutral-100 px-4 pb-28 pt-5 sm:px-6 lg:px-8">
-      <div className="mb-5 flex items-center justify-between">
-        <button onClick={onLogout} className="inline-flex items-center gap-2 rounded-full border border-neutral-300 bg-white px-4 py-2.5 text-xs font-bold text-neutral-900 shadow-sm transition hover:bg-neutral-50">
-          <LogOut className="h-4 w-4" /> {t('cust.logout')}
-        </button>
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-600">
-          <Lock className="h-3.5 w-3.5" /> {t('cust.secure')}
-        </span>
-      </div>
-
-      {/* Header card */}
-      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-        <div className="relative flex items-center gap-4 border-b border-neutral-200 bg-neutral-950 px-5 py-6 text-white sm:px-7">
-          <div className="grid h-[68px] w-[68px] shrink-0 place-items-center overflow-hidden rounded-2xl border-2 border-neutral-700 bg-neutral-900 font-display text-2xl font-extrabold text-white">
+    <div id="customer-top" className="customer-page animate-fade-in mx-auto max-w-6xl space-y-6 px-4 pb-28 pt-7 sm:px-6 md:pb-10">
+      {/* Header matching AdminDashboard */}
+      <header className="card border-stone-200/90 bg-white p-5 sm:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center gap-4">
             {shop?.logo_url ? (
-              <img src={shop.logo_url} alt={shop.shop_name || shopName || 'Shop logo'} className="h-full w-full object-cover" />
+              <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl border border-stone-200 bg-stone-50 p-1.5 shadow-2xs">
+                <img
+                  src={shop.logo_url}
+                  alt={shop.shop_name || shopName || 'Shop logo'}
+                  className="h-full w-full rounded-xl object-contain"
+                />
+              </div>
             ) : (
-              (shopName || customer.name).charAt(0)
+              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-stone-900 font-display text-xl font-extrabold text-white shadow-2xs">
+                {(shopName || customer.name).charAt(0)}
+              </div>
             )}
+
+            <div className="min-w-0 space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="truncate font-display text-xl font-extrabold text-stone-900 sm:text-2xl">
+                  {customer.name}
+                </h1>
+                {(shop?.shop_name || shopName) && (
+                  <span className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-0.5 text-[11px] font-bold text-stone-700">
+                    {shop?.shop_name || shopName}
+                  </span>
+                )}
+                {active ? (
+                  <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />
+                    <span>{t('cust.subActive')} ({remaining})</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-0.5 text-[11px] font-bold text-stone-600">
+                    <span>{t('cust.subInactive')}</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                <span className="inline-flex items-center gap-1">
+                  <Clock className="h-3.5 w-3.5 text-stone-400" />
+                  <span>
+                    {t('cust.customerSince')} {formatDate(customer.created_at)}
+                  </span>
+                </span>
+                {shop && (
+                  <>
+                    <span className="hidden text-stone-300 sm:inline">•</span>
+                    <span className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50/90 px-2.5 py-1 font-bold text-stone-800">
+                      <Scissors className="h-3.5 w-3.5 text-stone-600" />
+                      {L ? 'سعر الحلاقة العادية:' : 'Regular haircut:'}{' '}
+                      {formatPrice(Number(shop.regular_haircut_price ?? 50))}
+                    </span>
+                  </>
+                )}
+                <span className="hidden text-stone-300 sm:inline">•</span>
+                <span className="inline-flex items-center gap-1 text-stone-500">
+                  <Lock className="h-3 w-3" /> {t('cust.secure')}
+                </span>
+              </div>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="mb-1 text-[11px] font-bold tracking-wide text-neutral-400">{L ? 'أهلاً بيك في' : 'WELCOME TO'}</p>
-            <h2 className="truncate font-display text-2xl font-extrabold text-white">{customer.name}</h2>
-            <p className="mt-1 text-sm text-neutral-300">
-              {shop?.shop_name || shopName ? `${shop?.shop_name || shopName} • ` : ''}{t('cust.customerSince')} {formatDate(customer.created_at)}
-            </p>
-            {shop && (
-              <p className="mt-2 inline-flex rounded-full border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs font-bold text-neutral-100">
-                {lang === 'ar' ? 'سعر الحلاقة العادية:' : 'Regular haircut:'} {formatPrice(Number(shop.regular_haircut_price ?? 50))}
-              </p>
-            )}
+
+          <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-stone-100 pt-4 lg:justify-end lg:border-t-0 lg:pt-0">
+            <button
+              type="button"
+              onClick={() => setTab('booking')}
+              className="btn-primary h-10 px-4 text-xs"
+            >
+              <Calendar className="h-4 w-4 shrink-0" />
+              <span>{L ? 'احجز موعدك الآن' : 'Book Now'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onLogout}
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3.5 text-xs font-bold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900"
+            >
+              <LogOut className="h-4 w-4 shrink-0" />
+              <span>{t('cust.logout')}</span>
+            </button>
           </div>
         </div>
+      </header>
 
-        {/* Subscription status */}
-        <div className="bg-white p-4 sm:p-5">
-          <div className={`rounded-2xl border p-4 ${active ? 'border-neutral-900 bg-neutral-50' : 'border-neutral-200 bg-neutral-50'}`}>
-            <div className="flex items-center gap-2">
-              {active ? <CheckCircle2 className="h-6 w-6 text-neutral-950" /> : <XCircle className="h-6 w-6 text-neutral-400" />}
-              <div>
-                <p className="font-bold text-neutral-950">{active ? t('cust.subActive') : t('cust.subInactive')}</p>
-                <p className="text-xs text-neutral-600">
-                  {active ? `${sub?.plan?.name ?? ''} — ${t('cust.subEnds')} ${formatDate(sub?.end_date ?? '')}` : t('cust.subAskBarber')}
-                </p>
-              </div>
-            </div>
-            {active && sub?.plan?.description && (
-              <p className="mt-2.5 whitespace-pre-line rounded-xl border border-neutral-200 bg-white p-3 text-xs leading-relaxed text-neutral-700">
-                {sub.plan.description}
-              </p>
-            )}
-            {active && sub && (
-              <>
-                <div className="mt-4">
-                  <div className="flex items-center justify-between text-xs font-bold text-neutral-700">
-                    <span>{t('cust.used')}</span><span>{sub.haircuts_used} / {sub.plan?.haircut_count}</span>
+      {/* Navigation bar matching AdminDashboard */}
+      <nav
+        aria-label={L ? 'أقسام صفحة العميل' : 'Customer navigation'}
+        className="flex gap-1.5 overflow-x-auto rounded-2xl border border-stone-200 bg-stone-50/80 p-1.5"
+      >
+        {tabs.map((item) => {
+          const isActive = tab === item.k;
+          return (
+            <button
+              key={item.k}
+              type="button"
+              onClick={() => setTab(item.k)}
+              className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition sm:text-sm ${
+                isActive
+                  ? 'bg-stone-900 text-white shadow-xs'
+                  : 'text-stone-600 hover:bg-white hover:text-stone-900'
+              }`}
+            >
+              <item.icon className={`h-4 w-4 ${isActive ? 'text-stone-200' : 'text-stone-500'}`} />
+              <span>{item.label}</span>
+              {item.badge !== undefined && (
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
+                    isActive ? 'bg-amber-400 text-stone-950' : 'bg-stone-200 text-stone-800'
+                  }`}
+                >
+                  {item.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Main Content */}
+      <main className="min-w-0 space-y-6">
+        {tab === 'overview' && (
+          <div className="space-y-6">
+            {/* Top 4 KPI Cards */}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {operationalCards.map((c) => (
+                <div key={c.label} className="card flex items-center justify-between p-4">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-stone-500">{c.label}</p>
+                    <p className="mt-1.5 truncate font-display text-2xl font-extrabold text-stone-900">
+                      {c.value}
+                    </p>
+                    {c.subText && (
+                      <p className="mt-1 truncate text-[11px] text-stone-500">{c.subText}</p>
+                    )}
                   </div>
-                  <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-neutral-200">
-                    <div className="h-full rounded-full bg-neutral-950 transition-all duration-500"
-                      style={{ width: `${Math.min(100, (sub.haircuts_used / (sub.plan?.haircut_count ?? 1)) * 100)}%` }} />
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-stone-200 bg-stone-50 text-stone-700">
+                    <c.icon className="h-5 w-5" />
                   </div>
-                  <p className="mt-2 text-xs font-bold text-neutral-900">{remaining} {t('cust.remainingIn')}</p>
                 </div>
-                <div className="mt-3 flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-neutral-100 p-2.5 text-xs text-neutral-800">
-                  {daysLeft <= 3 ? <XCircle className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
-                  {daysLeft > 0 ? `${t('cust.expiresIn')} ${daysLeft} ${t('cust.days')}` : t('cust.expired')}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Smart Booking Section */}
-      <CustomerBookingSection
-        customer={customer}
-        shopId={shopId}
-        plans={plans}
-        activeSub={sub}
-        onBookingChanged={() => void loadCustomerData()}
-      />
-
-      <WhatsAppConsentPanel customerName={customer.name} phone={customer.phone} />
-
-      {/* Hair consultation */}
-      <div id="hair-consultation" className="mt-6 scroll-mt-6"><HairConsultation customer={customer} shopId={shopId} /></div>
-
-      {/* Secondary customer information */}
-      <div className="mt-6 grid items-start gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.85fr)]">
-        <div className="space-y-5">
-          {/* Offers */}
-          <OffersWidget totalVisits={totalVisits} active={active} daysLeft={daysLeft} />
-
-          {/* Loyalty */}
-          <div id="loyalty" className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`grid h-12 w-12 place-items-center rounded-xl border border-neutral-200 ${loyaltyLevel.bg}`}>
-                  <LoyaltyIcon className={`h-6 w-6 ${loyaltyLevel.tone}`} />
-                </div>
-                <div>
-                  <p className="font-bold text-neutral-950">{t('cust.loyalty')}: {loyaltyLevel.label}</p>
-                  <p className="text-xs text-neutral-500">{t('cust.totalVisits')} {totalVisits} {t('cust.visits')}</p>
-                </div>
-              </div>
-              <div className="text-left">
-                <p className="font-display text-2xl font-extrabold text-neutral-950">{totalVisits}</p>
-                <p className="text-[11px] font-bold text-neutral-500">{t('cust.haircuts')}</p>
-              </div>
+              ))}
             </div>
-            <div className="mt-4 grid grid-cols-4 gap-1.5">
-              {[
-                { min: 0, label: t('cust.level.new') },
-                { min: 5, label: t('cust.level.bronze') },
-                { min: 10, label: t('cust.level.silver') },
-                { min: 20, label: t('cust.level.gold') },
-              ].map((lvl, i) => {
-                const reached = totalVisits >= lvl.min;
-                return (
-                  <div key={lvl.label}
-                    className={`rounded-lg py-2 text-center text-[11px] font-bold transition ${
-                      reached ? 'bg-neutral-950 text-white' : 'bg-neutral-100 text-neutral-400'
-                    }`}>
-                    {lvl.label}{i < 3 && <span className="mr-1 text-neutral-500">›</span>}
+
+            {/* Subscription Status Card */}
+            <section className="card overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 bg-stone-50/50 px-5 py-4">
+                <div className="flex items-center gap-2.5">
+                  {active ? (
+                    <CheckCircle2 className="h-5 w-5 text-emerald-700" />
+                  ) : (
+                    <XCircle className="h-5 w-5 text-stone-400" />
+                  )}
+                  <div>
+                    <h2 className="font-display text-base font-extrabold text-stone-900">
+                      {active ? t('cust.subActive') : t('cust.subInactive')}
+                    </h2>
+                    <p className="mt-0.5 text-xs text-stone-500">
+                      {active
+                        ? `${sub?.plan?.name ?? ''} — ${t('cust.subEnds')} ${formatDate(
+                            sub?.end_date ?? ''
+                          )}`
+                        : t('cust.subAskBarber')}
+                    </p>
                   </div>
-                );
-              })}
-            </div>
-          </div>
+                </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-neutral-200 bg-white p-3 text-center shadow-sm">
-              <CalendarCheck className="mx-auto h-5 w-5 text-neutral-900" />
-              <p className="mt-1 font-display text-xl font-extrabold text-neutral-950">{subscriptionVisits}</p>
-              <p className="text-[11px] font-bold text-neutral-500">{t('cust.subVisits')}</p>
-            </div>
-            <div className="rounded-2xl border border-neutral-200 bg-white p-3 text-center shadow-sm">
-              <Scissors className="mx-auto h-5 w-5 text-neutral-900" />
-              <p className="mt-1 font-display text-xl font-extrabold text-neutral-950">{visits.length - subscriptionVisits}</p>
-              <p className="text-[11px] font-bold text-neutral-500">{t('cust.regVisits')}</p>
-            </div>
-            <div className="rounded-2xl border border-neutral-200 bg-white p-3 text-center shadow-sm">
-              <Coins className="mx-auto h-5 w-5 text-neutral-900" />
-              <p className="mt-1 font-display text-xl font-extrabold text-neutral-950">{formatPrice(totalPaid)}</p>
-              <p className="text-[11px] font-bold text-neutral-500">{t('cust.totalPaid')}</p>
-            </div>
-          </div>
+                <button
+                  type="button"
+                  onClick={() => setTab('booking')}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-stone-900 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-stone-800"
+                >
+                  <Calendar className="h-3.5 w-3.5" />
+                  {L ? 'احجز موعدك' : 'Book Appointment'}
+                </button>
+              </div>
 
-          {/* Plans & Services with full description */}
-          {packageItems.length > 0 && (
-            <div id="plans" className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-              <h3 className="mb-3 font-bold text-neutral-950">{t('cust.plansTitle')}</h3>
-              <div className="space-y-2.5">
-                {packageItems.map((p) => (
-                  <div key={p.id} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3.5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-bold text-neutral-900">{p.name}</p>
-                        <p className="mt-0.5 text-xs text-neutral-500">
-                          {p.haircut_count} {t('cust.haircuts')} • {p.duration_days} {t('home.days')}
+              <div className="bg-white p-5">
+                {active && sub ? (
+                  <div className="space-y-4">
+                    {sub.plan?.description && (
+                      <p className="whitespace-pre-line rounded-xl border border-stone-200 bg-stone-50 p-3.5 text-xs leading-relaxed text-stone-700">
+                        {sub.plan.description}
+                      </p>
+                    )}
+
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3.5">
+                        <p className="text-xs font-bold text-stone-500">{t('cust.used')}</p>
+                        <p className="mt-1 font-display text-xl font-extrabold text-stone-900">
+                          {sub.haircuts_used} / {sub.plan?.haircut_count}
                         </p>
                       </div>
-                      <span className="shrink-0 font-bold text-neutral-950">{formatPrice(p.price)}</span>
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3.5">
+                        <p className="text-xs font-bold text-emerald-800">{t('cust.remainingIn')}</p>
+                        <p className="mt-1 font-display text-xl font-extrabold text-emerald-700">
+                          {remaining} {t('cust.haircuts')}
+                        </p>
+                      </div>
+                      <div
+                        className={`rounded-xl border p-3.5 ${
+                          daysLeft <= 3
+                            ? 'border-red-200 bg-red-50/60'
+                            : daysLeft <= 7
+                            ? 'border-amber-200 bg-amber-50/60'
+                            : 'border-stone-200 bg-stone-50/70'
+                        }`}
+                      >
+                        <p className="text-xs font-bold text-stone-500">
+                          {L ? 'حالة المدة' : 'Validity'}
+                        </p>
+                        <p
+                          className={`mt-1 text-sm font-extrabold ${
+                            daysLeft <= 3
+                              ? 'text-red-700'
+                              : daysLeft <= 7
+                              ? 'text-amber-800'
+                              : 'text-emerald-700'
+                          }`}
+                        >
+                          {daysLeft > 0
+                            ? `${t('cust.expiresIn')} ${daysLeft} ${t('cust.days')}`
+                            : t('cust.expired')}
+                        </p>
+                      </div>
                     </div>
-                    {p.description && (
-                      <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-neutral-600">
-                        {p.description}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
-          {serviceItems.length > 0 && (
-            <div id="services" className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-              <h3 className="mb-3 font-bold text-neutral-950">
-                {L ? 'الخدمات العادية المتاحة' : 'Available Services'}
-              </h3>
-              <div className="space-y-2.5">
-                {serviceItems.map((s) => (
-                  <div key={s.id} className="rounded-xl border border-neutral-200 bg-neutral-50 p-3.5">
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="font-bold text-neutral-900">{s.name}</p>
-                      <span className="shrink-0 font-bold text-neutral-950">{formatPrice(s.price)}</span>
+                    <div>
+                      <div className="mb-1.5 flex items-center justify-between text-xs font-bold text-stone-600">
+                        <span>{L ? 'نسبة استهلاك الباقة' : 'Package Progress'}</span>
+                        <span>
+                          {Math.min(
+                            100,
+                            Math.round(
+                              (sub.haircuts_used / Math.max(1, sub.plan?.haircut_count ?? 1)) * 100
+                            )
+                          )}
+                          %
+                        </span>
+                      </div>
+                      <div className="h-2.5 overflow-hidden rounded-full bg-stone-200">
+                        <div
+                          className="h-full rounded-full bg-emerald-600 transition-all duration-500"
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              (sub.haircuts_used / (sub.plan?.haircut_count ?? 1)) * 100
+                            )}%`,
+                          }}
+                        />
+                      </div>
                     </div>
-                    {s.description && (
-                      <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-neutral-600">
-                        {s.description}
-                      </p>
-                    )}
                   </div>
-                ))}
+                ) : (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50/70 p-4 text-xs text-stone-600">
+                    <span>
+                      {L
+                        ? 'يمكنك الاستفادة من باقات التوفير الشهرية والحصول على زيارات مخفضة من خلال المحل.'
+                        : 'Ask your barber about monthly saving packages.'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setTab('rewards')}
+                      className="font-extrabold text-stone-900 underline"
+                    >
+                      {L ? 'استعرض الباقات والخدمات' : 'View Plans & Services'}
+                    </button>
+                  </div>
+                )}
               </div>
+            </section>
+
+            {/* Quick Booking Widget directly accessible in Overview */}
+            <CustomerBookingSection
+              customer={customer}
+              shopId={shopId}
+              plans={plans}
+              activeSub={sub}
+              onBookingChanged={() => void loadCustomerData()}
+            />
+
+            {/* Offers & WhatsApp Consent */}
+            <OffersWidget totalVisits={totalVisits} active={active} daysLeft={daysLeft} />
+
+            <WhatsAppConsentPanel customerName={customer.name} phone={customer.phone} />
+          </div>
+        )}
+
+        {tab === 'booking' && (
+          <CustomerBookingSection
+            customer={customer}
+            shopId={shopId}
+            plans={plans}
+            activeSub={sub}
+            onBookingChanged={() => void loadCustomerData()}
+          />
+        )}
+
+        {tab === 'consultation' && (
+          <div id="hair-consultation">
+            <HairConsultation customer={customer} shopId={shopId} />
+          </div>
+        )}
+
+        {tab === 'history' && (
+          <section id="visit-history" className="card space-y-4 border-stone-200/90 bg-white p-5 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 pb-4">
+              <div>
+                <h3 className="font-display text-lg font-extrabold text-stone-900">
+                  {t('cust.history')}
+                </h3>
+                <p className="text-xs text-stone-500">
+                  {L
+                    ? 'سجل كامل بجميع زياراتك السابقة وتفاصيل الدفع والاشتراك'
+                    : 'Complete record of all your past visits'}
+                </p>
+              </div>
+              <span className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-1.5 text-xs font-extrabold text-stone-800">
+                {visits.length} {t('cust.visits')}
+              </span>
             </div>
-          )}
-        </div>
 
-        <aside className="space-y-5">
-          {/* Referral */}
-          <div id="rewards" className="scroll-mt-6"><ReferralWidget customerName={customer.name} /></div>
-
-          {/* Visit history */}
-          <div id="visit-history" className="scroll-mt-6">
-            <h3 className="mb-3 font-display text-lg font-extrabold text-neutral-950">{t('cust.history')}</h3>
             {visits.length === 0 ? (
-              <div className="rounded-2xl border border-neutral-200 bg-white p-6 text-center text-sm text-neutral-500">{t('cust.noVisits')}</div>
+              <div className="rounded-xl border border-dashed border-stone-300 p-10 text-center text-sm text-stone-500">
+                <Scissors className="mx-auto mb-2 h-8 w-8 text-stone-300" />
+                <p className="font-bold text-stone-700">{t('cust.noVisits')}</p>
+              </div>
             ) : (
-              <div className="space-y-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {visits.map((v) => (
-                  <div key={v.id} className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm">
-                    <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-neutral-200 ${
-                      v.payment_type === 'subscription' ? 'bg-neutral-950 text-white' : 'bg-neutral-100 text-neutral-900'
-                    }`}>
-                      {v.payment_type === 'subscription' ? <CheckCircle2 className="h-4 w-4" /> : <Coins className="h-4 w-4" />}
+                  <div
+                    key={v.id}
+                    className="flex items-center gap-3.5 rounded-2xl border border-stone-200 bg-stone-50/70 p-4 transition hover:border-stone-300 hover:bg-white"
+                  >
+                    <div
+                      className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
+                        v.payment_type === 'subscription'
+                          ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+                          : 'bg-stone-900 text-white'
+                      }`}
+                    >
+                      {v.payment_type === 'subscription' ? (
+                        <CheckCircle2 className="h-5 w-5" />
+                      ) : (
+                        <Coins className="h-5 w-5" />
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-neutral-900">{v.haircut_type ?? t('cust.haircut')}</p>
-                      <p className="flex items-center gap-1 text-xs text-neutral-500">
-                        <Clock className="h-3 w-3" /> {formatDateTime(v.visit_date)}
+                      <p className="truncate text-sm font-extrabold text-stone-900">
+                        {v.haircut_type ?? t('cust.haircut')}
+                      </p>
+                      <p className="mt-0.5 flex items-center gap-1 text-xs text-stone-500">
+                        <Clock className="h-3.5 w-3.5 text-stone-400" />{' '}
+                        {formatDateTime(v.visit_date)}
                       </p>
                     </div>
                     {v.payment_type === 'subscription' ? (
-                      <span className="badge bg-neutral-950 text-white">{t('cust.subscription')}</span>
+                      <span className="badge bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
+                        {t('cust.subscription')}
+                      </span>
                     ) : (
-                      <span className="font-bold text-neutral-950">{formatPrice(Number(v.charge_amount))}</span>
+                      <span className="font-display text-sm font-extrabold text-stone-900">
+                        {formatPrice(Number(v.charge_amount))}
+                      </span>
                     )}
                   </div>
                 ))}
               </div>
             )}
-          </div>
-        </aside>
-      </div>
+          </section>
+        )}
 
-      <nav aria-label={L ? 'تنقل صفحة العميل' : 'Customer navigation'} className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-200 bg-white/95 px-3 pb-[max(env(safe-area-inset-bottom),10px)] pt-2 shadow-sm backdrop-blur-xl md:hidden">
-        <div className="mx-auto grid max-w-md grid-cols-4 gap-1">
-          <button type="button" onClick={() => document.getElementById('customer-top')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-neutral-800 hover:bg-neutral-100">
-            <Store className="h-5 w-5" />{L ? 'الرئيسية' : 'Home'}
-          </button>
-          <button type="button" onClick={() => document.getElementById('customer-booking')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-neutral-800 hover:bg-neutral-100">
-            <Calendar className="h-5 w-5" />{L ? 'الحجز' : 'Book'}
-          </button>
-          <button type="button" onClick={() => document.getElementById('visit-history')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-neutral-800 hover:bg-neutral-100">
-            <CalendarCheck className="h-5 w-5" />{L ? 'زياراتي' : 'Visits'}
-          </button>
-          <button type="button" onClick={() => document.getElementById('rewards')?.scrollIntoView({ behavior: 'smooth' })} className="flex flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold text-neutral-800 hover:bg-neutral-100">
-            <Gift className="h-5 w-5" />{L ? 'المكافآت' : 'Rewards'}
-          </button>
+        {tab === 'rewards' && (
+          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.9fr)]">
+            <div className="space-y-6">
+              {/* Loyalty Progress Card */}
+              <div id="loyalty" className="card border-stone-200/90 bg-white p-5 sm:p-6">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3.5">
+                    <div
+                      className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl border ${loyaltyLevel.bg}`}
+                    >
+                      <LoyaltyIcon className={`h-6 w-6 ${loyaltyLevel.tone}`} />
+                    </div>
+                    <div>
+                      <p className="font-display text-base font-extrabold text-stone-900">
+                        {t('cust.loyalty')}: {loyaltyLevel.label}
+                      </p>
+                      <p className="text-xs text-stone-500">
+                        {t('cust.totalVisits')} {totalVisits} {t('cust.visits')}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-left">
+                    <p className="font-display text-2xl font-extrabold text-stone-900">
+                      {totalVisits}
+                    </p>
+                    <p className="text-[11px] font-bold text-stone-500">{t('cust.haircuts')}</p>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-4 gap-2">
+                  {[
+                    { min: 0, label: t('cust.level.new') },
+                    { min: 5, label: t('cust.level.bronze') },
+                    { min: 10, label: t('cust.level.silver') },
+                    { min: 20, label: t('cust.level.gold') },
+                  ].map((lvl, i) => {
+                    const reached = totalVisits >= lvl.min;
+                    return (
+                      <div
+                        key={lvl.label}
+                        className={`rounded-xl py-2.5 text-center text-xs font-extrabold transition ${
+                          reached
+                            ? 'bg-stone-900 text-white shadow-2xs'
+                            : 'border border-stone-200 bg-stone-50 text-stone-400'
+                        }`}
+                      >
+                        {lvl.label}
+                        {i < 3 && <span className="mr-1 opacity-40">›</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Offers */}
+              <OffersWidget totalVisits={totalVisits} active={active} daysLeft={daysLeft} />
+
+              {/* Available Packages */}
+              {packageItems.length > 0 && (
+                <div id="plans" className="card border-stone-200/90 bg-white p-5 sm:p-6">
+                  <div className="mb-4 flex items-center gap-2">
+                    <Layers className="h-5 w-5 text-stone-800" />
+                    <h3 className="font-display text-base font-extrabold text-stone-900">
+                      {t('cust.plansTitle')}
+                    </h3>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {packageItems.map((p) => (
+                      <div
+                        key={p.id}
+                        className="flex flex-col justify-between rounded-2xl border border-stone-200 bg-stone-50/70 p-4"
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="font-extrabold text-stone-900">{p.name}</p>
+                            <span className="shrink-0 rounded-lg bg-stone-900 px-2.5 py-1 text-xs font-extrabold text-white">
+                              {formatPrice(p.price)}
+                            </span>
+                          </div>
+                          <p className="mt-1.5 text-xs font-bold text-emerald-700">
+                            {p.haircut_count} {t('cust.haircuts')} • {p.duration_days}{' '}
+                            {t('home.days')}
+                          </p>
+                          {p.description && (
+                            <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-stone-600">
+                              {p.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Regular Services */}
+              {serviceItems.length > 0 && (
+                <div id="services" className="card border-stone-200/90 bg-white p-5 sm:p-6">
+                  <div className="mb-4 flex items-center gap-2">
+                    <Scissors className="h-5 w-5 text-stone-800" />
+                    <h3 className="font-display text-base font-extrabold text-stone-900">
+                      {L ? 'الخدمات العادية المتاحة' : 'Available Services'}
+                    </h3>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {serviceItems.map((s) => (
+                      <div
+                        key={s.id}
+                        className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="font-extrabold text-stone-900">{s.name}</p>
+                          <span className="shrink-0 font-display text-sm font-extrabold text-stone-900">
+                            {formatPrice(s.price)}
+                          </span>
+                        </div>
+                        {s.description && (
+                          <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-stone-600">
+                            {s.description}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <aside id="rewards" className="space-y-5">
+              <ReferralWidget customerName={customer.name} />
+            </aside>
+          </div>
+        )}
+      </main>
+
+      {/* Mobile Bottom Navigation synced with tabs */}
+      <nav
+        aria-label={L ? 'تنقل صفحة العميل' : 'Customer navigation'}
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-white/95 px-2 pb-[max(env(safe-area-inset-bottom),10px)] pt-2 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] backdrop-blur-xl md:hidden"
+      >
+        <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
+          {tabs.map((item) => {
+            const isActive = tab === item.k;
+            return (
+              <button
+                key={item.k}
+                type="button"
+                onClick={() => {
+                  setTab(item.k);
+                  document.getElementById('customer-top')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className={`flex flex-col items-center gap-1 rounded-xl px-1.5 py-1.5 text-[10px] font-bold transition ${
+                  isActive ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-100'
+                }`}
+              >
+                <item.icon className="h-4 w-4" />
+                <span className="truncate">{item.label.split(' ')[0]}</span>
+              </button>
+            );
+          })}
         </div>
       </nav>
     </div>
