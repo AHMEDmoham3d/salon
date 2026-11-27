@@ -260,6 +260,205 @@ function SectionTitle({
   );
 }
 
+/* ---------- Services showcase (friendly cards, not a menu) ---------- */
+const SERVICE_ICONS = [Scissors, Sparkles, Zap, Crown, Medal, Award];
+
+function ServiceCard({
+  service,
+  index,
+  onBook,
+  compact,
+}: {
+  service: Plan;
+  index: number;
+  onBook: (planId: string) => void;
+  compact?: boolean;
+}) {
+  const { lang } = useI18n();
+  const L = lang === 'ar';
+  const Icon = SERVICE_ICONS[index % SERVICE_ICONS.length];
+
+  return (
+    <div
+      className={`group relative flex flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-sm ${
+        compact ? 'w-[76%] shrink-0 snap-start sm:w-64 lg:w-auto' : ''
+      }`}
+    >
+      <div className="pointer-events-none absolute -left-8 -top-8 h-24 w-24 rounded-full bg-stone-100 transition group-hover:bg-emerald-50" />
+      <div className="relative flex items-start justify-between gap-2">
+        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-stone-900 text-white shadow-2xs transition group-hover:scale-105">
+          <Icon className="h-5 w-5" />
+        </div>
+        <span className="rounded-full bg-emerald-50 px-3 py-1 font-display text-sm font-extrabold text-emerald-800 ring-1 ring-emerald-200">
+          {formatPrice(Number(service.price))}
+        </span>
+      </div>
+
+      <div className="relative mt-3 min-w-0 flex-1">
+        <p className="truncate font-display text-base font-extrabold text-stone-900">
+          {service.name}
+        </p>
+        {service.description ? (
+          <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs leading-relaxed text-stone-500">
+            {service.description}
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-stone-400">
+            {L ? 'احجز الآن واستمتع بخدمة احترافية' : 'Book now and enjoy a pro service'}
+          </p>
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onBook(service.id)}
+        className="relative mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-xs font-extrabold text-stone-900 transition group-hover:border-stone-900 group-hover:bg-stone-900 group-hover:text-white"
+      >
+        <Calendar className="h-3.5 w-3.5" />
+        {L ? 'احجز هذه الخدمة' : 'Book this service'}
+        <ChevronLeft className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
+function ServicesShowcase({
+  services,
+  onBook,
+  onViewAll,
+  variant,
+}: {
+  services: Plan[];
+  onBook: (planId: string) => void;
+  onViewAll?: () => void;
+  variant: 'carousel' | 'grid';
+}) {
+  const { lang } = useI18n();
+  const L = lang === 'ar';
+
+  if (services.length === 0) return null;
+
+  return (
+    <section id="services" className="space-y-3.5">
+      <SectionTitle
+        icon={<Scissors className="h-4 w-4" />}
+        title={L ? 'الخدمات العادية المتاحة' : 'Available Services'}
+        subtitle={
+          L ? 'اختار الخدمة اللي تناسبك واحجزها في ثواني' : 'Pick a service and book it in seconds'
+        }
+        action={
+          <div className="flex items-center gap-2">
+            <span className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-0.5 text-[11px] font-bold text-stone-700">
+              {services.length}
+            </span>
+            {onViewAll && (
+              <button
+                type="button"
+                onClick={onViewAll}
+                className="text-xs font-extrabold text-stone-700 underline hover:text-stone-900"
+              >
+                {L ? 'عرض الكل' : 'View all'}
+              </button>
+            )}
+          </div>
+        }
+      />
+
+      {variant === 'carousel' ? (
+        <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0 lg:grid lg:snap-none lg:grid-cols-3 lg:overflow-visible lg:pb-0 xl:grid-cols-4">
+          {services.map((s, i) => (
+            <ServiceCard key={s.id} service={s} index={i} onBook={onBook} compact />
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {services.map((s, i) => (
+            <ServiceCard key={s.id} service={s} index={i} onBook={onBook} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* ---------- Packages showcase ---------- */
+function PackagesShowcase({
+  packages,
+  onBook,
+}: {
+  packages: Plan[];
+  onBook: (planId: string) => void;
+}) {
+  const { t, lang } = useI18n();
+  const L = lang === 'ar';
+
+  if (packages.length === 0) return null;
+
+  return (
+    <section id="plans" className="space-y-3.5">
+      <SectionTitle
+        icon={<Layers className="h-4 w-4" />}
+        title={t('cust.plansTitle')}
+        subtitle={L ? 'وفّر أكتر مع الباقات والاشتراكات' : 'Save more with packages & subscriptions'}
+        action={
+          <span className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-0.5 text-[11px] font-bold text-stone-700">
+            {packages.length}
+          </span>
+        }
+      />
+      <div className="grid gap-3 sm:grid-cols-2">
+        {packages.map((p) => (
+          <div
+            key={p.id}
+            className="group flex flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white transition duration-200 hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-sm"
+          >
+            <div className="flex items-center justify-between gap-3 bg-stone-900 px-4 py-3.5 text-white">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/10 text-emerald-400">
+                  <Layers className="h-4 w-4" />
+                </div>
+                <p className="truncate font-display text-sm font-extrabold">{p.name}</p>
+              </div>
+              <span className="shrink-0 rounded-lg bg-white px-2.5 py-1 font-display text-sm font-extrabold text-stone-900">
+                {formatPrice(p.price)}
+              </span>
+            </div>
+
+            <div className="flex flex-1 flex-col gap-3 p-4">
+              <div className="flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-extrabold text-emerald-800 ring-1 ring-emerald-200">
+                  <Scissors className="h-3 w-3" />
+                  {p.haircut_count} {t('cust.haircuts')}
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2.5 py-1 text-[11px] font-extrabold text-stone-700 ring-1 ring-stone-200">
+                  <Clock className="h-3 w-3" />
+                  {p.duration_days} {t('home.days')}
+                </span>
+              </div>
+
+              {p.description && (
+                <p className="whitespace-pre-line text-xs leading-relaxed text-stone-600">
+                  {p.description}
+                </p>
+              )}
+
+              <button
+                type="button"
+                onClick={() => onBook(p.id)}
+                className="mt-auto inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-xs font-extrabold text-stone-900 transition group-hover:border-stone-900 group-hover:bg-stone-900 group-hover:text-white"
+              >
+                <Ticket className="h-3.5 w-3.5" />
+                {L ? 'احجز بالباقة' : 'Book with Plan'}
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 /* ---------- Smart login ---------- */
 function ShopSelect({
   onLogin,
@@ -495,12 +694,16 @@ function CustomerBookingSection({
   shopId,
   plans,
   activeSub,
+  selectedPlanId,
+  onPlanChange,
   onBookingChanged,
 }: {
   customer: Customer;
   shopId: string;
   plans: Plan[];
   activeSub: Subscription | null;
+  selectedPlanId: string;
+  onPlanChange: (planId: string) => void;
   onBookingChanged: () => void;
 }) {
   const dates = getUpcomingDates(7);
@@ -512,7 +715,6 @@ function CustomerBookingSection({
 
   const [slots, setSlots] = useState<SmartSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<string>('');
-  const [selectedPlanId, setSelectedPlanId] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [bookings, setBookings] = useState<CustomerBookingRow[]>([]);
   const [trust, setTrust] = useState<CustomerBookingTrust | null>(null);
@@ -1027,7 +1229,7 @@ function CustomerBookingSection({
                   <label className="label">3. الخدمة أو الباقة</label>
                   <select
                     value={selectedPlanId}
-                    onChange={(e) => setSelectedPlanId(e.target.value)}
+                    onChange={(e) => onPlanChange(e.target.value)}
                     className="input bg-white"
                   >
                     <option value="">
@@ -2056,6 +2258,7 @@ function CustomerDetail({
   const [shop, setShop] = useState<Shop | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [bookingPlanId, setBookingPlanId] = useState<string>('');
 
   const loadCustomerData = useCallback(async () => {
     setLoading(true);
@@ -2234,6 +2437,11 @@ function CustomerDetail({
     document.getElementById('customer-top')?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const bookPlan = (planId: string) => {
+    setBookingPlanId(planId);
+    switchTab('booking');
+  };
+
   return (
     <div
       id="customer-top"
@@ -2371,6 +2579,14 @@ function CustomerDetail({
       <main key={tab} className="animate-fade-in min-w-0 space-y-6">
         {tab === 'overview' && (
           <div className="space-y-6 md:space-y-8">
+            {/* Services showcase - first thing the customer sees */}
+            <ServicesShowcase
+              services={serviceItems}
+              onBook={bookPlan}
+              onViewAll={() => switchTab('rewards')}
+              variant="carousel"
+            />
+
             {/* Top 4 Interactive KPI Cards */}
             <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
               {operationalCards.map((c) => (
@@ -2666,7 +2882,7 @@ function CustomerDetail({
             {/* Quick Booking Widget directly accessible in Overview */}
             <section className="space-y-4">
               <SectionTitle
-                icon={<Calendar className="h-4.5 w-4.5" />}
+                icon={<Calendar className="h-4 w-4" />}
                 title={L ? 'احجز موعدك بسرعة' : 'Quick Booking'}
                 subtitle={
                   L ? 'اختر الوقت المناسب واحجز بدون الخروج من صفحتك' : 'Pick a time and book instantly'
@@ -2677,6 +2893,8 @@ function CustomerDetail({
                 shopId={shopId}
                 plans={plans}
                 activeSub={sub}
+                selectedPlanId={bookingPlanId}
+                onPlanChange={setBookingPlanId}
                 onBookingChanged={() => void loadCustomerData()}
               />
             </section>
@@ -2703,6 +2921,8 @@ function CustomerDetail({
             shopId={shopId}
             plans={plans}
             activeSub={sub}
+            selectedPlanId={bookingPlanId}
+            onPlanChange={setBookingPlanId}
             onBookingChanged={() => void loadCustomerData()}
           />
         )}
@@ -2795,7 +3015,13 @@ function CustomerDetail({
 
         {tab === 'rewards' && (
           <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.9fr)]">
-            <div className="min-w-0 space-y-6">
+            <div className="min-w-0 space-y-6 md:space-y-8">
+              {/* Regular Services first */}
+              <ServicesShowcase services={serviceItems} onBook={bookPlan} variant="grid" />
+
+              {/* Available Packages & Subscriptions */}
+              <PackagesShowcase packages={packageItems} onBook={bookPlan} />
+
               {/* Loyalty Progress Card */}
               <div id="loyalty" className="card border-stone-200/90 bg-white p-4 sm:p-6">
                 <div className="flex items-center justify-between gap-3">
@@ -2853,85 +3079,6 @@ function CustomerDetail({
                 daysLeft={daysLeft}
                 onActionClick={() => switchTab('booking')}
               />
-
-              {/* Available Packages */}
-              {packageItems.length > 0 && (
-                <div id="plans" className="card border-stone-200/90 bg-white p-4 sm:p-6">
-                  <div className="mb-4 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Layers className="h-5 w-5 text-stone-800" />
-                      <h3 className="font-display text-base font-extrabold text-stone-900">
-                        {t('cust.plansTitle')}
-                      </h3>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => switchTab('booking')}
-                      className="shrink-0 text-xs font-extrabold text-stone-700 underline hover:text-stone-900"
-                    >
-                      {L ? 'احجز بالباقة' : 'Book with Plan'}
-                    </button>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {packageItems.map((p) => (
-                      <div
-                        key={p.id}
-                        className="flex flex-col justify-between rounded-2xl border border-stone-200 bg-stone-50/70 p-4"
-                      >
-                        <div>
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="font-extrabold text-stone-900">{p.name}</p>
-                            <span className="shrink-0 rounded-lg bg-stone-900 px-2.5 py-1 text-xs font-extrabold text-white">
-                              {formatPrice(p.price)}
-                            </span>
-                          </div>
-                          <p className="mt-1.5 text-xs font-bold text-emerald-700">
-                            {p.haircut_count} {t('cust.haircuts')} • {p.duration_days}{' '}
-                            {t('home.days')}
-                          </p>
-                          {p.description && (
-                            <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-stone-600">
-                              {p.description}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Regular Services */}
-              {serviceItems.length > 0 && (
-                <div id="services" className="card border-stone-200/90 bg-white p-4 sm:p-6">
-                  <div className="mb-4 flex items-center gap-2">
-                    <Scissors className="h-5 w-5 text-stone-800" />
-                    <h3 className="font-display text-base font-extrabold text-stone-900">
-                      {L ? 'الخدمات العادية المتاحة' : 'Available Services'}
-                    </h3>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {serviceItems.map((s) => (
-                      <div
-                        key={s.id}
-                        className="rounded-2xl border border-stone-200 bg-stone-50/70 p-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <p className="font-extrabold text-stone-900">{s.name}</p>
-                          <span className="shrink-0 font-display text-sm font-extrabold text-stone-900">
-                            {formatPrice(s.price)}
-                          </span>
-                        </div>
-                        {s.description && (
-                          <p className="mt-2 whitespace-pre-line text-xs leading-relaxed text-stone-600">
-                            {s.description}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
             <aside id="rewards" className="min-w-0 space-y-5 lg:sticky lg:top-20">
