@@ -450,9 +450,9 @@ function bookingStatusBadge(status: Booking['status']): { label: string; cls: st
     case 'confirmed':
       return { label: 'مؤكد', cls: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' };
     case 'pending':
-      return { label: 'بانتظار تأكيد المحل', cls: 'bg-amber-50 text-amber-800 ring-1 ring-amber-200' };
+      return { label: 'بانتظار تأكيد المحل', cls: 'bg-stone-100 text-stone-800 ring-1 ring-stone-200' };
     case 'completed':
-      return { label: 'تم الحضور والزيارة', cls: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200' };
+      return { label: 'تم الحضور والزيارة', cls: 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200' };
     case 'cancelled':
       return { label: 'ملغي', cls: 'bg-stone-100 text-stone-600' };
     case 'no_show':
@@ -669,6 +669,11 @@ function CustomerBookingSection({
   const barberMap = new Map(barbers.map((b) => [b.id, b]));
   const branchMap = new Map(branches.map((b) => [b.id, b]));
 
+  const selectedSlotObj = useMemo(
+    () => slots.find((s) => s.start_at === selectedSlot) ?? null,
+    [slots, selectedSlot]
+  );
+
   const handleBook = async () => {
     if (!selectedSlot) {
       setFeedback({ type: 'err', text: 'اختر ميعادًا متاحًا أولًا.' });
@@ -785,325 +790,366 @@ function CustomerBookingSection({
 
   return (
     <div id="customer-booking" className="scroll-mt-6 space-y-5">
-      <div className="card border-stone-200/90 bg-white p-5 sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-stone-100 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-stone-900 text-white">
-              <Calendar className="h-5 w-5" />
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(290px,0.85fr)]">
+        {/* Booking steps card */}
+        <div className="card border-stone-200/90 bg-white p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-stone-100 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-stone-900 text-white">
+                <Calendar className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-display text-lg font-extrabold text-stone-900">
+                  احجز موعدك الآن
+                </h3>
+                <p className="text-xs text-stone-500">
+                  اختر اليوم والوقت المتاح واحصل على رقم حجز خاص بك فورًا
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-display text-lg font-extrabold text-stone-900">
-                احجز موعدك الآن
-              </h3>
-              <p className="text-xs text-stone-500">
-                اختر اليوم والوقت المتاح واحصل على رقم حجز خاص بك فورًا
-              </p>
-            </div>
+
+            {trust && (
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold ${
+                  trust.isTrusted
+                    ? 'border border-emerald-200 bg-emerald-50 text-emerald-800'
+                    : 'border border-stone-200 bg-stone-100 text-stone-800'
+                }`}
+              >
+                <ShieldCheck className="h-3.5 w-3.5" />
+                {trust.trustBadge}
+              </span>
+            )}
           </div>
 
-          {trust && (
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold ${
-                trust.isTrusted
-                  ? 'border border-emerald-200 bg-emerald-50 text-emerald-800'
-                  : 'border border-amber-200 bg-amber-50 text-amber-800'
-              }`}
-            >
-              <ShieldCheck className="h-3.5 w-3.5" />
-              {trust.trustBadge}
-            </span>
+          {trust && !trust.canBook ? (
+            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700">
+              {trust.blockReason}
+            </div>
+          ) : (
+            <div className="mt-5 space-y-5">
+              {branches.length > 1 && (
+                <div>
+                  <label className="label flex items-center gap-1.5">
+                    <GitBranch className="h-3.5 w-3.5 text-stone-600" />
+                    <span>اختر الفرع</span>
+                  </label>
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    {branches.map((br) => {
+                      const activeBranch = selectedBranchId === br.id;
+                      return (
+                        <button
+                          key={br.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedBranchId(br.id);
+                            setSelectedBarberId('any');
+                          }}
+                          className={`rounded-xl border p-3.5 text-right transition ${
+                            activeBranch
+                              ? 'border-stone-900 bg-stone-900 text-white shadow-2xs'
+                              : 'border-stone-200 bg-stone-50/70 text-stone-800 hover:border-stone-300 hover:bg-white'
+                          }`}
+                        >
+                          <p className="text-xs font-extrabold">{br.name}</p>
+                          {br.address && (
+                            <p
+                              className={`mt-0.5 text-[11px] ${
+                                activeBranch ? 'text-stone-300' : 'text-stone-500'
+                              }`}
+                            >
+                              {br.address}
+                            </p>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {branchBarbers.length > 1 && (
+                <div>
+                  <label className="label flex items-center gap-1.5">
+                    <UserCheck className="h-3.5 w-3.5 text-stone-600" />
+                    <span>اختر الحلاق / الكرسي</span>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedBarberId('any')}
+                      className={`rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
+                        selectedBarberId === 'any'
+                          ? 'border-stone-900 bg-stone-900 text-white'
+                          : 'border-stone-200 bg-stone-50/70 text-stone-700 hover:bg-white'
+                      }`}
+                    >
+                      أقرب حلاق متاح ({branchBarbers.length})
+                    </button>
+                    {branchBarbers.map((barber) => {
+                      const activeBarber = selectedBarberId === barber.id;
+                      return (
+                        <button
+                          key={barber.id}
+                          type="button"
+                          onClick={() => setSelectedBarberId(barber.id)}
+                          className={`rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
+                            activeBarber
+                              ? 'border-stone-900 bg-stone-900 text-white'
+                              : 'border-stone-200 bg-stone-50/70 text-stone-700 hover:bg-white'
+                          }`}
+                        >
+                          {barber.name}
+                          {barber.chair_label ? ` (${barber.chair_label})` : ''}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="label">1. اختر اليوم</label>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {dates.map((d) => {
+                    const activeDay = selectedDate === d.value;
+                    return (
+                      <button
+                        key={d.value}
+                        type="button"
+                        onClick={() => setSelectedDate(d.value)}
+                        className={`shrink-0 rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
+                          activeDay
+                            ? 'border-stone-900 bg-stone-900 text-white shadow-2xs'
+                            : 'border-stone-200 bg-stone-50/70 text-stone-700 hover:border-stone-300 hover:bg-white'
+                        }`}
+                      >
+                        {d.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="label mb-0">
+                    2. اختر الوقت المتاح (المواعيد المحجوزة بالكامل مغلقة)
+                  </label>
+                  {loadingSlots && <Loader2 className="h-4 w-4 animate-spin text-stone-400" />}
+                </div>
+
+                {branchBarbers.length === 0 ? (
+                  <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 text-center text-xs font-bold text-stone-700">
+                    جميع الحلاقين في إجازة حاليًا. يرجى المحاولة لاحقًا أو اختيار فرع آخر.
+                  </div>
+                ) : loadingSlots ? (
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {[1, 2, 3, 4].map((n) => (
+                      <div key={n} className="h-11 animate-shimmer rounded-xl" />
+                    ))}
+                  </div>
+                ) : slots.every((s) => !s.available) ? (
+                  <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 text-center text-xs font-bold text-stone-500">
+                    جميع الكراسي محجوزة في هذا اليوم. جرّب يومًا آخر.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                    {slots.map((slot) => {
+                      const isSelected = selectedSlot === slot.start_at && slot.available;
+                      return (
+                        <button
+                          key={slot.start_at}
+                          type="button"
+                          disabled={!slot.available}
+                          onClick={() => setSelectedSlot(slot.start_at)}
+                          className={`rounded-xl border px-3 py-2.5 text-center text-xs font-bold transition ${
+                            !slot.available
+                              ? 'cursor-not-allowed border-stone-200 bg-stone-100 text-stone-400 line-through'
+                              : isSelected
+                              ? 'border-stone-900 bg-stone-900 text-white shadow-2xs'
+                              : 'border-stone-200 bg-white text-stone-800 hover:border-stone-300 hover:bg-stone-50'
+                          }`}
+                        >
+                          <div>{slot.label}</div>
+                          {slot.available &&
+                            branchBarbers.length > 1 &&
+                            selectedBarberId === 'any' && (
+                              <div
+                                className={`mt-0.5 text-[10px] ${
+                                  isSelected ? 'text-emerald-300' : 'text-emerald-700'
+                                }`}
+                              >
+                                متاح {slot.freeChairsCount} كرسي
+                              </div>
+                            )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="label">3. الخدمة أو الباقة</label>
+                  <select
+                    value={selectedPlanId}
+                    onChange={(e) => setSelectedPlanId(e.target.value)}
+                    className="input bg-white"
+                  >
+                    <option value="">
+                      {hasSub && activeSub?.plan
+                        ? `حلاقة ضمن باقتي النشطة (${activeSub.plan.name})`
+                        : 'حلاقة عادية'}
+                    </option>
+                    {plans.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({formatPrice(Number(p.price))})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="label">ملاحظات للحلاق (اختياري)</label>
+                  <input
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="مثال: تدرج متوسط + تهذيب لحية"
+                    className="input bg-white"
+                  />
+                </div>
+              </div>
+
+              {feedback && (
+                <div
+                  className={`rounded-xl border p-3.5 text-xs font-bold ${
+                    feedback.type === 'ok'
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                      : 'border-red-200 bg-red-50 text-red-700'
+                  }`}
+                >
+                  {feedback.text}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => void handleBook()}
+                disabled={submitting || !selectedSlot}
+                className="btn-primary w-full disabled:opacity-50"
+              >
+                {submitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Ticket className="h-4 w-4" />
+                )}
+                {submitting ? 'جارٍ تأكيد الحجز...' : 'تأكيد الحجز وإصدار رقم الحجز'}
+              </button>
+            </div>
           )}
         </div>
 
-        {trust && !trust.canBook ? (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-xs font-bold text-red-700">
-            {trust.blockReason}
+        {/* Sticky Live Booking Summary & Active Bookings */}
+        <aside className="space-y-4 lg:sticky lg:top-5">
+          <div className="card border-stone-200/90 bg-stone-50/70 p-4 sm:p-5">
+            <p className="text-xs font-extrabold text-stone-900">ملخص الحجز المختار</p>
+            <div className="mt-3 space-y-2 rounded-xl border border-stone-200 bg-white p-3.5 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-stone-500">الخدمة</span>
+                <span className="font-extrabold text-stone-900">{serviceName}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-stone-500">التاريخ</span>
+                <span className="font-bold text-stone-800">{formatDate(selectedDate)}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-stone-500">الوقت</span>
+                <span className="font-bold text-stone-800">
+                  {selectedSlotObj ? selectedSlotObj.label : 'لم يُحدد بعد'}
+                </span>
+              </div>
+              {branches.length > 0 && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-stone-500">الفرع</span>
+                  <span className="font-bold text-stone-800">
+                    {branchMap.get(selectedBranchId || branches[0]?.id)?.name ?? '—'}
+                  </span>
+                </div>
+              )}
+              {branchBarbers.length > 0 && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-stone-500">الحلاق</span>
+                  <span className="font-bold text-stone-800">
+                    {selectedBarberId === 'any'
+                      ? 'تلقائي (أقرب متاح)'
+                      : barberMap.get(selectedBarberId)?.name ?? '—'}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
-        ) : (
-          <div className="mt-5 space-y-5">
-            {branches.length > 1 && (
-              <div>
-                <label className="label flex items-center gap-1.5">
-                  <GitBranch className="h-3.5 w-3.5 text-stone-600" />
-                  <span>اختر الفرع</span>
-                </label>
-                <div className="grid gap-2.5 sm:grid-cols-2">
-                  {branches.map((br) => {
-                    const activeBranch = selectedBranchId === br.id;
-                    return (
-                      <button
-                        key={br.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedBranchId(br.id);
-                          setSelectedBarberId('any');
-                        }}
-                        className={`rounded-xl border p-3.5 text-right transition ${
-                          activeBranch
-                            ? 'border-stone-900 bg-stone-900 text-white shadow-2xs'
-                            : 'border-stone-200 bg-stone-50/70 text-stone-800 hover:border-stone-300 hover:bg-white'
-                        }`}
-                      >
-                        <p className="text-xs font-extrabold">{br.name}</p>
-                        {br.address && (
-                          <p
-                            className={`mt-0.5 text-[11px] ${
-                              activeBranch ? 'text-stone-300' : 'text-stone-500'
-                            }`}
-                          >
-                            {br.address}
-                          </p>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
-            {branchBarbers.length > 1 && (
-              <div>
-                <label className="label flex items-center gap-1.5">
-                  <UserCheck className="h-3.5 w-3.5 text-stone-600" />
-                  <span>اختر الحلاق / الكرسي</span>
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedBarberId('any')}
-                    className={`rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
-                      selectedBarberId === 'any'
-                        ? 'border-stone-900 bg-stone-900 text-white'
-                        : 'border-stone-200 bg-stone-50/70 text-stone-700 hover:bg-white'
-                    }`}
-                  >
-                    أقرب حلاق متاح ({branchBarbers.length})
-                  </button>
-                  {branchBarbers.map((barber) => {
-                    const activeBarber = selectedBarberId === barber.id;
-                    return (
-                      <button
-                        key={barber.id}
-                        type="button"
-                        onClick={() => setSelectedBarberId(barber.id)}
-                        className={`rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
-                          activeBarber
-                            ? 'border-stone-900 bg-stone-900 text-white'
-                            : 'border-stone-200 bg-stone-50/70 text-stone-700 hover:bg-white'
-                        }`}
-                      >
-                        {barber.name}
-                        {barber.chair_label ? ` (${barber.chair_label})` : ''}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+          {bookings.length > 0 && (
+            <div className="card border-stone-200/90 bg-white p-4 sm:p-5">
+              <h4 className="mb-3 flex items-center justify-between font-display text-sm font-extrabold text-stone-900">
+                <span className="flex items-center gap-2">
+                  <Ticket className="h-4 w-4 text-stone-700" />
+                  حجوزاتي
+                </span>
+                <span className="rounded-lg border border-stone-200 bg-stone-50 px-2 py-0.5 text-[11px] font-bold text-stone-700">
+                  {bookings.length}
+                </span>
+              </h4>
+              <div className="max-h-96 space-y-2.5 overflow-y-auto pl-0.5">
+                {bookings.map((b) => {
+                  const badge = bookingStatusBadge(b.status);
+                  const canCancel = b.status === 'pending' || b.status === 'confirmed';
+                  const bBranch = b.branch_id ? branchMap.get(b.branch_id) : null;
+                  const bBarber = b.barber_id ? barberMap.get(b.barber_id) : null;
 
-            <div>
-              <label className="label">1. اختر اليوم</label>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {dates.map((d) => {
-                  const activeDay = selectedDate === d.value;
                   return (
-                    <button
-                      key={d.value}
-                      type="button"
-                      onClick={() => setSelectedDate(d.value)}
-                      className={`shrink-0 rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
-                        activeDay
-                          ? 'border-stone-900 bg-stone-900 text-white shadow-2xs'
-                          : 'border-stone-200 bg-stone-50/70 text-stone-700 hover:border-stone-300 hover:bg-white'
-                      }`}
+                    <div
+                      key={b.id}
+                      className="rounded-xl border border-stone-200 bg-stone-50/70 p-3.5"
                     >
-                      {d.label}
-                    </button>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="rounded-lg bg-stone-900 px-2.5 py-0.5 font-mono text-xs font-extrabold text-white">
+                          {b.booking_code}
+                        </span>
+                        <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${badge.cls}`}>
+                          {badge.label}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm font-extrabold text-stone-900">{b.service_name}</p>
+                      <p className="mt-0.5 text-xs text-stone-600">
+                        الموعد: {formatDateTime(b.start_at)}
+                        {bBranch && branches.length > 1 ? ` · الفرع: ${bBranch.name}` : ''}
+                        {bBarber ? ` · الحلاق: ${bBarber.name}` : ''}
+                      </p>
+                      {b.notes && (
+                        <p className="mt-1 text-xs text-stone-500">ملاحظة: {b.notes}</p>
+                      )}
+                      {canCancel && (
+                        <button
+                          type="button"
+                          disabled={cancellingId === b.id}
+                          onClick={() => void handleCancelBooking(b)}
+                          className="mt-2.5 inline-flex w-full items-center justify-center gap-1 rounded-xl border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {cancellingId === b.id && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                          إلغاء الحجز
+                        </button>
+                      )}
+                    </div>
                   );
                 })}
               </div>
             </div>
-
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <label className="label mb-0">
-                  2. اختر الوقت المتاح (المواعيد المحجوزة بالكامل مغلقة)
-                </label>
-                {loadingSlots && <Loader2 className="h-4 w-4 animate-spin text-stone-400" />}
-              </div>
-
-              {branchBarbers.length === 0 ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center text-xs font-bold text-amber-800">
-                  جميع الحلاقين في إجازة حاليًا. يرجى المحاولة لاحقًا أو اختيار فرع آخر.
-                </div>
-              ) : loadingSlots ? (
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {[1, 2, 3, 4].map((n) => (
-                    <div key={n} className="h-11 animate-shimmer rounded-xl" />
-                  ))}
-                </div>
-              ) : slots.every((s) => !s.available) ? (
-                <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 text-center text-xs font-bold text-stone-500">
-                  جميع الكراسي محجوزة في هذا اليوم. جرّب يومًا آخر.
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-                  {slots.map((slot) => {
-                    const isSelected = selectedSlot === slot.start_at && slot.available;
-                    return (
-                      <button
-                        key={slot.start_at}
-                        type="button"
-                        disabled={!slot.available}
-                        onClick={() => setSelectedSlot(slot.start_at)}
-                        className={`rounded-xl border px-3 py-2.5 text-center text-xs font-bold transition ${
-                          !slot.available
-                            ? 'cursor-not-allowed border-stone-200 bg-stone-100 text-stone-400 line-through'
-                            : isSelected
-                            ? 'border-stone-900 bg-stone-900 text-white shadow-2xs'
-                            : 'border-stone-200 bg-white text-stone-800 hover:border-stone-300 hover:bg-stone-50'
-                        }`}
-                      >
-                        <div>{slot.label}</div>
-                        {slot.available &&
-                          branchBarbers.length > 1 &&
-                          selectedBarberId === 'any' && (
-                            <div
-                              className={`mt-0.5 text-[10px] ${
-                                isSelected ? 'text-emerald-300' : 'text-emerald-700'
-                              }`}
-                            >
-                              متاح {slot.freeChairsCount} كرسي
-                            </div>
-                          )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="label">3. الخدمة أو الباقة</label>
-                <select
-                  value={selectedPlanId}
-                  onChange={(e) => setSelectedPlanId(e.target.value)}
-                  className="input bg-white"
-                >
-                  <option value="">
-                    {hasSub && activeSub?.plan
-                      ? `حلاقة ضمن باقتي النشطة (${activeSub.plan.name})`
-                      : 'حلاقة عادية'}
-                  </option>
-                  {plans.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({formatPrice(Number(p.price))})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="label">ملاحظات للحلاق (اختياري)</label>
-                <input
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="مثال: تدرج متوسط + تهذيب لحية"
-                  className="input bg-white"
-                />
-              </div>
-            </div>
-
-            {feedback && (
-              <div
-                className={`rounded-xl border p-3.5 text-xs font-bold ${
-                  feedback.type === 'ok'
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                    : 'border-red-200 bg-red-50 text-red-700'
-                }`}
-              >
-                {feedback.text}
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={() => void handleBook()}
-              disabled={submitting || !selectedSlot}
-              className="btn-primary w-full disabled:opacity-50"
-            >
-              {submitting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Ticket className="h-4 w-4" />
-              )}
-              {submitting ? 'جارٍ تأكيد الحجز...' : 'تأكيد الحجز وإصدار رقم الحجز'}
-            </button>
-          </div>
-        )}
+          )}
+        </aside>
       </div>
-
-      {/* Customer's bookings list */}
-      {bookings.length > 0 && (
-        <div className="card border-stone-200/90 bg-white p-5">
-          <div className="mb-3.5 flex items-center justify-between">
-            <h4 className="flex items-center gap-2 font-display text-base font-extrabold text-stone-900">
-              <Ticket className="h-4 w-4 text-stone-700" />
-              حجوزاتي ({bookings.length})
-            </h4>
-          </div>
-          <div className="space-y-2.5">
-            {bookings.map((b) => {
-              const badge = bookingStatusBadge(b.status);
-              const canCancel = b.status === 'pending' || b.status === 'confirmed';
-              const bBranch = b.branch_id ? branchMap.get(b.branch_id) : null;
-              const bBarber = b.barber_id ? barberMap.get(b.barber_id) : null;
-
-              return (
-                <div
-                  key={b.id}
-                  className="flex flex-col justify-between gap-3 rounded-2xl border border-stone-200 bg-stone-50/70 p-4 sm:flex-row sm:items-center"
-                >
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-lg bg-stone-900 px-2.5 py-0.5 font-mono text-xs font-extrabold text-amber-400">
-                        {b.booking_code}
-                      </span>
-                      <span className="text-sm font-extrabold text-stone-900">
-                        {b.service_name}
-                      </span>
-                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${badge.cls}`}>
-                        {badge.label}
-                      </span>
-                    </div>
-                    <p className="text-xs text-stone-600">
-                      الموعد: {formatDateTime(b.start_at)}
-                      {bBranch && branches.length > 1 ? ` · الفرع: ${bBranch.name}` : ''}
-                      {bBarber ? ` · الحلاق: ${bBarber.name}` : ''}
-                    </p>
-                    {b.notes && (
-                      <p className="text-xs text-stone-500">ملاحظة: {b.notes}</p>
-                    )}
-                  </div>
-
-                  {canCancel && (
-                    <button
-                      type="button"
-                      disabled={cancellingId === b.id}
-                      onClick={() => void handleCancelBooking(b)}
-                      className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-white px-3.5 py-2 text-xs font-bold text-red-700 transition hover:bg-red-50 disabled:opacity-50"
-                    >
-                      {cancellingId === b.id && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                      إلغاء الحجز
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1543,7 +1589,15 @@ const HAIR_CONSULTATION: Record<
   },
 };
 
-function HairConsultation({ customer, shopId }: { customer: Customer; shopId: string }) {
+function HairConsultation({
+  customer,
+  shopId,
+  onGoBooking,
+}: {
+  customer: Customer;
+  shopId: string;
+  onGoBooking?: () => void;
+}) {
   const { t, lang } = useI18n();
   const [step, setStep] = useState<'intro' | 'hair' | 'face' | 'style' | 'result'>('intro');
   const [hair, setHair] = useState<HairType | null>(null);
@@ -1656,11 +1710,20 @@ function HairConsultation({ customer, shopId }: { customer: Customer; shopId: st
 
   return (
     <div className="card overflow-hidden border-stone-200/90 bg-white">
-      <div className="bg-stone-900 px-5 py-4 text-white">
+      <div className="flex items-center justify-between bg-stone-900 px-5 py-4 text-white">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-amber-400" />
+          <Sparkles className="h-4 w-4 text-emerald-400" />
           <span className="text-sm font-extrabold">{t('consult.result')}</span>
         </div>
+        {onGoBooking && (
+          <button
+            type="button"
+            onClick={onGoBooking}
+            className="rounded-lg bg-white/15 px-3 py-1 text-xs font-bold text-white transition hover:bg-white/25"
+          >
+            {L ? 'احجز بهذه القصة' : 'Book This Look'}
+          </button>
+        )}
       </div>
       <div className="p-5 sm:p-6">
         {result && (
@@ -1756,7 +1819,7 @@ function ConsultationStep<T extends string>({
         </div>
         <h3 className="font-display text-base font-extrabold text-stone-900">{title}</h3>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {options.map((o) => (
           <button
             key={o.value}
@@ -1859,10 +1922,12 @@ function OffersWidget({
   totalVisits,
   active,
   daysLeft,
+  onActionClick,
 }: {
   totalVisits: number;
   active: boolean;
   daysLeft: number;
+  onActionClick?: () => void;
 }) {
   const { t } = useI18n();
   const offers: { icon: typeof Tag; title: string; desc: string; tone: string; bg: string }[] = [];
@@ -1872,8 +1937,8 @@ function OffersWidget({
       icon: Tag,
       title: t('offers.renew'),
       desc: t('offers.renewDesc'),
-      tone: 'text-amber-800',
-      bg: 'border-amber-200 bg-amber-50/60',
+      tone: 'text-stone-800',
+      bg: 'border-stone-200 bg-stone-50/80',
     });
   }
   offers.push({
@@ -1905,14 +1970,22 @@ function OffersWidget({
           {offers.length}
         </span>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {offers.map((o, i) => (
-          <div key={i} className={`card flex items-start gap-3 p-4 ${o.bg}`}>
+          <div
+            key={i}
+            onClick={onActionClick}
+            className={`card flex items-start gap-3 p-4 transition ${o.bg} ${
+              onActionClick ? 'cursor-pointer hover:border-stone-300' : ''
+            }`}
+          >
             <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-stone-900 text-white">
               <o.icon className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">
-              <span className={`inline-block rounded-md bg-white px-2 py-0.5 text-[10px] font-extrabold shadow-2xs ${o.tone}`}>
+              <span
+                className={`inline-block rounded-md bg-white px-2 py-0.5 text-[10px] font-extrabold shadow-2xs ${o.tone}`}
+              >
                 {t('offers.badge')}
               </span>
               <p className="mt-1.5 text-sm font-extrabold text-stone-900">{o.title}</p>
@@ -1925,7 +1998,7 @@ function OffersWidget({
   );
 }
 
-/* ---------- Customer detail (Admin-aligned clean slate layout & navigation) ---------- */
+/* ---------- Customer detail (Immersive, catchy, responsive across mobile/tablet/laptop) ---------- */
 function CustomerDetail({
   customer,
   shopId,
@@ -2028,25 +2101,46 @@ function CustomerDetail({
 
   const loyaltyLevel =
     totalVisits >= 20
-      ? { label: t('cust.level.gold'), icon: Crown, tone: 'text-amber-600', bg: 'bg-amber-50 border-amber-200' }
+      ? { label: t('cust.level.gold'), icon: Crown, tone: 'text-stone-900', bg: 'bg-stone-100 border-stone-200' }
       : totalVisits >= 10
-      ? { label: t('cust.level.silver'), icon: Medal, tone: 'text-slate-600', bg: 'bg-slate-50 border-slate-200' }
+      ? { label: t('cust.level.silver'), icon: Medal, tone: 'text-stone-800', bg: 'bg-stone-100 border-stone-200' }
       : totalVisits >= 5
-      ? { label: t('cust.level.bronze'), icon: Award, tone: 'text-orange-600', bg: 'bg-orange-50 border-orange-200' }
+      ? { label: t('cust.level.bronze'), icon: Award, tone: 'text-stone-800', bg: 'bg-stone-100 border-stone-200' }
       : { label: t('cust.level.new'), icon: User, tone: 'text-stone-700', bg: 'bg-stone-50 border-stone-200' };
   const LoyaltyIcon = loyaltyLevel.icon;
 
-  const tabs: { k: CustomerTab; label: string; icon: typeof Users; badge?: number }[] = [
-    { k: 'overview', label: L ? 'الملخص الرئيسي' : 'Overview', icon: Store },
-    { k: 'booking', label: L ? 'احجز موعدك' : 'Book Appointment', icon: Calendar },
-    { k: 'consultation', label: L ? 'استشارة القصة' : 'Style Consultation', icon: Sparkles },
+  const tabs: { k: CustomerTab; label: string; shortLabel: string; icon: typeof Users; badge?: number }[] = [
+    {
+      k: 'overview',
+      label: L ? 'الملخص الرئيسي' : 'Overview',
+      shortLabel: L ? 'الرئيسية' : 'Home',
+      icon: Store,
+    },
+    {
+      k: 'booking',
+      label: L ? 'احجز موعدك' : 'Book Appointment',
+      shortLabel: L ? 'الحجز' : 'Book',
+      icon: Calendar,
+    },
+    {
+      k: 'consultation',
+      label: L ? 'استشارة القصة' : 'Style Consultation',
+      shortLabel: L ? 'الاستشارة' : 'Style',
+      icon: Sparkles,
+    },
     {
       k: 'history',
       label: L ? 'سجل الزيارات' : 'Visit History',
+      shortLabel: L ? 'زياراتي' : 'Visits',
       icon: CalendarCheck,
       badge: totalVisits > 0 ? totalVisits : undefined,
     },
-    { k: 'rewards', label: L ? 'الولاء والمكافآت' : 'Loyalty & Rewards', icon: Gift },
+    {
+      k: 'rewards',
+      label: L ? 'الولاء والمكافآت' : 'Loyalty & Rewards',
+      shortLabel: L ? 'المكافآت' : 'Rewards',
+      icon: Gift,
+    },
   ];
 
   const operationalCards = [
@@ -2055,35 +2149,47 @@ function CustomerDetail({
       value: subscriptionVisits,
       icon: CalendarCheck,
       subText: active ? `${remaining} ${t('cust.remainingIn')}` : t('cust.subInactive'),
+      onClick: () => setTab('history'),
     },
     {
       label: t('cust.regVisits'),
       value: Math.max(0, visits.length - subscriptionVisits),
       icon: Scissors,
       subText: `${totalVisits} ${t('cust.visits')}`,
+      onClick: () => setTab('history'),
     },
     {
       label: t('cust.loyalty'),
       value: loyaltyLevel.label,
       icon: LoyaltyIcon,
       subText: `${totalVisits} ${t('cust.haircuts')}`,
+      onClick: () => setTab('rewards'),
     },
     {
       label: t('cust.totalPaid'),
       value: formatPrice(totalPaid),
       icon: Coins,
       subText: shop ? `${formatPrice(Number(shop.regular_haircut_price ?? 50))} / حلاقة` : '',
+      onClick: () => setTab('history'),
     },
   ];
 
+  const switchTab = (nextTab: CustomerTab) => {
+    setTab(nextTab);
+    document.getElementById('customer-top')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   return (
-    <div id="customer-top" className="customer-page animate-fade-in mx-auto max-w-6xl space-y-6 px-4 pb-28 pt-7 sm:px-6 md:pb-10">
-      {/* Header matching AdminDashboard */}
-      <header className="card border-stone-200/90 bg-white p-5 sm:p-6">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 items-center gap-4">
+    <div
+      id="customer-top"
+      className="customer-page animate-fade-in mx-auto max-w-6xl space-y-5 px-4 pb-24 pt-6 sm:px-6 md:space-y-6 md:pb-10"
+    >
+      {/* Header */}
+      <header className="card border-stone-200/90 bg-white p-4 sm:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center gap-3.5 sm:gap-4">
             {shop?.logo_url ? (
-              <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl border border-stone-200 bg-stone-50 p-1.5 shadow-2xs">
+              <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl border border-stone-200 bg-stone-50 p-1.5 shadow-2xs sm:h-16 sm:w-16">
                 <img
                   src={shop.logo_url}
                   alt={shop.shop_name || shopName || 'Shop logo'}
@@ -2091,7 +2197,7 @@ function CustomerDetail({
                 />
               </div>
             ) : (
-              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-stone-900 font-display text-xl font-extrabold text-white shadow-2xs">
+              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-stone-900 font-display text-xl font-extrabold text-white shadow-2xs sm:h-16 sm:w-16">
                 {(shopName || customer.name).charAt(0)}
               </div>
             )}
@@ -2109,7 +2215,9 @@ function CustomerDetail({
                 {active ? (
                   <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800">
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />
-                    <span>{t('cust.subActive')} ({remaining})</span>
+                    <span>
+                      {t('cust.subActive')} ({remaining})
+                    </span>
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-0.5 text-[11px] font-bold text-stone-600">
@@ -2143,10 +2251,10 @@ function CustomerDetail({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-stone-100 pt-4 lg:justify-end lg:border-t-0 lg:pt-0">
+          <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-stone-100 pt-3.5 lg:justify-end lg:border-t-0 lg:pt-0">
             <button
               type="button"
-              onClick={() => setTab('booking')}
+              onClick={() => switchTab('booking')}
               className="btn-primary h-10 px-4 text-xs"
             >
               <Calendar className="h-4 w-4 shrink-0" />
@@ -2165,10 +2273,10 @@ function CustomerDetail({
         </div>
       </header>
 
-      {/* Navigation bar matching AdminDashboard */}
+      {/* Sticky Navigation Bar so customer can jump seamlessly inside their hub */}
       <nav
         aria-label={L ? 'أقسام صفحة العميل' : 'Customer navigation'}
-        className="flex gap-1.5 overflow-x-auto rounded-2xl border border-stone-200 bg-stone-50/80 p-1.5"
+        className="sticky top-2 z-30 flex gap-1.5 overflow-x-auto rounded-2xl border border-stone-200/90 bg-white/95 p-1.5 shadow-2xs backdrop-blur-md"
       >
         {tabs.map((item) => {
           const isActive = tab === item.k;
@@ -2176,11 +2284,11 @@ function CustomerDetail({
             <button
               key={item.k}
               type="button"
-              onClick={() => setTab(item.k)}
+              onClick={() => switchTab(item.k)}
               className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition sm:text-sm ${
                 isActive
                   ? 'bg-stone-900 text-white shadow-xs'
-                  : 'text-stone-600 hover:bg-white hover:text-stone-900'
+                  : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
               }`}
             >
               <item.icon className={`h-4 w-4 ${isActive ? 'text-stone-200' : 'text-stone-500'}`} />
@@ -2188,7 +2296,7 @@ function CustomerDetail({
               {item.badge !== undefined && (
                 <span
                   className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
-                    isActive ? 'bg-amber-400 text-stone-950' : 'bg-stone-200 text-stone-800'
+                    isActive ? 'bg-white text-stone-900' : 'bg-stone-200/80 text-stone-800'
                   }`}
                 >
                   {item.badge}
@@ -2203,13 +2311,18 @@ function CustomerDetail({
       <main className="min-w-0 space-y-6">
         {tab === 'overview' && (
           <div className="space-y-6">
-            {/* Top 4 KPI Cards */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Top 4 Interactive KPI Cards */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
               {operationalCards.map((c) => (
-                <div key={c.label} className="card flex items-center justify-between p-4">
+                <button
+                  key={c.label}
+                  type="button"
+                  onClick={c.onClick}
+                  className="card flex items-center justify-between gap-2 p-4 text-right transition hover:border-stone-300 hover:bg-stone-50/60"
+                >
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-stone-500">{c.label}</p>
-                    <p className="mt-1.5 truncate font-display text-2xl font-extrabold text-stone-900">
+                    <p className="truncate text-xs font-bold text-stone-500">{c.label}</p>
+                    <p className="mt-1.5 truncate font-display text-xl font-extrabold text-stone-900 sm:text-2xl">
                       {c.value}
                     </p>
                     {c.subText && (
@@ -2219,137 +2332,237 @@ function CustomerDetail({
                   <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-stone-200 bg-stone-50 text-stone-700">
                     <c.icon className="h-5 w-5" />
                   </div>
-                </div>
+                </button>
               ))}
             </div>
 
-            {/* Subscription Status Card */}
-            <section className="card overflow-hidden">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 bg-stone-50/50 px-5 py-4">
-                <div className="flex items-center gap-2.5">
-                  {active ? (
-                    <CheckCircle2 className="h-5 w-5 text-emerald-700" />
+            {/* Catchy 2-Column Cockpit: Subscription + Quick Action Hub */}
+            <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(290px,0.9fr)]">
+              <section className="card overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 bg-stone-50/50 px-5 py-4">
+                  <div className="flex items-center gap-2.5">
+                    {active ? (
+                      <CheckCircle2 className="h-5 w-5 text-emerald-700" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-stone-400" />
+                    )}
+                    <div>
+                      <h2 className="font-display text-base font-extrabold text-stone-900">
+                        {active ? t('cust.subActive') : t('cust.subInactive')}
+                      </h2>
+                      <p className="mt-0.5 text-xs text-stone-500">
+                        {active
+                          ? `${sub?.plan?.name ?? ''} — ${t('cust.subEnds')} ${formatDate(
+                              sub?.end_date ?? ''
+                            )}`
+                          : t('cust.subAskBarber')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => switchTab('booking')}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-stone-900 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-stone-800"
+                  >
+                    <Calendar className="h-3.5 w-3.5" />
+                    {L ? 'احجز موعدك' : 'Book Appointment'}
+                  </button>
+                </div>
+
+                <div className="bg-white p-5">
+                  {active && sub ? (
+                    <div className="space-y-4">
+                      {sub.plan?.description && (
+                        <p className="whitespace-pre-line rounded-xl border border-stone-200 bg-stone-50 p-3.5 text-xs leading-relaxed text-stone-700">
+                          {sub.plan.description}
+                        </p>
+                      )}
+
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3.5">
+                          <p className="text-xs font-bold text-stone-500">{t('cust.used')}</p>
+                          <p className="mt-1 font-display text-xl font-extrabold text-stone-900">
+                            {sub.haircuts_used} / {sub.plan?.haircut_count}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3.5">
+                          <p className="text-xs font-bold text-emerald-800">{t('cust.remainingIn')}</p>
+                          <p className="mt-1 font-display text-xl font-extrabold text-emerald-700">
+                            {remaining} {t('cust.haircuts')}
+                          </p>
+                        </div>
+                        <div
+                          className={`rounded-xl border p-3.5 ${
+                            daysLeft <= 3
+                              ? 'border-red-200 bg-red-50/60'
+                              : daysLeft <= 7
+                              ? 'border-stone-300 bg-stone-100/80'
+                              : 'border-stone-200 bg-stone-50/70'
+                          }`}
+                        >
+                          <p className="text-xs font-bold text-stone-500">
+                            {L ? 'حالة المدة' : 'Validity'}
+                          </p>
+                          <p
+                            className={`mt-1 text-sm font-extrabold ${
+                              daysLeft <= 3
+                                ? 'text-red-700'
+                                : daysLeft <= 7
+                                ? 'text-stone-900'
+                                : 'text-emerald-700'
+                            }`}
+                          >
+                            {daysLeft > 0
+                              ? `${t('cust.expiresIn')} ${daysLeft} ${t('cust.days')}`
+                              : t('cust.expired')}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="mb-1.5 flex items-center justify-between text-xs font-bold text-stone-600">
+                          <span>{L ? 'نسبة استهلاك الباقة' : 'Package Progress'}</span>
+                          <span>
+                            {Math.min(
+                              100,
+                              Math.round(
+                                (sub.haircuts_used / Math.max(1, sub.plan?.haircut_count ?? 1)) * 100
+                              )
+                            )}
+                            %
+                          </span>
+                        </div>
+                        <div className="h-2.5 overflow-hidden rounded-full bg-stone-200">
+                          <div
+                            className="h-full rounded-full bg-emerald-600 transition-all duration-500"
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                (sub.haircuts_used / (sub.plan?.haircut_count ?? 1)) * 100
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
                   ) : (
-                    <XCircle className="h-5 w-5 text-stone-400" />
+                    <div className="flex flex-col justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50/70 p-4 text-xs text-stone-600 sm:flex-row sm:items-center">
+                      <span>
+                        {L
+                          ? 'يمكنك الاستفادة من باقات التوفير الشهرية والحصول على زيارات مخفضة من خلال المحل.'
+                          : 'Ask your barber about monthly saving packages.'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => switchTab('rewards')}
+                        className="shrink-0 rounded-xl bg-stone-900 px-3.5 py-2 font-extrabold text-white transition hover:bg-stone-800"
+                      >
+                        {L ? 'استعرض الباقات والخدمات' : 'View Plans & Services'}
+                      </button>
+                    </div>
                   )}
-                  <div>
-                    <h2 className="font-display text-base font-extrabold text-stone-900">
-                      {active ? t('cust.subActive') : t('cust.subInactive')}
-                    </h2>
-                    <p className="mt-0.5 text-xs text-stone-500">
-                      {active
-                        ? `${sub?.plan?.name ?? ''} — ${t('cust.subEnds')} ${formatDate(
-                            sub?.end_date ?? ''
-                          )}`
-                        : t('cust.subAskBarber')}
-                    </p>
+                </div>
+              </section>
+
+              {/* Inside-Page Quick Launcher & Recent Visit Preview */}
+              <aside className="space-y-4">
+                <div className="card border-stone-200/90 bg-white p-4 sm:p-5">
+                  <p className="text-xs font-extrabold text-stone-900">
+                    {L ? 'تنقل سريع داخل صفحتك' : 'Quick Actions'}
+                  </p>
+                  <div className="mt-3 grid grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => switchTab('booking')}
+                      className="flex flex-col items-start gap-1.5 rounded-xl border border-stone-200 bg-stone-50/80 p-3 text-right transition hover:border-stone-900 hover:bg-stone-900 hover:text-white group"
+                    >
+                      <Calendar className="h-4 w-4 text-stone-800 group-hover:text-white" />
+                      <span className="text-xs font-extrabold">
+                        {L ? 'حجز موعد جديد' : 'New Booking'}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => switchTab('consultation')}
+                      className="flex flex-col items-start gap-1.5 rounded-xl border border-stone-200 bg-stone-50/80 p-3 text-right transition hover:border-stone-900 hover:bg-stone-900 hover:text-white group"
+                    >
+                      <Sparkles className="h-4 w-4 text-stone-800 group-hover:text-white" />
+                      <span className="text-xs font-extrabold">
+                        {L ? 'اختيار القصة' : 'Hair Style'}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => switchTab('history')}
+                      className="flex flex-col items-start gap-1.5 rounded-xl border border-stone-200 bg-stone-50/80 p-3 text-right transition hover:border-stone-900 hover:bg-stone-900 hover:text-white group"
+                    >
+                      <CalendarCheck className="h-4 w-4 text-stone-800 group-hover:text-white" />
+                      <span className="text-xs font-extrabold">
+                        {L ? `زياراتي (${visits.length})` : `Visits (${visits.length})`}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => switchTab('rewards')}
+                      className="flex flex-col items-start gap-1.5 rounded-xl border border-stone-200 bg-stone-50/80 p-3 text-right transition hover:border-stone-900 hover:bg-stone-900 hover:text-white group"
+                    >
+                      <Gift className="h-4 w-4 text-emerald-700 group-hover:text-emerald-300" />
+                      <span className="text-xs font-extrabold">
+                        {L ? 'الولاء والباقات' : 'Loyalty & Plans'}
+                      </span>
+                    </button>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setTab('booking')}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-stone-900 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-stone-800"
-                >
-                  <Calendar className="h-3.5 w-3.5" />
-                  {L ? 'احجز موعدك' : 'Book Appointment'}
-                </button>
-              </div>
-
-              <div className="bg-white p-5">
-                {active && sub ? (
-                  <div className="space-y-4">
-                    {sub.plan?.description && (
-                      <p className="whitespace-pre-line rounded-xl border border-stone-200 bg-stone-50 p-3.5 text-xs leading-relaxed text-stone-700">
-                        {sub.plan.description}
-                      </p>
-                    )}
-
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <div className="rounded-xl border border-stone-200 bg-stone-50/70 p-3.5">
-                        <p className="text-xs font-bold text-stone-500">{t('cust.used')}</p>
-                        <p className="mt-1 font-display text-xl font-extrabold text-stone-900">
-                          {sub.haircuts_used} / {sub.plan?.haircut_count}
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3.5">
-                        <p className="text-xs font-bold text-emerald-800">{t('cust.remainingIn')}</p>
-                        <p className="mt-1 font-display text-xl font-extrabold text-emerald-700">
-                          {remaining} {t('cust.haircuts')}
-                        </p>
-                      </div>
-                      <div
-                        className={`rounded-xl border p-3.5 ${
-                          daysLeft <= 3
-                            ? 'border-red-200 bg-red-50/60'
-                            : daysLeft <= 7
-                            ? 'border-amber-200 bg-amber-50/60'
-                            : 'border-stone-200 bg-stone-50/70'
-                        }`}
+                <div className="card border-stone-200/90 bg-white p-4 sm:p-5">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h3 className="font-display text-sm font-extrabold text-stone-900">
+                      {L ? 'آخر الزيارات' : 'Recent Visits'}
+                    </h3>
+                    {visits.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => switchTab('history')}
+                        className="text-xs font-bold text-stone-600 underline hover:text-stone-900"
                       >
-                        <p className="text-xs font-bold text-stone-500">
-                          {L ? 'حالة المدة' : 'Validity'}
-                        </p>
-                        <p
-                          className={`mt-1 text-sm font-extrabold ${
-                            daysLeft <= 3
-                              ? 'text-red-700'
-                              : daysLeft <= 7
-                              ? 'text-amber-800'
-                              : 'text-emerald-700'
-                          }`}
-                        >
-                          {daysLeft > 0
-                            ? `${t('cust.expiresIn')} ${daysLeft} ${t('cust.days')}`
-                            : t('cust.expired')}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="mb-1.5 flex items-center justify-between text-xs font-bold text-stone-600">
-                        <span>{L ? 'نسبة استهلاك الباقة' : 'Package Progress'}</span>
-                        <span>
-                          {Math.min(
-                            100,
-                            Math.round(
-                              (sub.haircuts_used / Math.max(1, sub.plan?.haircut_count ?? 1)) * 100
-                            )
-                          )}
-                          %
-                        </span>
-                      </div>
-                      <div className="h-2.5 overflow-hidden rounded-full bg-stone-200">
+                        {L ? 'عرض الكل' : 'View All'}
+                      </button>
+                    )}
+                  </div>
+                  {visits.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-stone-200 p-4 text-center text-xs text-stone-500">
+                      {t('cust.noVisits')}
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {visits.slice(0, 3).map((v) => (
                         <div
-                          className="h-full rounded-full bg-emerald-600 transition-all duration-500"
-                          style={{
-                            width: `${Math.min(
-                              100,
-                              (sub.haircuts_used / (sub.plan?.haircut_count ?? 1)) * 100
-                            )}%`,
-                          }}
-                        />
-                      </div>
+                          key={v.id}
+                          className="flex items-center justify-between gap-2 rounded-xl border border-stone-200/80 bg-stone-50/60 px-3 py-2.5 text-xs"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate font-extrabold text-stone-900">
+                              {v.haircut_type ?? t('cust.haircut')}
+                            </p>
+                            <p className="text-[11px] text-stone-500">{formatDate(v.visit_date)}</p>
+                          </div>
+                          {v.payment_type === 'subscription' ? (
+                            <span className="badge shrink-0 bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
+                              {t('cust.subscription')}
+                            </span>
+                          ) : (
+                            <span className="shrink-0 font-extrabold text-stone-900">
+                              {formatPrice(Number(v.charge_amount))}
+                            </span>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50/70 p-4 text-xs text-stone-600">
-                    <span>
-                      {L
-                        ? 'يمكنك الاستفادة من باقات التوفير الشهرية والحصول على زيارات مخفضة من خلال المحل.'
-                        : 'Ask your barber about monthly saving packages.'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setTab('rewards')}
-                      className="font-extrabold text-stone-900 underline"
-                    >
-                      {L ? 'استعرض الباقات والخدمات' : 'View Plans & Services'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            </section>
+                  )}
+                </div>
+              </aside>
+            </div>
 
             {/* Quick Booking Widget directly accessible in Overview */}
             <CustomerBookingSection
@@ -2361,7 +2574,12 @@ function CustomerDetail({
             />
 
             {/* Offers & WhatsApp Consent */}
-            <OffersWidget totalVisits={totalVisits} active={active} daysLeft={daysLeft} />
+            <OffersWidget
+              totalVisits={totalVisits}
+              active={active}
+              daysLeft={daysLeft}
+              onActionClick={() => switchTab('rewards')}
+            />
 
             <WhatsAppConsentPanel customerName={customer.name} phone={customer.phone} />
           </div>
@@ -2379,7 +2597,11 @@ function CustomerDetail({
 
         {tab === 'consultation' && (
           <div id="hair-consultation">
-            <HairConsultation customer={customer} shopId={shopId} />
+            <HairConsultation
+              customer={customer}
+              shopId={shopId}
+              onGoBooking={() => switchTab('booking')}
+            />
           </div>
         )}
 
@@ -2407,7 +2629,7 @@ function CustomerDetail({
                 <p className="font-bold text-stone-700">{t('cust.noVisits')}</p>
               </div>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {visits.map((v) => (
                   <div
                     key={v.id}
@@ -2479,7 +2701,7 @@ function CustomerDetail({
                     <p className="text-[11px] font-bold text-stone-500">{t('cust.haircuts')}</p>
                   </div>
                 </div>
-                <div className="mt-4 grid grid-cols-4 gap-2">
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {[
                     { min: 0, label: t('cust.level.new') },
                     { min: 5, label: t('cust.level.bronze') },
@@ -2505,16 +2727,30 @@ function CustomerDetail({
               </div>
 
               {/* Offers */}
-              <OffersWidget totalVisits={totalVisits} active={active} daysLeft={daysLeft} />
+              <OffersWidget
+                totalVisits={totalVisits}
+                active={active}
+                daysLeft={daysLeft}
+                onActionClick={() => switchTab('booking')}
+              />
 
               {/* Available Packages */}
               {packageItems.length > 0 && (
                 <div id="plans" className="card border-stone-200/90 bg-white p-5 sm:p-6">
-                  <div className="mb-4 flex items-center gap-2">
-                    <Layers className="h-5 w-5 text-stone-800" />
-                    <h3 className="font-display text-base font-extrabold text-stone-900">
-                      {t('cust.plansTitle')}
-                    </h3>
+                  <div className="mb-4 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Layers className="h-5 w-5 text-stone-800" />
+                      <h3 className="font-display text-base font-extrabold text-stone-900">
+                        {t('cust.plansTitle')}
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => switchTab('booking')}
+                      className="text-xs font-extrabold text-stone-700 underline hover:text-stone-900"
+                    >
+                      {L ? 'احجز بالباقة' : 'Book with Plan'}
+                    </button>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {packageItems.map((p) => (
@@ -2578,7 +2814,7 @@ function CustomerDetail({
               )}
             </div>
 
-            <aside id="rewards" className="space-y-5">
+            <aside id="rewards" className="space-y-5 lg:sticky lg:top-20">
               <ReferralWidget customerName={customer.name} />
             </aside>
           </div>
@@ -2597,16 +2833,13 @@ function CustomerDetail({
               <button
                 key={item.k}
                 type="button"
-                onClick={() => {
-                  setTab(item.k);
-                  document.getElementById('customer-top')?.scrollIntoView({ behavior: 'smooth' });
-                }}
+                onClick={() => switchTab(item.k)}
                 className={`flex flex-col items-center gap-1 rounded-xl px-1.5 py-1.5 text-[10px] font-bold transition ${
                   isActive ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-100'
                 }`}
               >
                 <item.icon className="h-4 w-4" />
-                <span className="truncate">{item.label.split(' ')[0]}</span>
+                <span className="truncate">{item.shortLabel}</span>
               </button>
             );
           })}
