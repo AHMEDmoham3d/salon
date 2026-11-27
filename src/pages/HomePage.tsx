@@ -52,23 +52,21 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
   ];
 
   return (
-    <div className="animate-fade-in bg-stone-50/40 text-stone-900">
+    <div className="animate-fade-in bg-stone-50/50 text-stone-900">
       {/* Hero */}
-      <section className="relative overflow-hidden bg-stone-900 text-white">
+      <section className="relative overflow-hidden bg-stone-900">
         <div className="absolute inset-0">
           <img
             src={HERO_IMG}
             alt={t('home.title')}
-            className="h-full w-full object-cover opacity-35"
+            className="h-full w-full object-cover object-center"
           />
-          <div className="absolute inset-0 bg-gradient-to-l from-stone-950 via-stone-950/85 to-stone-900/75" />
-          <div className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 rounded-full bg-white/5" />
-          <div className="pointer-events-none absolute -bottom-24 right-1/4 h-72 w-72 rounded-full bg-emerald-400/5" />
+          <div className="absolute inset-0 bg-gradient-to-l from-stone-950/90 via-stone-950/65 to-stone-950/35" />
         </div>
 
-        <div className="relative mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28 lg:py-32">
+        <div className="relative mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28 lg:py-36">
           <div className="max-w-2xl animate-fade-up">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-bold text-stone-100 backdrop-blur-xs">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-stone-900/75 px-4 py-1.5 text-xs font-bold text-stone-100 backdrop-blur-xs">
               <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
               {t('home.badge')}
             </span>
@@ -85,7 +83,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
               )}
             </h1>
 
-            <p className="mt-4 text-base leading-relaxed text-stone-300 sm:text-lg">
+            <p className="mt-4 text-base leading-relaxed text-stone-200 sm:text-lg">
               {t('home.subtitle')}
             </p>
 
@@ -93,7 +91,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
               <button
                 type="button"
                 onClick={() => onNavigate('customer')}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-6 text-xs font-extrabold text-stone-900 shadow-2xs transition-all hover:scale-[1.01] hover:bg-stone-100 sm:text-sm"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-6 text-xs font-extrabold text-stone-900 shadow-sm transition-all hover:bg-stone-100 active:scale-[0.99] sm:text-sm"
               >
                 {t('home.customerBtn')}
                 <ArrowLeft className="h-4 w-4" />
@@ -102,7 +100,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
               <button
                 type="button"
                 onClick={() => onNavigate('admin')}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 px-6 text-xs font-bold text-stone-100 transition-all hover:bg-white/15 active:scale-[0.98] sm:text-sm"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/20 bg-stone-900/70 px-6 text-xs font-bold text-white backdrop-blur-xs transition-all hover:bg-stone-900/90 active:scale-[0.99] sm:text-sm"
               >
                 <ShieldCheck className="h-4 w-4 text-emerald-400" />
                 {t('home.adminBtn')}
@@ -125,13 +123,13 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
               ].map((s) => (
                 <div
                   key={s.label}
-                  className="rounded-2xl border border-white/10 bg-white/5 p-3.5 text-center backdrop-blur-xs transition-colors hover:bg-white/10"
+                  className="rounded-2xl border border-white/15 bg-stone-950/65 p-3.5 text-center backdrop-blur-xs transition-colors hover:bg-stone-950/80"
                 >
                   <s.icon className="mx-auto h-5 w-5 text-emerald-400" />
                   <p className="mt-1.5 font-display text-lg font-extrabold text-white">
                     {s.value}
                   </p>
-                  <p className="text-[11px] font-bold text-stone-400">{s.label}</p>
+                  <p className="text-[11px] font-bold text-stone-300">{s.label}</p>
                 </div>
               ))}
             </div>
@@ -157,10 +155,10 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
           {services.map((s, i) => (
             <div
               key={s.title}
-              className="group card animate-fade-up border-stone-200/90 bg-white p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-sm"
+              className="group card animate-fade-up border-stone-200 bg-white p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-stone-300 hover:shadow-sm"
               style={{ animationDelay: `${i * 50}ms` }}
             >
-              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-stone-900 text-white shadow-2xs transition-all duration-200 group-hover:scale-105 group-hover:bg-emerald-700">
+              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-stone-900 text-white shadow-2xs transition-colors duration-200 group-hover:bg-emerald-700">
                 <s.icon className="h-5 w-5" />
               </div>
               <h3 className="mt-4 font-display text-base font-extrabold text-stone-900 sm:text-lg">
@@ -175,8 +173,11 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
       </section>
 
       {/* About / Why us */}
-      <section className="border-y border-stone-800 bg-stone-900 py-14 text-stone-100 sm:py-20">
-        <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-2">
+      <section className="relative overflow-hidden bg-stone-900 py-14 text-white sm:py-20">
+        <div className="pointer-events-none absolute -left-16 -top-16 h-56 w-56 rounded-full bg-white/5" />
+        <div className="pointer-events-none absolute -bottom-20 right-1/4 h-64 w-64 rounded-full bg-emerald-400/5" />
+
+        <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-2">
           <div className="animate-fade-up">
             <span className="inline-block rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-xs font-extrabold text-emerald-300">
               {t('home.whyTag')}
@@ -187,13 +188,13 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
             <p className="mt-3.5 text-sm leading-relaxed text-stone-300 sm:text-base">
               {t('home.whyDesc')}
             </p>
-            <ul className="mt-6 space-y-4">
+            <ul className="mt-6 space-y-3.5">
               {features.map((f) => (
                 <li
                   key={f.t}
                   className="flex gap-3.5 rounded-2xl border border-white/10 bg-white/5 p-3.5 transition-colors hover:bg-white/10"
                 >
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-400/15 text-emerald-400">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/10 text-emerald-400">
                     <f.icon className="h-5 w-5" />
                   </div>
                   <div className="min-w-0">
@@ -206,14 +207,14 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
           </div>
 
           <div className="relative animate-fade-up">
-            <div className="overflow-hidden rounded-3xl border border-stone-700/90 bg-stone-800 shadow-xl">
+            <div className="overflow-hidden rounded-3xl border border-white/15 bg-stone-800 shadow-xl">
               <img
                 src={ABOUT_IMG}
                 alt={t('home.title')}
                 className="h-full w-full object-cover"
               />
             </div>
-            <div className="absolute -bottom-4 -left-4 hidden rounded-2xl border border-stone-700 bg-stone-900/95 p-4 shadow-lg backdrop-blur-xs sm:block">
+            <div className="absolute -bottom-4 -left-4 hidden rounded-2xl border border-white/15 bg-stone-900/95 p-4 shadow-lg backdrop-blur-xs sm:block">
               <div className="flex items-center gap-2">
                 <div className="flex">
                   {[...Array(5)].map((_, i) => (
@@ -335,7 +336,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
               <button
                 type="button"
                 onClick={() => onNavigate('customer')}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-6 text-xs font-extrabold text-stone-900 transition-all hover:scale-[1.01] hover:bg-stone-100 sm:text-sm"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-6 text-xs font-extrabold text-stone-900 transition-all hover:bg-stone-100 sm:text-sm"
               >
                 {t('home.customerBtn')}
                 <ArrowLeft className="h-4 w-4" />
