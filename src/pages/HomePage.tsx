@@ -74,7 +74,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (p: Page) => void
             <h1 className="mt-5 font-display text-4xl font-extrabold leading-tight text-white sm:text-5xl lg:text-6xl">
               {lang === 'ar' ? (
                 <>
-                  محل حلاقة <span className="text-emerald-400">FORM</span>
+                  محل حلاقة <span className="text-emerald-400">shaveup</span>
                 </>
               ) : (
                 <>
