@@ -200,6 +200,10 @@ export default function CustomerPage({
 
   /* ---------- Load shop info ---------- */
   useEffect(() => {
+    if (!cleanShopId) {
+      setLoadingShop(false);
+      return;
+    }
     let active = true;
     setLoadingShop(true);
     (async () => {
@@ -230,7 +234,7 @@ export default function CustomerPage({
 
   /* ---------- Auto re-login if phone cached ---------- */
   useEffect(() => {
-    if (!phone) return;
+    if (!cleanShopId || !phone) return;
     let active = true;
     setAuthLoading(true);
     (async () => {
