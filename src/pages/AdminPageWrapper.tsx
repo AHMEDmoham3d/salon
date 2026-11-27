@@ -6,7 +6,6 @@ import {
   Loader2,
   Phone,
   Mail,
-  Store,
   User,
   XCircle,
   ShieldCheck,
@@ -21,7 +20,6 @@ import {
   type ShopRegistration,
 } from '@/lib/shopApi';
 import {
-  COMPANY_NAME,
   SYSTEM_NAME,
   COMPANY_FEE_PER_VISIT,
   type Shop,
@@ -36,6 +34,29 @@ type Session = {
 };
 
 const SESSION_KEY = 'barber_admin_session';
+const BRAND_NAME = 'ULMI';
+
+/** Monochrome ULMI wordmark used across the shop portal. */
+function UlmiWordmark({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 240 86"
+      role="img"
+      aria-label="ULMI"
+      className={`h-auto w-32 shrink-0 ${className}`}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M14 38V56C14 68.7025 24.2975 79 37 79C49.7025 79 60 68.7025 60 56V38" stroke="currentColor" strokeWidth="22" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M60 38V68" stroke="currentColor" strokeWidth="22" strokeLinecap="round" />
+      <path d="M84 15V68" stroke="currentColor" strokeWidth="22" strokeLinecap="round" />
+      <path d="M108 68V52C108 43.1634 115.163 36 124 36C132.837 36 140 43.1634 140 52V68" stroke="currentColor" strokeWidth="22" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M140 68V52C140 43.1634 147.163 36 156 36C164.837 36 172 43.1634 172 52V68" stroke="currentColor" strokeWidth="22" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M214 38V68" stroke="currentColor" strokeWidth="22" strokeLinecap="round" />
+      <circle cx="214" cy="15" r="11" fill="currentColor" />
+    </svg>
+  );
+}
 
 function loadSession(): Session | null {
   try {
@@ -277,8 +298,8 @@ export default function AdminPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-stone-50 px-4">
         <div className="card max-w-md p-8 text-center">
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-amber-100">
-            <ShieldCheck className="h-7 w-7 text-amber-600" />
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-slate-100">
+            <ShieldCheck className="h-7 w-7 text-slate-700" />
           </div>
 
           <h2 className="mt-4 font-display text-xl font-extrabold text-stone-900">
@@ -286,7 +307,7 @@ export default function AdminPage() {
           </h2>
 
           <p className="mt-2 text-sm text-stone-600">
-            المحل «{shop.shop_name}» بانتظار اعتماد {COMPANY_NAME}.
+            المحل «{shop.shop_name}» بانتظار اعتماد {BRAND_NAME}.
             سيتمكن صاحب المحل من استخدام النظام فور اعتماد الطلب من إدارة الشركة.
           </p>
 
@@ -314,7 +335,7 @@ export default function AdminPage() {
           </h2>
 
           <p className="mt-2 text-sm text-stone-600">
-            رفضت {COMPANY_NAME} طلب تسجيل المحل «{shop.shop_name}».
+            رفضت {BRAND_NAME} طلب تسجيل المحل «{shop.shop_name}».
             تواصل مع إدارة الشركة لمعرفة السبب.
           </p>
 
@@ -342,7 +363,7 @@ export default function AdminPage() {
           </h2>
 
           <p className="mt-2 text-sm text-stone-600">
-            تم حظر المحل «{shop.shop_name}» من قبل {COMPANY_NAME}.
+            تم حظر المحل «{shop.shop_name}» من قبل {BRAND_NAME}.
             لا يمكن استخدام النظام حتى يتم رفع الحظر.
           </p>
 
@@ -447,7 +468,7 @@ function AdminLogin({
 
       if (result.shop.status === 'pending') {
         setErr(
-          `المحل «${result.shop.shop_name}» بانتظار اعتماد ${COMPANY_NAME}`
+          `المحل «${result.shop.shop_name}» بانتظار اعتماد ${BRAND_NAME}`
         );
         return;
       }
@@ -485,8 +506,8 @@ function AdminLogin({
         {/* Brand */}
 
         <div className="mb-6 text-center">
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-stone-800 to-stone-950 text-amber-400">
-            <Store className="h-7 w-7" />
+          <div className="mx-auto flex min-h-20 w-full items-center justify-center rounded-2xl border border-stone-200 bg-white px-6 py-4 text-stone-950 shadow-sm">
+            <UlmiWordmark className="w-36" />
           </div>
 
           <h1 className="mt-3 font-display text-2xl font-extrabold text-stone-900">
@@ -494,7 +515,7 @@ function AdminLogin({
           </h1>
 
           <p className="mt-1 text-sm text-stone-600">
-            {SYSTEM_NAME} — نظام إدارة محلات الحلاقة من {COMPANY_NAME}
+            {SYSTEM_NAME} — نظام إدارة محلات الحلاقة من {BRAND_NAME}
           </p>
         </div>
 
@@ -558,10 +579,9 @@ function AdminLogin({
             {loading ? 'جاري الدخول...' : 'دخول'}
           </button>
 
-          <div className="flex items-center gap-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-700">
-            <ShieldCheck className="h-4 w-4 shrink-0" />
-
-            النظام مُشغّل من شركة {COMPANY_NAME} — استخدام النظام يعني موافقتك على الشروط والرسوم.
+          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-700">
+            <ShieldCheck className="h-4 w-4 shrink-0 text-slate-700" />
+            النظام مُشغّل من شركة {BRAND_NAME} — استخدام النظام يعني موافقتك على الشروط والرسوم.
           </div>
         </div>
 
@@ -668,8 +688,8 @@ function AdminRegister({
         {/* Brand */}
 
         <div className="mb-6 text-center">
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-stone-800 to-stone-950 text-amber-400">
-            <Store className="h-7 w-7" />
+          <div className="mx-auto flex min-h-20 w-full items-center justify-center rounded-2xl border border-stone-200 bg-white px-6 py-4 text-stone-950 shadow-sm">
+            <UlmiWordmark className="w-36" />
           </div>
 
           <h1 className="mt-3 font-display text-2xl font-extrabold text-stone-900">
@@ -677,27 +697,27 @@ function AdminRegister({
           </h1>
 
           <p className="mt-1 text-sm text-stone-600">
-            سجّل بياناتك الكاملة — سيتم مراجعتها من {COMPANY_NAME} قبل التفعيل
+            سجّل بياناتك الكاملة — سيتم مراجعتها من {BRAND_NAME} قبل التفعيل
           </p>
         </div>
 
         {/* Terms notice */}
 
         {termsOpen && (
-          <div className="mb-5 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+          <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-start gap-3">
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-stone-900 text-amber-400">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-900 text-white">
                   <Building2 className="h-5 w-5" />
                 </div>
 
                 <div>
                   <p className="font-bold text-stone-900">
-                    إشعار وعقد إلكتروني من {COMPANY_NAME}
+                    إشعار وعقد إلكتروني من {BRAND_NAME}
                   </p>
 
                   <p className="mt-1 text-sm text-stone-600">
-                    هذا النظام مملوك ومُدار حصراً من شركة {COMPANY_NAME} — استخدامه ترخيص (إذن) وليس ملكية. يُحسب رسم
+                    هذا النظام مملوك ومُدار حصراً من شركة {BRAND_NAME} — استخدامه ترخيص (إذن) وليس ملكية. يُحسب رسم
                     رمزي {formatPrice(COMPANY_FEE_PER_VISIT)} على كل زيارة (ساري في الفترة الحالية فقط، وقد يتغير مستقبلاً
                     لاشتراك شهري). التسجيل يتطلب بيانات كاملة وصحيحة كوثيقة رسمية، واعتماد المحل بعد المراجعة.
                     التوقيع على العقد إلكتروني وموثّق 100% ولا يُقبل التعديل فيه بعد التوقيع.

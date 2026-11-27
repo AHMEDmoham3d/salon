@@ -78,7 +78,7 @@ import { REGULAR_HAIRCUT_PRICE, COMPANY_FEE_PER_VISIT, SYSTEM_NAME, supabase } f
 import { getShopById } from '@/lib/shopApi';
 import ShopSettingsTab from '@/components/ShopSettingsTab';
 
-const BRAND_NAME = 'ulmi';
+const BRAND_NAME = 'ULMI';
 const CONTRACT_VERSION = 'v2.0-ulmi';
 
 type Tab = 'overview' | 'bookings' | 'customers' | 'visits' | 'subscriptions' | 'revenue' | 'settings';
