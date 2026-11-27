@@ -36,7 +36,6 @@ import {
   getVisitsByCustomer,
   getPlans,
   getAvailableBookingSlots,
-  evaluateCustomerBookingTrust,
   createCustomerBooking,
   updateBookingStatus,
   formatPrice,
@@ -48,13 +47,67 @@ import {
   type Visit,
   type Plan,
   type Booking,
-  type CustomerBookingTrust,
 } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { getAllShops, getShopById, type Shop } from '@/lib/shopApi';
 import { useI18n } from '@/lib/i18n';
 import WhatsAppConsentPanel from '@/components/WhatsAppConsentPanel';
 import SmartHairPhotoAssistant from '@/components/SmartHairPhotoAssistant';
+
+type CustomerBookingTrust = {
+  canBook: boolean;
+  isTrusted: boolean;
+  trustBadge: string;
+  blockReason?: string | null;
+};
+
+async function evaluateCustomerBookingTrust(
+  shopId: string,
+  customerId: string
+): Promise<CustomerBookingTrust> {
+  try {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('status')
+      .eq('shop_id', shopId)
+      .eq('customer_id', customerId);
+
+    if (error) {
+      return { canBook: true, isTrusted: true, trustBadge: 'عميل موثوق', blockReason: null };
+    }
+
+    const rows = data ?? [];
+    const noShowCount = rows.filter((r) => r.status === 'no_show').length;
+    const completedCount = rows.filter((r) => r.status === 'completed').length;
+
+    if (noShowCount >= 3) {
+      return {
+        canBook: false,
+        isTrusted: false,
+        trustBadge: 'الحجز المباشر موقوف',
+        blockReason: 'تم إيقاف الحجز الإلكتروني مؤقتًا بسبب تكرار عدم الحضور في المواعيد السابقة. يرجى التواصل مع المحل مباشرة.',
+      };
+    }
+
+    if (completedCount >= 2 && noShowCount === 0) {
+      return {
+        canBook: true,
+        isTrusted: true,
+        trustBadge: 'عميل موثوق',
+        blockReason: null,
+      };
+    }
+
+    return {
+      canBook: true,
+      isTrusted: noShowCount === 0,
+      trustBadge: noShowCount === 0 ? 'حساب نشط' : 'تنبيه مواعيد',
+      blockReason: null,
+    };
+  } catch {
+    return { canBook: true, isTrusted: true, trustBadge: 'عميل موثوق', blockReason: null };
+  }
+}
 
 export default function CustomerPage() {
   const [customer, setCustomer] = useState<Customer | null>(null);
