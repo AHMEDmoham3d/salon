@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import {
   Building2,
@@ -506,11 +505,16 @@ function AdminLogin({
         {/* Brand */}
 
         <div className="mb-6 text-center">
-          <div className="mx-auto flex min-h-20 w-full items-center justify-center rounded-2xl border border-stone-200 bg-white px-6 py-4 text-stone-950 shadow-sm">
-            <UlmiWordmark className="w-36" />
+          <div className="mb-4 flex items-center justify-center">
+            <span
+              className="font-sans text-3xl font-black tracking-[0.2em] text-slate-900"
+              aria-label="ULMI"
+            >
+              ULMI
+            </span>
           </div>
 
-          <h1 className="mt-3 font-display text-2xl font-extrabold text-stone-900">
+          <h1 className="mt-2 font-display text-2xl font-extrabold text-stone-900">
             دخول الإدارة
           </h1>
 
