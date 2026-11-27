@@ -230,6 +230,36 @@ export default function CustomerPage() {
   return <ShopSelect onLogin={handleLogin} />;
 }
 
+/* ---------- Small shared layout helper ---------- */
+function SectionTitle({
+  icon,
+  title,
+  subtitle,
+  action,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-stone-900 text-white">
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <h2 className="truncate font-display text-base font-extrabold text-stone-900 sm:text-lg">
+            {title}
+          </h2>
+          {subtitle && <p className="truncate text-xs text-stone-500">{subtitle}</p>}
+        </div>
+      </div>
+      {action}
+    </div>
+  );
+}
+
 /* ---------- Smart login ---------- */
 function ShopSelect({
   onLogin,
@@ -789,16 +819,16 @@ function CustomerBookingSection({
   };
 
   return (
-    <div id="customer-booking" className="scroll-mt-6 space-y-5">
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(290px,0.85fr)]">
+    <div id="customer-booking" className="scroll-mt-24 space-y-5">
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(300px,0.85fr)]">
         {/* Booking steps card */}
-        <div className="card border-stone-200/90 bg-white p-5 sm:p-6">
+        <div className="card min-w-0 border-stone-200/90 bg-white p-4 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-3 border-b border-stone-100 pb-4">
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-center gap-3">
               <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-stone-900 text-white">
                 <Calendar className="h-5 w-5" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h3 className="font-display text-lg font-extrabold text-stone-900">
                   احجز موعدك الآن
                 </h3>
@@ -810,7 +840,7 @@ function CustomerBookingSection({
 
             {trust && (
               <span
-                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold ${
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold ${
                   trust.isTrusted
                     ? 'border border-emerald-200 bg-emerald-50 text-emerald-800'
                     : 'border border-stone-200 bg-stone-100 text-stone-800'
@@ -827,7 +857,7 @@ function CustomerBookingSection({
               {trust.blockReason}
             </div>
           ) : (
-            <div className="mt-5 space-y-5">
+            <div className="mt-5 space-y-6">
               {branches.length > 1 && (
                 <div>
                   <label className="label flex items-center gap-1.5">
@@ -910,7 +940,7 @@ function CustomerBookingSection({
 
               <div>
                 <label className="label">1. اختر اليوم</label>
-                <div className="flex gap-2 overflow-x-auto pb-1">
+                <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1.5">
                   {dates.map((d) => {
                     const activeDay = selectedDate === d.value;
                     return (
@@ -918,7 +948,7 @@ function CustomerBookingSection({
                         key={d.value}
                         type="button"
                         onClick={() => setSelectedDate(d.value)}
-                        className={`shrink-0 rounded-xl border px-3.5 py-2 text-xs font-bold transition ${
+                        className={`shrink-0 rounded-xl border px-3.5 py-2.5 text-xs font-bold transition ${
                           activeDay
                             ? 'border-stone-900 bg-stone-900 text-white shadow-2xs'
                             : 'border-stone-200 bg-stone-50/70 text-stone-700 hover:border-stone-300 hover:bg-white'
@@ -932,11 +962,13 @@ function CustomerBookingSection({
               </div>
 
               <div>
-                <div className="mb-2 flex items-center justify-between">
+                <div className="mb-2 flex items-center justify-between gap-2">
                   <label className="label mb-0">
                     2. اختر الوقت المتاح (المواعيد المحجوزة بالكامل مغلقة)
                   </label>
-                  {loadingSlots && <Loader2 className="h-4 w-4 animate-spin text-stone-400" />}
+                  {loadingSlots && (
+                    <Loader2 className="h-4 w-4 shrink-0 animate-spin text-stone-400" />
+                  )}
                 </div>
 
                 {branchBarbers.length === 0 ? (
@@ -944,8 +976,8 @@ function CustomerBookingSection({
                     جميع الحلاقين في إجازة حاليًا. يرجى المحاولة لاحقًا أو اختيار فرع آخر.
                   </div>
                 ) : loadingSlots ? (
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {[1, 2, 3, 4].map((n) => (
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+                    {[1, 2, 3, 4, 5, 6].map((n) => (
                       <div key={n} className="h-11 animate-shimmer rounded-xl" />
                     ))}
                   </div>
@@ -954,7 +986,7 @@ function CustomerBookingSection({
                     جميع الكراسي محجوزة في هذا اليوم. جرّب يومًا آخر.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-4 xl:grid-cols-6">
                     {slots.map((slot) => {
                       const isSelected = selectedSlot === slot.start_at && slot.available;
                       return (
@@ -963,7 +995,7 @@ function CustomerBookingSection({
                           type="button"
                           disabled={!slot.available}
                           onClick={() => setSelectedSlot(slot.start_at)}
-                          className={`rounded-xl border px-3 py-2.5 text-center text-xs font-bold transition ${
+                          className={`rounded-xl border px-2 py-2.5 text-center text-xs font-bold transition ${
                             !slot.available
                               ? 'cursor-not-allowed border-stone-200 bg-stone-100 text-stone-400 line-through'
                               : isSelected
@@ -1024,7 +1056,7 @@ function CustomerBookingSection({
 
               {feedback && (
                 <div
-                  className={`rounded-xl border p-3.5 text-xs font-bold ${
+                  className={`rounded-xl border p-3.5 text-xs font-bold leading-relaxed ${
                     feedback.type === 'ok'
                       ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
                       : 'border-red-200 bg-red-50 text-red-700'
@@ -1052,36 +1084,38 @@ function CustomerBookingSection({
         </div>
 
         {/* Sticky Live Booking Summary & Active Bookings */}
-        <aside className="space-y-4 lg:sticky lg:top-5">
+        <aside className="min-w-0 space-y-4 lg:sticky lg:top-24">
           <div className="card border-stone-200/90 bg-stone-50/70 p-4 sm:p-5">
             <p className="text-xs font-extrabold text-stone-900">ملخص الحجز المختار</p>
-            <div className="mt-3 space-y-2 rounded-xl border border-stone-200 bg-white p-3.5 text-xs">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-stone-500">الخدمة</span>
-                <span className="font-extrabold text-stone-900">{serviceName}</span>
+            <div className="mt-3 space-y-2.5 rounded-xl border border-stone-200 bg-white p-3.5 text-xs">
+              <div className="flex items-center justify-between gap-3">
+                <span className="shrink-0 text-stone-500">الخدمة</span>
+                <span className="truncate text-left font-extrabold text-stone-900">
+                  {serviceName}
+                </span>
               </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-stone-500">التاريخ</span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="shrink-0 text-stone-500">التاريخ</span>
                 <span className="font-bold text-stone-800">{formatDate(selectedDate)}</span>
               </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-stone-500">الوقت</span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="shrink-0 text-stone-500">الوقت</span>
                 <span className="font-bold text-stone-800">
                   {selectedSlotObj ? selectedSlotObj.label : 'لم يُحدد بعد'}
                 </span>
               </div>
               {branches.length > 0 && (
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-stone-500">الفرع</span>
-                  <span className="font-bold text-stone-800">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="shrink-0 text-stone-500">الفرع</span>
+                  <span className="truncate font-bold text-stone-800">
                     {branchMap.get(selectedBranchId || branches[0]?.id)?.name ?? '—'}
                   </span>
                 </div>
               )}
               {branchBarbers.length > 0 && (
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-stone-500">الحلاق</span>
-                  <span className="font-bold text-stone-800">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="shrink-0 text-stone-500">الحلاق</span>
+                  <span className="truncate font-bold text-stone-800">
                     {selectedBarberId === 'any'
                       ? 'تلقائي (أقرب متاح)'
                       : barberMap.get(selectedBarberId)?.name ?? '—'}
@@ -1118,12 +1152,14 @@ function CustomerBookingSection({
                         <span className="rounded-lg bg-stone-900 px-2.5 py-0.5 font-mono text-xs font-extrabold text-white">
                           {b.booking_code}
                         </span>
-                        <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${badge.cls}`}>
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${badge.cls}`}
+                        >
                           {badge.label}
                         </span>
                       </div>
                       <p className="mt-2 text-sm font-extrabold text-stone-900">{b.service_name}</p>
-                      <p className="mt-0.5 text-xs text-stone-600">
+                      <p className="mt-0.5 text-xs leading-relaxed text-stone-600">
                         الموعد: {formatDateTime(b.start_at)}
                         {bBranch && branches.length > 1 ? ` · الفرع: ${bBranch.name}` : ''}
                         {bBarber ? ` · الحلاق: ${bBarber.name}` : ''}
@@ -1138,7 +1174,9 @@ function CustomerBookingSection({
                           onClick={() => void handleCancelBooking(b)}
                           className="mt-2.5 inline-flex w-full items-center justify-center gap-1 rounded-xl border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-50 disabled:opacity-50"
                         >
-                          {cancellingId === b.id && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                          {cancellingId === b.id && (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          )}
                           إلغاء الحجز
                         </button>
                       )}
@@ -1621,7 +1659,7 @@ function HairConsultation({
             <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-stone-900 text-white">
               <Camera className="h-6 w-6" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="font-display text-lg font-extrabold text-stone-900">
                   {t('consult.title')}
@@ -1634,7 +1672,7 @@ function HairConsultation({
               <p className="mt-2.5 text-sm leading-relaxed text-stone-600">{t('consult.intro')}</p>
             </div>
           </div>
-          <button onClick={() => setStep('hair')} className="btn-primary shrink-0 px-5">
+          <button onClick={() => setStep('hair')} className="btn-primary w-full shrink-0 px-5 sm:w-auto">
             <Sparkles className="h-4 w-4" /> {t('consult.start')}
           </button>
         </div>
@@ -1710,7 +1748,7 @@ function HairConsultation({
 
   return (
     <div className="card overflow-hidden border-stone-200/90 bg-white">
-      <div className="flex items-center justify-between bg-stone-900 px-5 py-4 text-white">
+      <div className="flex items-center justify-between gap-3 bg-stone-900 px-5 py-4 text-white">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-emerald-400" />
           <span className="text-sm font-extrabold">{t('consult.result')}</span>
@@ -1719,7 +1757,7 @@ function HairConsultation({
           <button
             type="button"
             onClick={onGoBooking}
-            className="rounded-lg bg-white/15 px-3 py-1 text-xs font-bold text-white transition hover:bg-white/25"
+            className="shrink-0 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-white/25"
           >
             {L ? 'احجز بهذه القصة' : 'Book This Look'}
           </button>
@@ -1736,7 +1774,7 @@ function HairConsultation({
             </p>
             <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-3.5">
               <p className="text-xs font-extrabold text-stone-700">{t('consult.summary')}</p>
-              <p className="mt-1 text-xs text-stone-600">
+              <p className="mt-1 text-xs leading-relaxed text-stone-600">
                 {L
                   ? `شعر ${
                       hair === 'straight'
@@ -1869,7 +1907,7 @@ function ReferralWidget({ customerName }: { customerName: string }) {
         <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/10 text-emerald-400">
           <Gift className="h-5 w-5" />
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="font-display text-sm font-extrabold">{t('referral.title')}</p>
           <p className="text-xs text-stone-300">{t('referral.desc')}</p>
         </div>
@@ -1877,7 +1915,7 @@ function ReferralWidget({ customerName }: { customerName: string }) {
       <div className="space-y-3.5 p-4">
         <div className="flex items-center gap-2">
           <div
-            className="flex-1 rounded-xl border border-dashed border-stone-300 bg-stone-50 px-3.5 py-2.5 text-center font-display text-base font-extrabold tracking-wider text-stone-900"
+            className="min-w-0 flex-1 truncate rounded-xl border border-dashed border-stone-300 bg-stone-50 px-3.5 py-2.5 text-center font-display text-base font-extrabold tracking-wider text-stone-900"
             dir="ltr"
           >
             {code}
@@ -2050,9 +2088,9 @@ function CustomerDetail({
   if (loading) {
     return (
       <div className="mx-auto max-w-6xl space-y-5 px-4 py-7 sm:px-6">
-        <div className="h-28 animate-shimmer rounded-2xl" />
+        <div className="h-32 animate-shimmer rounded-3xl" />
         <div className="h-12 animate-shimmer rounded-2xl" />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           {[1, 2, 3, 4].map((n) => (
             <div key={n} className="h-24 animate-shimmer rounded-2xl" />
           ))}
@@ -2108,6 +2146,23 @@ function CustomerDetail({
       ? { label: t('cust.level.bronze'), icon: Award, tone: 'text-stone-800', bg: 'bg-stone-100 border-stone-200' }
       : { label: t('cust.level.new'), icon: User, tone: 'text-stone-700', bg: 'bg-stone-50 border-stone-200' };
   const LoyaltyIcon = loyaltyLevel.icon;
+
+  // Next loyalty milestone (keeps the customer engaged inside the page)
+  const nextMilestone =
+    totalVisits >= 20
+      ? null
+      : totalVisits >= 10
+      ? { target: 20, label: t('cust.level.gold') }
+      : totalVisits >= 5
+      ? { target: 10, label: t('cust.level.silver') }
+      : { target: 5, label: t('cust.level.bronze') };
+  const milestoneBase = totalVisits >= 10 ? 10 : totalVisits >= 5 ? 5 : 0;
+  const milestoneProgress = nextMilestone
+    ? Math.min(
+        100,
+        Math.round(((totalVisits - milestoneBase) / (nextMilestone.target - milestoneBase)) * 100)
+      )
+    : 100;
 
   const tabs: { k: CustomerTab; label: string; shortLabel: string; icon: typeof Users; badge?: number }[] = [
     {
@@ -2182,14 +2237,17 @@ function CustomerDetail({
   return (
     <div
       id="customer-top"
-      className="customer-page animate-fade-in mx-auto max-w-6xl space-y-5 px-4 pb-24 pt-6 sm:px-6 md:space-y-6 md:pb-10"
+      className="customer-page animate-fade-in mx-auto max-w-6xl space-y-5 px-4 pb-28 pt-5 sm:px-6 md:space-y-6 md:pb-12 md:pt-7"
     >
-      {/* Header */}
-      <header className="card border-stone-200/90 bg-white p-4 sm:p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      {/* Header (dark hero card) */}
+      <header className="relative overflow-hidden rounded-3xl border border-stone-800 bg-stone-900 p-4 text-white shadow-sm sm:p-6">
+        <div className="pointer-events-none absolute -left-16 -top-16 h-48 w-48 rounded-full bg-white/5" />
+        <div className="pointer-events-none absolute -bottom-20 right-1/3 h-52 w-52 rounded-full bg-emerald-400/5" />
+
+        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center gap-3.5 sm:gap-4">
             {shop?.logo_url ? (
-              <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl border border-stone-200 bg-stone-50 p-1.5 shadow-2xs sm:h-16 sm:w-16">
+              <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/15 bg-white p-1.5 sm:h-20 sm:w-20">
                 <img
                   src={shop.logo_url}
                   alt={shop.shop_name || shopName || 'Shop logo'}
@@ -2197,36 +2255,42 @@ function CustomerDetail({
                 />
               </div>
             ) : (
-              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-stone-900 font-display text-xl font-extrabold text-white shadow-2xs sm:h-16 sm:w-16">
+              <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-white/15 bg-white/10 font-display text-2xl font-extrabold text-white sm:h-20 sm:w-20">
                 {(shopName || customer.name).charAt(0)}
               </div>
             )}
 
-            <div className="min-w-0 space-y-1.5">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="truncate font-display text-xl font-extrabold text-stone-900 sm:text-2xl">
-                  {customer.name}
-                </h1>
+            <div className="min-w-0 space-y-2">
+              <h1 className="truncate font-display text-xl font-extrabold text-white sm:text-2xl lg:text-3xl">
+                {customer.name}
+              </h1>
+
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                 {(shop?.shop_name || shopName) && (
-                  <span className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-0.5 text-[11px] font-bold text-stone-700">
+                  <span className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/10 px-2.5 py-0.5 text-[11px] font-bold text-white">
+                    <Store className="h-3 w-3" />
                     {shop?.shop_name || shopName}
                   </span>
                 )}
                 {active ? (
-                  <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />
+                  <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-300/30 bg-emerald-400/15 px-2.5 py-0.5 text-[11px] font-bold text-emerald-300">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
                     <span>
                       {t('cust.subActive')} ({remaining})
                     </span>
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-0.5 text-[11px] font-bold text-stone-600">
+                  <span className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-0.5 text-[11px] font-bold text-stone-300">
                     <span>{t('cust.subInactive')}</span>
                   </span>
                 )}
+                <span className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/10 px-2.5 py-0.5 text-[11px] font-bold text-white">
+                  <LoyaltyIcon className="h-3.5 w-3.5" />
+                  {loyaltyLevel.label}
+                </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-300">
                 <span className="inline-flex items-center gap-1">
                   <Clock className="h-3.5 w-3.5 text-stone-400" />
                   <span>
@@ -2234,28 +2298,24 @@ function CustomerDetail({
                   </span>
                 </span>
                 {shop && (
-                  <>
-                    <span className="hidden text-stone-300 sm:inline">•</span>
-                    <span className="inline-flex items-center gap-1 rounded-lg border border-stone-200 bg-stone-50/90 px-2.5 py-1 font-bold text-stone-800">
-                      <Scissors className="h-3.5 w-3.5 text-stone-600" />
-                      {L ? 'سعر الحلاقة العادية:' : 'Regular haircut:'}{' '}
-                      {formatPrice(Number(shop.regular_haircut_price ?? 50))}
-                    </span>
-                  </>
+                  <span className="inline-flex items-center gap-1 font-bold text-white">
+                    <Scissors className="h-3.5 w-3.5 text-stone-300" />
+                    {L ? 'سعر الحلاقة العادية:' : 'Regular haircut:'}{' '}
+                    {formatPrice(Number(shop.regular_haircut_price ?? 50))}
+                  </span>
                 )}
-                <span className="hidden text-stone-300 sm:inline">•</span>
-                <span className="inline-flex items-center gap-1 text-stone-500">
+                <span className="inline-flex items-center gap-1 text-stone-400">
                   <Lock className="h-3 w-3" /> {t('cust.secure')}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-stone-100 pt-3.5 lg:justify-end lg:border-t-0 lg:pt-0">
+          <div className="flex w-full items-center gap-2.5 border-t border-white/10 pt-4 lg:w-auto lg:border-t-0 lg:pt-0">
             <button
               type="button"
               onClick={() => switchTab('booking')}
-              className="btn-primary h-10 px-4 text-xs"
+              className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-white px-5 text-xs font-extrabold text-stone-900 transition hover:bg-stone-100 lg:flex-none"
             >
               <Calendar className="h-4 w-4 shrink-0" />
               <span>{L ? 'احجز موعدك الآن' : 'Book Now'}</span>
@@ -2264,19 +2324,19 @@ function CustomerDetail({
             <button
               type="button"
               onClick={onLogout}
-              className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-stone-200 bg-white px-3.5 text-xs font-bold text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900"
+              className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl border border-white/20 bg-white/5 px-3.5 text-xs font-bold text-stone-200 transition hover:bg-white/15 hover:text-white"
             >
               <LogOut className="h-4 w-4 shrink-0" />
-              <span>{t('cust.logout')}</span>
+              <span className="hidden sm:inline">{t('cust.logout')}</span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* Sticky Navigation Bar so customer can jump seamlessly inside their hub */}
+      {/* Sticky top navigation for tablet & laptop (mobile uses bottom nav) */}
       <nav
         aria-label={L ? 'أقسام صفحة العميل' : 'Customer navigation'}
-        className="sticky top-2 z-30 flex gap-1.5 overflow-x-auto rounded-2xl border border-stone-200/90 bg-white/95 p-1.5 shadow-2xs backdrop-blur-md"
+        className="sticky top-2 z-30 hidden gap-1.5 overflow-x-auto rounded-2xl border border-stone-200/90 bg-white/95 p-1.5 shadow-2xs backdrop-blur-md md:flex"
       >
         {tabs.map((item) => {
           const isActive = tab === item.k;
@@ -2285,14 +2345,14 @@ function CustomerDetail({
               key={item.k}
               type="button"
               onClick={() => switchTab(item.k)}
-              className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition sm:text-sm ${
+              className={`inline-flex flex-1 shrink-0 items-center justify-center gap-2 rounded-xl px-3.5 py-2.5 text-xs font-bold transition lg:text-sm ${
                 isActive
                   ? 'bg-stone-900 text-white shadow-xs'
                   : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
               }`}
             >
               <item.icon className={`h-4 w-4 ${isActive ? 'text-stone-200' : 'text-stone-500'}`} />
-              <span>{item.label}</span>
+              <span className="whitespace-nowrap">{item.label}</span>
               {item.badge !== undefined && (
                 <span
                   className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${
@@ -2308,9 +2368,9 @@ function CustomerDetail({
       </nav>
 
       {/* Main Content */}
-      <main className="min-w-0 space-y-6">
+      <main key={tab} className="animate-fade-in min-w-0 space-y-6">
         {tab === 'overview' && (
-          <div className="space-y-6">
+          <div className="space-y-6 md:space-y-8">
             {/* Top 4 Interactive KPI Cards */}
             <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
               {operationalCards.map((c) => (
@@ -2318,35 +2378,74 @@ function CustomerDetail({
                   key={c.label}
                   type="button"
                   onClick={c.onClick}
-                  className="card flex items-center justify-between gap-2 p-4 text-right transition hover:border-stone-300 hover:bg-stone-50/60"
+                  className="card flex items-center justify-between gap-2 p-3.5 text-right transition hover:border-stone-300 hover:bg-stone-50/60 sm:p-4"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-xs font-bold text-stone-500">{c.label}</p>
-                    <p className="mt-1.5 truncate font-display text-xl font-extrabold text-stone-900 sm:text-2xl">
+                    <p className="mt-1.5 truncate font-display text-lg font-extrabold text-stone-900 sm:text-2xl">
                       {c.value}
                     </p>
                     {c.subText && (
                       <p className="mt-1 truncate text-[11px] text-stone-500">{c.subText}</p>
                     )}
                   </div>
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-stone-200 bg-stone-50 text-stone-700">
+                  <div className="hidden h-10 w-10 shrink-0 place-items-center rounded-xl border border-stone-200 bg-stone-50 text-stone-700 sm:grid">
                     <c.icon className="h-5 w-5" />
                   </div>
                 </button>
               ))}
             </div>
 
-            {/* Catchy 2-Column Cockpit: Subscription + Quick Action Hub */}
-            <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(290px,0.9fr)]">
-              <section className="card overflow-hidden">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 bg-stone-50/50 px-5 py-4">
-                  <div className="flex items-center gap-2.5">
+            {/* Loyalty milestone strip - keeps the customer motivated */}
+            <button
+              type="button"
+              onClick={() => switchTab('rewards')}
+              className="card flex w-full items-center gap-3.5 border-stone-200/90 bg-white p-4 text-right transition hover:border-stone-300"
+            >
+              <div
+                className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl border ${loyaltyLevel.bg}`}
+              >
+                <LoyaltyIcon className={`h-5 w-5 ${loyaltyLevel.tone}`} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate text-sm font-extrabold text-stone-900">
+                    {t('cust.loyalty')}: {loyaltyLevel.label}
+                  </p>
+                  <span className="shrink-0 text-xs font-extrabold text-stone-600">
+                    {nextMilestone ? `${totalVisits} / ${nextMilestone.target}` : totalVisits}
+                  </span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-stone-200">
+                  <div
+                    className="h-full rounded-full bg-emerald-600 transition-all duration-500"
+                    style={{ width: `${milestoneProgress}%` }}
+                  />
+                </div>
+                <p className="mt-1.5 truncate text-[11px] text-stone-500">
+                  {nextMilestone
+                    ? L
+                      ? `باقي ${nextMilestone.target - totalVisits} زيارات للوصول إلى ${nextMilestone.label}`
+                      : `${nextMilestone.target - totalVisits} more visits to reach ${nextMilestone.label}`
+                    : L
+                    ? 'وصلت لأعلى مستوى ولاء، شكرًا لثقتك!'
+                    : 'You reached the top loyalty level. Thank you!'}
+                </p>
+              </div>
+              <ChevronLeft className="h-5 w-5 shrink-0 text-stone-400" />
+            </button>
+
+            {/* 2-Column Cockpit: Subscription + Quick Action Hub */}
+            <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.9fr)]">
+              <section className="card min-w-0 overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 bg-stone-50/50 px-4 py-4 sm:px-5">
+                  <div className="flex min-w-0 items-center gap-2.5">
                     {active ? (
-                      <CheckCircle2 className="h-5 w-5 text-emerald-700" />
+                      <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-700" />
                     ) : (
-                      <XCircle className="h-5 w-5 text-stone-400" />
+                      <XCircle className="h-5 w-5 shrink-0 text-stone-400" />
                     )}
-                    <div>
+                    <div className="min-w-0">
                       <h2 className="font-display text-base font-extrabold text-stone-900">
                         {active ? t('cust.subActive') : t('cust.subInactive')}
                       </h2>
@@ -2363,14 +2462,14 @@ function CustomerDetail({
                   <button
                     type="button"
                     onClick={() => switchTab('booking')}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-stone-900 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-stone-800"
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-stone-900 px-3.5 py-2 text-xs font-bold text-white transition hover:bg-stone-800"
                   >
                     <Calendar className="h-3.5 w-3.5" />
                     {L ? 'احجز موعدك' : 'Book Appointment'}
                   </button>
                 </div>
 
-                <div className="bg-white p-5">
+                <div className="bg-white p-4 sm:p-5">
                   {active && sub ? (
                     <div className="space-y-4">
                       {sub.plan?.description && (
@@ -2447,7 +2546,7 @@ function CustomerDetail({
                       </div>
                     </div>
                   ) : (
-                    <div className="flex flex-col justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50/70 p-4 text-xs text-stone-600 sm:flex-row sm:items-center">
+                    <div className="flex flex-col justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50/70 p-4 text-xs leading-relaxed text-stone-600 sm:flex-row sm:items-center">
                       <span>
                         {L
                           ? 'يمكنك الاستفادة من باقات التوفير الشهرية والحصول على زيارات مخفضة من خلال المحل.'
@@ -2465,8 +2564,8 @@ function CustomerDetail({
                 </div>
               </section>
 
-              {/* Inside-Page Quick Launcher & Recent Visit Preview */}
-              <aside className="space-y-4">
+              {/* Quick Launcher & Recent Visit Preview */}
+              <aside className="min-w-0 space-y-4">
                 <div className="card border-stone-200/90 bg-white p-4 sm:p-5">
                   <p className="text-xs font-extrabold text-stone-900">
                     {L ? 'تنقل سريع داخل صفحتك' : 'Quick Actions'}
@@ -2475,7 +2574,7 @@ function CustomerDetail({
                     <button
                       type="button"
                       onClick={() => switchTab('booking')}
-                      className="flex flex-col items-start gap-1.5 rounded-xl border border-stone-200 bg-stone-50/80 p-3 text-right transition hover:border-stone-900 hover:bg-stone-900 hover:text-white group"
+                      className="group flex flex-col items-start gap-1.5 rounded-xl border border-stone-200 bg-stone-50/80 p-3 text-right transition hover:border-stone-900 hover:bg-stone-900 hover:text-white"
                     >
                       <Calendar className="h-4 w-4 text-stone-800 group-hover:text-white" />
                       <span className="text-xs font-extrabold">
@@ -2485,7 +2584,7 @@ function CustomerDetail({
                     <button
                       type="button"
                       onClick={() => switchTab('consultation')}
-                      className="flex flex-col items-start gap-1.5 rounded-xl border border-stone-200 bg-stone-50/80 p-3 text-right transition hover:border-stone-900 hover:bg-stone-900 hover:text-white group"
+                      className="group flex flex-col items-start gap-1.5 rounded-xl border border-stone-200 bg-stone-50/80 p-3 text-right transition hover:border-stone-900 hover:bg-stone-900 hover:text-white"
                     >
                       <Sparkles className="h-4 w-4 text-stone-800 group-hover:text-white" />
                       <span className="text-xs font-extrabold">
@@ -2495,7 +2594,7 @@ function CustomerDetail({
                     <button
                       type="button"
                       onClick={() => switchTab('history')}
-                      className="flex flex-col items-start gap-1.5 rounded-xl border border-stone-200 bg-stone-50/80 p-3 text-right transition hover:border-stone-900 hover:bg-stone-900 hover:text-white group"
+                      className="group flex flex-col items-start gap-1.5 rounded-xl border border-stone-200 bg-stone-50/80 p-3 text-right transition hover:border-stone-900 hover:bg-stone-900 hover:text-white"
                     >
                       <CalendarCheck className="h-4 w-4 text-stone-800 group-hover:text-white" />
                       <span className="text-xs font-extrabold">
@@ -2505,7 +2604,7 @@ function CustomerDetail({
                     <button
                       type="button"
                       onClick={() => switchTab('rewards')}
-                      className="flex flex-col items-start gap-1.5 rounded-xl border border-stone-200 bg-stone-50/80 p-3 text-right transition hover:border-stone-900 hover:bg-stone-900 hover:text-white group"
+                      className="group flex flex-col items-start gap-1.5 rounded-xl border border-stone-200 bg-stone-50/80 p-3 text-right transition hover:border-stone-900 hover:bg-stone-900 hover:text-white"
                     >
                       <Gift className="h-4 w-4 text-emerald-700 group-hover:text-emerald-300" />
                       <span className="text-xs font-extrabold">
@@ -2565,23 +2664,36 @@ function CustomerDetail({
             </div>
 
             {/* Quick Booking Widget directly accessible in Overview */}
-            <CustomerBookingSection
-              customer={customer}
-              shopId={shopId}
-              plans={plans}
-              activeSub={sub}
-              onBookingChanged={() => void loadCustomerData()}
-            />
+            <section className="space-y-4">
+              <SectionTitle
+                icon={<Calendar className="h-4.5 w-4.5" />}
+                title={L ? 'احجز موعدك بسرعة' : 'Quick Booking'}
+                subtitle={
+                  L ? 'اختر الوقت المناسب واحجز بدون الخروج من صفحتك' : 'Pick a time and book instantly'
+                }
+              />
+              <CustomerBookingSection
+                customer={customer}
+                shopId={shopId}
+                plans={plans}
+                activeSub={sub}
+                onBookingChanged={() => void loadCustomerData()}
+              />
+            </section>
 
             {/* Offers & WhatsApp Consent */}
-            <OffersWidget
-              totalVisits={totalVisits}
-              active={active}
-              daysLeft={daysLeft}
-              onActionClick={() => switchTab('rewards')}
-            />
+            <section className="space-y-4">
+              <OffersWidget
+                totalVisits={totalVisits}
+                active={active}
+                daysLeft={daysLeft}
+                onActionClick={() => switchTab('rewards')}
+              />
+            </section>
 
-            <WhatsAppConsentPanel customerName={customer.name} phone={customer.phone} />
+            <section>
+              <WhatsAppConsentPanel customerName={customer.name} phone={customer.phone} />
+            </section>
           </div>
         )}
 
@@ -2606,7 +2718,7 @@ function CustomerDetail({
         )}
 
         {tab === 'history' && (
-          <section id="visit-history" className="card space-y-4 border-stone-200/90 bg-white p-5 sm:p-6">
+          <section id="visit-history" className="card space-y-4 border-stone-200/90 bg-white p-4 sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 pb-4">
               <div>
                 <h3 className="font-display text-lg font-extrabold text-stone-900">
@@ -2627,6 +2739,14 @@ function CustomerDetail({
               <div className="rounded-xl border border-dashed border-stone-300 p-10 text-center text-sm text-stone-500">
                 <Scissors className="mx-auto mb-2 h-8 w-8 text-stone-300" />
                 <p className="font-bold text-stone-700">{t('cust.noVisits')}</p>
+                <button
+                  type="button"
+                  onClick={() => switchTab('booking')}
+                  className="btn-primary mx-auto mt-4 px-5"
+                >
+                  <Calendar className="h-4 w-4" />
+                  {L ? 'احجز أول موعد' : 'Book your first visit'}
+                </button>
               </div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -2653,16 +2773,16 @@ function CustomerDetail({
                         {v.haircut_type ?? t('cust.haircut')}
                       </p>
                       <p className="mt-0.5 flex items-center gap-1 text-xs text-stone-500">
-                        <Clock className="h-3.5 w-3.5 text-stone-400" />{' '}
-                        {formatDateTime(v.visit_date)}
+                        <Clock className="h-3.5 w-3.5 shrink-0 text-stone-400" />{' '}
+                        <span className="truncate">{formatDateTime(v.visit_date)}</span>
                       </p>
                     </div>
                     {v.payment_type === 'subscription' ? (
-                      <span className="badge bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
+                      <span className="badge shrink-0 bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
                         {t('cust.subscription')}
                       </span>
                     ) : (
-                      <span className="font-display text-sm font-extrabold text-stone-900">
+                      <span className="shrink-0 font-display text-sm font-extrabold text-stone-900">
                         {formatPrice(Number(v.charge_amount))}
                       </span>
                     )}
@@ -2675,18 +2795,18 @@ function CustomerDetail({
 
         {tab === 'rewards' && (
           <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.9fr)]">
-            <div className="space-y-6">
+            <div className="min-w-0 space-y-6">
               {/* Loyalty Progress Card */}
-              <div id="loyalty" className="card border-stone-200/90 bg-white p-5 sm:p-6">
+              <div id="loyalty" className="card border-stone-200/90 bg-white p-4 sm:p-6">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3.5">
+                  <div className="flex min-w-0 items-center gap-3.5">
                     <div
                       className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl border ${loyaltyLevel.bg}`}
                     >
                       <LoyaltyIcon className={`h-6 w-6 ${loyaltyLevel.tone}`} />
                     </div>
-                    <div>
-                      <p className="font-display text-base font-extrabold text-stone-900">
+                    <div className="min-w-0">
+                      <p className="truncate font-display text-base font-extrabold text-stone-900">
                         {t('cust.loyalty')}: {loyaltyLevel.label}
                       </p>
                       <p className="text-xs text-stone-500">
@@ -2694,7 +2814,7 @@ function CustomerDetail({
                       </p>
                     </div>
                   </div>
-                  <div className="text-left">
+                  <div className="shrink-0 text-left">
                     <p className="font-display text-2xl font-extrabold text-stone-900">
                       {totalVisits}
                     </p>
@@ -2736,7 +2856,7 @@ function CustomerDetail({
 
               {/* Available Packages */}
               {packageItems.length > 0 && (
-                <div id="plans" className="card border-stone-200/90 bg-white p-5 sm:p-6">
+                <div id="plans" className="card border-stone-200/90 bg-white p-4 sm:p-6">
                   <div className="mb-4 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <Layers className="h-5 w-5 text-stone-800" />
@@ -2747,7 +2867,7 @@ function CustomerDetail({
                     <button
                       type="button"
                       onClick={() => switchTab('booking')}
-                      className="text-xs font-extrabold text-stone-700 underline hover:text-stone-900"
+                      className="shrink-0 text-xs font-extrabold text-stone-700 underline hover:text-stone-900"
                     >
                       {L ? 'احجز بالباقة' : 'Book with Plan'}
                     </button>
@@ -2783,7 +2903,7 @@ function CustomerDetail({
 
               {/* Regular Services */}
               {serviceItems.length > 0 && (
-                <div id="services" className="card border-stone-200/90 bg-white p-5 sm:p-6">
+                <div id="services" className="card border-stone-200/90 bg-white p-4 sm:p-6">
                   <div className="mb-4 flex items-center gap-2">
                     <Scissors className="h-5 w-5 text-stone-800" />
                     <h3 className="font-display text-base font-extrabold text-stone-900">
@@ -2814,7 +2934,7 @@ function CustomerDetail({
               )}
             </div>
 
-            <aside id="rewards" className="space-y-5 lg:sticky lg:top-20">
+            <aside id="rewards" className="min-w-0 space-y-5 lg:sticky lg:top-20">
               <ReferralWidget customerName={customer.name} />
             </aside>
           </div>
@@ -2834,12 +2954,17 @@ function CustomerDetail({
                 key={item.k}
                 type="button"
                 onClick={() => switchTab(item.k)}
-                className={`flex flex-col items-center gap-1 rounded-xl px-1.5 py-1.5 text-[10px] font-bold transition ${
+                className={`relative flex flex-col items-center gap-1 rounded-xl px-1.5 py-2 text-[10px] font-bold transition ${
                   isActive ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-100'
                 }`}
               >
                 <item.icon className="h-4 w-4" />
                 <span className="truncate">{item.shortLabel}</span>
+                {item.badge !== undefined && !isActive && (
+                  <span className="absolute left-1.5 top-1 rounded-full bg-stone-900 px-1.5 text-[9px] font-extrabold text-white">
+                    {item.badge}
+                  </span>
+                )}
               </button>
             );
           })}
